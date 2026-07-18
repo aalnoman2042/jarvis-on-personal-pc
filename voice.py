@@ -178,11 +178,21 @@ class Voice:
             self._recognizer.energy_threshold = config.STT_ENERGY
             self._recognizer.dynamic_energy_threshold = False
 
-    # Below this, essentially any sound counts as speech. A very quiet input
-    # (a phone-as-mic app streaming near-silence, say) calibrates down to single
-    # digits, and then every keyboard tap and breath gets sent off to be
-    # transcribed as nonsense.
-    MIN_ENERGY = 120
+    # The loudness range within which "is this speech?" is a sensible question.
+    #
+    # Listening to the room for a moment is only a good estimate if the room is
+    # steady. A phone used as a microphone streams in bursts — measured on this
+    # PC the same mic calibrated to 18 one minute and 1161 the next — and the
+    # reading lands wherever it happened to land.
+    #
+    # Too low and every keyboard tap is transcribed as nonsense. Too high and
+    # your voice is thrown away as silence. Those aren't equally bad: a
+    # threshold that's too low costs a wasted lookup that returns nothing, while
+    # one that's too high loses the sentence you just said. So the band is
+    # deliberately generous at the top and the ceiling matters more than the
+    # floor. Set STT_ENERGY in .env to skip the guessing entirely.
+    MIN_ENERGY = 80
+    MAX_ENERGY = 400
 
     def calibrate(self, seconds: float = 1.5) -> None:
         """Learn the room's noise floor. Re-run it if your surroundings change."""
@@ -190,10 +200,13 @@ class Voice:
             with self._mic as source:
                 self._recognizer.adjust_for_ambient_noise(source, duration=seconds)
             measured = self._recognizer.energy_threshold
-            if measured < self.MIN_ENERGY:
-                self._recognizer.energy_threshold = self.MIN_ENERGY
-                print(f"[mic calibrated — measured {measured:.0f}, raised to "
-                      f"{self.MIN_ENERGY} so background noise isn't heard as speech]")
+            clamped = min(self.MAX_ENERGY, max(self.MIN_ENERGY, measured))
+            self._recognizer.energy_threshold = clamped
+            if clamped != measured:
+                why = ("that would have ignored you" if measured > clamped
+                       else "that would have heard every rustle")
+                print(f"[mic calibrated — measured {measured:.0f}, using {clamped:.0f}: "
+                      f"{why}]")
             else:
                 print(f"[mic calibrated — noise floor {measured:.0f}]")
         except Exception as exc:  # noqa: BLE001
