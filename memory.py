@@ -307,25 +307,35 @@ def system_prompt() -> str:
 # Shaping history for a model
 # ---------------------------------------------------------------------------
 
-def as_openai(system: str, user: str, limit: int | None = None) -> list[dict]:
+def as_openai(system: str, user: str, limit: int | None = None,
+              max_chars: int | None = None) -> list[dict]:
     """Build a message list: system prompt, past exchanges, then what was just said.
 
     The shape OpenAI-style APIs expect, which covers both the local model and
     Groq. Always starts with the system message and strictly alternates after it,
     so it can't produce the malformed histories providers reject.
+
+    `max_chars` caps the total size of the replayed history. A turn count alone
+    isn't enough for the local model: six long exchanges can outgrow its whole
+    context, and when that happens the oldest thing in the window — the persona —
+    is what gets pushed out.
     """
     if limit is None:
         limit = config.MEMORY_TURNS
-    messages = [{"role": "system", "content": system}]
-    for rec in recent(limit):
-        past_user = (rec.get("user") or "").strip()
-        past_reply = (rec.get("assistant") or "").strip()
+    history, used = [], 0
+    for rec in reversed(recent(limit)):  # newest first, so the oldest drop off
+        past_user = (rec.get("user") or "").strip()[:INJECT_CHARS]
+        past_reply = (rec.get("assistant") or "").strip()[:INJECT_CHARS]
         if not past_user or not past_reply:
             continue  # a half-recorded exchange would break the alternation
-        messages.append({"role": "user", "content": past_user[:INJECT_CHARS]})
-        messages.append({"role": "assistant", "content": past_reply[:INJECT_CHARS]})
-    messages.append({"role": "user", "content": user})
-    return messages
+        if max_chars is not None and used + len(past_user) + len(past_reply) > max_chars:
+            break
+        used += len(past_user) + len(past_reply)
+        history.append({"role": "assistant", "content": past_reply})
+        history.append({"role": "user", "content": past_user})
+    history.reverse()
+    return ([{"role": "system", "content": system}] + history
+            + [{"role": "user", "content": user}])
 
 
 # ---------------------------------------------------------------------------

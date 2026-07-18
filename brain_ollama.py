@@ -46,6 +46,21 @@ def is_available() -> bool:
         return False
 
 
+def _history_budget(prompt: str) -> int:
+    """Characters of past conversation that will actually fit this turn.
+
+    The model's context has to hold the persona, every tool description, the
+    conversation and the reply. Whatever is left after the first three is all
+    the memory there is room for — and if we overrun it, llama.cpp drops the
+    oldest tokens, which is exactly where the persona sits.
+    """
+    reserved = len(prompt) + len(json.dumps(llm_tools.OPENAI_TOOLS_LITE))
+    # Roughly four characters per token, less a margin for the chat formatting
+    # the server adds around every message.
+    spare = (config.OLLAMA_NUM_CTX - config.OLLAMA_NUM_PREDICT) * 4 - reserved - 600
+    return max(0, spare)
+
+
 def _server_exe() -> str:
     """Path to ollama.exe — the copy in "local llm", else one on PATH."""
     local = os.path.join(config.PROJECT_DIR, "local llm", "ollama", "ollama.exe")
@@ -151,8 +166,13 @@ class OllamaBrain:
             # between turns here, so a garbled reply (which small models do emit)
             # can't corrupt anything — retrying just rebuilds a clean list.
             # Built fresh each turn, so something you asked it to remember a
-            # moment ago is already in play — no restart needed.
-            self._messages = memory.as_openai(memory.system_prompt(), text)
+            # moment ago is already in play — no restart needed. History is
+            # sized to whatever context is actually left after the persona and
+            # the tool list, so it can never push the persona out.
+            prompt = memory.system_prompt()
+            self._messages = memory.as_openai(
+                prompt, text, max_chars=_history_budget(prompt)
+            )
             try:
                 return self._converse()
             except Exception as exc:  # noqa: BLE001

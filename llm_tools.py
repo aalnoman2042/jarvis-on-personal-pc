@@ -18,7 +18,7 @@ def open_app(name: str) -> str:
 
 
 def close_app(name: str) -> str:
-    """Close a running desktop application by name (e.g. 'chrome', 'notepad')."""
+    """Close an app by name (e.g. 'chrome'), or 'this' for the window in front."""
     return actions.close_app(name)
 
 
@@ -45,6 +45,20 @@ def web_answer(query: str) -> str:
 def read_webpage(url: str) -> str:
     """Fetch a specific web page and get its text, to summarise out loud."""
     return actions.read_webpage(url)
+
+
+def active_window() -> str:
+    """See what the user is looking at — the app in front and its window title.
+
+    Use for "what am I looking at", "what am I doing", or before acting on
+    something the user referred to as "this".
+    """
+    return actions.active_window()
+
+
+def top_processes(count: str = "3") -> str:
+    """Find which programs are using the most memory right now."""
+    return actions.top_processes(count)
 
 
 def remember(fact: str) -> str:
@@ -131,9 +145,9 @@ def set_autostart(action: str) -> str:
 
 TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
-    write_code, remember, forget, set_reminder, get_time, get_date, system_info,
-    control_volume, media_control, take_screenshot, lock_screen, power_control,
-    set_autostart,
+    write_code, remember, forget, active_window, top_processes, set_reminder,
+    get_time, get_date, system_info, control_volume, media_control,
+    take_screenshot, lock_screen, power_control, set_autostart,
 ]
 DISPATCH = {fn.__name__: fn for fn in TOOL_FUNCTIONS}
 
@@ -159,8 +173,11 @@ _STR = lambda d: {"type": "string", "description": d}  # noqa: E731
 OPENAI_TOOLS = [
     _tool("open_app", "Open a desktop application by name (chrome, notepad, spotify).",
           {"name": _STR("Application name")}, ["name"]),
-    _tool("close_app", "Close a running desktop application by name (chrome, notepad).",
-          {"name": _STR("Application name")}, ["name"]),
+    _tool("close_app",
+          "Close an app by name (chrome, notepad), or pass 'this' to close "
+          "whatever window is in front.",
+          {"name": _STR("Application name, or 'this' for the window in front")},
+          ["name"]),
     _tool("open_website", "Open a website: a shortcut like 'youtube', a domain, or a URL.",
           {"target": _STR("Shortcut, domain, or full URL")}, ["target"]),
     # Descriptions stay short and plain: long, emphatic ones make some models
@@ -172,6 +189,11 @@ OPENAI_TOOLS = [
     _tool("write_code", "Save code or text to a file in the Jarvis Workspace folder.",
           {"filename": _STR("File name with extension, e.g. rename_photos.py"),
            "content": _STR("The complete file content")}, ["filename", "content"]),
+    _tool("active_window",
+          "See what the user is looking at: the app in front and its window title. "
+          "Use for 'what am I looking at', or before acting on 'this'."),
+    _tool("top_processes", "Find which programs are using the most memory now.",
+          {"count": _STR("How many to list, 1 to 5")}),
     _tool("remember",
           "Remember something about the user for good, beyond this conversation. "
           "Use when told to remember, or when they state a lasting preference.",

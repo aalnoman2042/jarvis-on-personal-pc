@@ -99,9 +99,108 @@ PROCESS_NAMES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Knowing what's on screen, so "close this" means something.
+# ---------------------------------------------------------------------------
+
+# Windows the user never means: our own window, and the empty desktop shell.
+_IGNORED_WINDOWS = {"jarvis", "vondo", "program manager", "windows input experience", ""}
+
+
+def _foreground() -> tuple[str, str]:
+    """(window title, process name) of whatever is in front. ('', '') if unknown."""
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return "", ""
+        length = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        proc = ""
+        try:
+            proc = psutil.Process(pid.value).name()
+        except Exception:  # noqa: BLE001  (process died, or access denied)
+            pass
+        return buf.value.strip(), proc
+    except Exception:  # noqa: BLE001
+        return "", ""
+
+
+def active_window() -> str:
+    """What the user is looking at right now — the app and its window title."""
+    title, proc = _foreground()
+    if not title and not proc:
+        return "I can't tell what's in front at the moment."
+    app = proc[:-4] if proc.lower().endswith(".exe") else proc
+    if title.lower() in _IGNORED_WINDOWS or not title:
+        return f"{app or 'Something'} is in front, with no window title."
+    # Most apps title as "document - AppName"; the tail is usually redundant.
+    head = title.split(" - ")[0].strip() or title
+    return f"{app or 'An app'} is in front, showing {head}."
+
+
+def top_processes(count: str = "3") -> str:
+    """Which programs are using the most memory right now."""
+    try:
+        n = max(1, min(5, int(str(count).strip() or 3)))
+    except ValueError:
+        n = 3
+    totals: dict[str, float] = {}
+    for p in psutil.process_iter(["name", "memory_info"]):
+        try:
+            name = (p.info["name"] or "").lower()
+            if not name or name in ("system idle process", "memory compression"):
+                continue
+            # Browsers run a process per tab — report the app, not 14 fragments.
+            totals[name] = totals.get(name, 0.0) + p.info["memory_info"].rss / 1e9
+        except Exception:  # noqa: BLE001  (process vanished mid-scan)
+            continue
+    ranked = sorted(totals.items(), key=lambda kv: -kv[1])[:n]
+    if not ranked:
+        return "I couldn't read the process list."
+    parts = [f"{nm[:-4] if nm.endswith('.exe') else nm} at {gb:.1f} gigabytes"
+             for nm, gb in ranked]
+    return "Using the most memory: " + ", ".join(parts) + "."
+
+
+def close_active_window() -> str:
+    """Close just the window in front — politely.
+
+    Deliberately NOT taskkill: that force-kills every window the app owns and
+    throws away unsaved work. This asks the one window to close, exactly as
+    clicking its X would, so the app can still prompt you to save.
+    """
+    title, proc = _foreground()
+    if not proc:
+        return "I can't tell which window you mean."
+    if proc.lower() in ("explorer.exe", "pythonw.exe", "python.exe"):
+        # The desktop shell, and Jarvis itself.
+        return "I'd rather not close that one. Say the app's name if you mean it."
+    label = (title.split(" - ")[0].strip() or proc.removesuffix(".exe"))[:40]
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        WM_CLOSE = 0x0010
+        if not user32.PostMessageW(user32.GetForegroundWindow(), WM_CLOSE, 0, 0):
+            return f"I couldn't close {label}."
+    except Exception as exc:  # noqa: BLE001
+        return f"I couldn't close {label}. {exc}"
+    return f"Closed {label}."
+
+
 def close_app(name: str) -> str:
     """Close a running desktop application by name (e.g. 'chrome', 'notepad')."""
     name = name.strip().lower()
+    # "close this" / "close that window" — whatever is in front.
+    if name in ("this", "that", "this window", "that window", "current",
+                "current window", "the current window", "it", "this app"):
+        return close_active_window()
     proc = PROCESS_NAMES.get(name, name if name.endswith(".exe") else f"{name}.exe")
     result = subprocess.run(
         f'taskkill /f /im "{proc}"', shell=True, capture_output=True, text=True
