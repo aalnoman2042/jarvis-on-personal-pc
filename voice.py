@@ -39,6 +39,24 @@ EDGE_VOICES = {
     "ryan": "en-GB-RyanNeural",        # British male
     "prabhat": "en-IN-PrabhatNeural",  # Indian male
 }
+
+# Which of the friendly names above are male. Used to keep the offline fallback
+# voices male too — Windows has no "Ryan", so without this a dropped connection
+# would suddenly answer you in the default female SAPI voice.
+MALE_VOICES = {"guy", "eric", "christopher", "ryan", "prabhat"}
+# Voices actually installed on Windows: David is the male one, Zira the female.
+SAPI_MALE, SAPI_FEMALE = "David", "Zira"
+
+
+def _sapi_voice_name() -> str:
+    """The installed Windows voice that best matches the chosen Edge voice."""
+    v = (config.TTS_VOICE or "").strip().lower()
+    if v in EDGE_VOICES:
+        return SAPI_MALE if v in MALE_VOICES else SAPI_FEMALE
+    if "neural" in v:  # a full Edge id like en-GB-RyanNeural
+        return SAPI_MALE if any(m in v for m in
+                                ("ryan", "guy", "eric", "christopher", "prabhat")) else SAPI_FEMALE
+    return config.TTS_VOICE.strip()  # already a Windows voice name, e.g. "David"
 DEFAULT_EDGE_VOICE = "en-US-AriaNeural"
 
 
@@ -94,8 +112,9 @@ def _speak_sapi(text: str) -> None:
     """Speak with Windows SAPI (offline fallback)."""
     b64 = base64.b64encode(text.encode("utf-16-le")).decode()
     voice_pick = ""
-    if config.TTS_VOICE and "Neural" not in config.TTS_VOICE:
-        v = "".join(c for c in config.TTS_VOICE if c.isalnum() or c == " ")
+    wanted = _sapi_voice_name()
+    if wanted:
+        v = "".join(c for c in wanted if c.isalnum() or c == " ")
         voice_pick = (
             "$v = $s.GetInstalledVoices() | "
             f"? {{ $_.VoiceInfo.Name -like '*{v}*' }} | select -First 1; "
@@ -122,6 +141,14 @@ def _speak_pyttsx3(text: str) -> None:
 
     e = pyttsx3.init()
     e.setProperty("rate", config.TTS_RATE)
+    # Match the chosen voice's gender here too, so the very last fallback
+    # doesn't answer in a different voice than every other route.
+    wanted = _sapi_voice_name().lower()
+    if wanted:
+        for v in e.getProperty("voices"):
+            if wanted in v.name.lower():
+                e.setProperty("voice", v.id)
+                break
     e.say(text)
     e.runAndWait()
     e.stop()
@@ -135,13 +162,42 @@ class Voice:
         # ---- Speech to text ----
         self._recognizer = sr.Recognizer()
         self._recognizer.dynamic_energy_threshold = True
+        # Let a natural mid-sentence breath pass without ending the phrase —
+        # cutting early is what turns "open chrome and search" into "open chro".
+        self._recognizer.pause_threshold = config.STT_PAUSE
+        self._recognizer.non_speaking_duration = min(0.5, config.STT_PAUSE / 2)
         try:
             self._mic = sr.Microphone(device_index=config.MIC_INDEX)
         except Exception as exc:  # noqa: BLE001
             print(f"[mic index {config.MIC_INDEX} unavailable ({exc}); using default mic]")
             self._mic = sr.Microphone()
-        with self._mic as source:
-            self._recognizer.adjust_for_ambient_noise(source, duration=1)
+        self.calibrate(config.STT_CALIBRATE)
+        if config.STT_ENERGY > 0:
+            # A fixed floor beats auto-tuning in a room with constant background
+            # noise (fan, traffic), which otherwise drags the threshold down.
+            self._recognizer.energy_threshold = config.STT_ENERGY
+            self._recognizer.dynamic_energy_threshold = False
+
+    # Below this, essentially any sound counts as speech. A very quiet input
+    # (a phone-as-mic app streaming near-silence, say) calibrates down to single
+    # digits, and then every keyboard tap and breath gets sent off to be
+    # transcribed as nonsense.
+    MIN_ENERGY = 120
+
+    def calibrate(self, seconds: float = 1.5) -> None:
+        """Learn the room's noise floor. Re-run it if your surroundings change."""
+        try:
+            with self._mic as source:
+                self._recognizer.adjust_for_ambient_noise(source, duration=seconds)
+            measured = self._recognizer.energy_threshold
+            if measured < self.MIN_ENERGY:
+                self._recognizer.energy_threshold = self.MIN_ENERGY
+                print(f"[mic calibrated — measured {measured:.0f}, raised to "
+                      f"{self.MIN_ENERGY} so background noise isn't heard as speech]")
+            else:
+                print(f"[mic calibrated — noise floor {measured:.0f}]")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[couldn't calibrate the mic: {exc}]")
 
     def say(self, text: str) -> None:
         """Speak text aloud (Edge -> SAPI -> pyttsx3), printing it too."""
@@ -166,8 +222,26 @@ class Voice:
         except sr.WaitTimeoutError:
             return ""
         try:
-            text = self._recognizer.recognize_google(audio)
-            print(f"You: {text}")
+            # show_all returns every candidate transcription with a confidence
+            # score; the plain call just hands back the first, which often isn't
+            # the best one. Picking the highest-confidence line measurably cuts
+            # misheard commands.
+            result = self._recognizer.recognize_google(
+                audio, language=config.STT_LANGUAGE, show_all=True
+            )
+            if not result:
+                return ""
+            if isinstance(result, dict):
+                guesses = result.get("alternative", [])
+                if not guesses:
+                    return ""
+                best = max(guesses, key=lambda g: g.get("confidence", 0))
+                text = best.get("transcript", "")
+                score = best.get("confidence")
+                print(f"You: {text}" + (f"  [{score:.0%} sure]" if score else ""))
+            else:  # older API shape — already a plain string
+                text = str(result)
+                print(f"You: {text}")
             return text.lower().strip()
         except sr.UnknownValueError:
             return ""
