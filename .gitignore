@@ -1,0 +1,25 @@
+# --- Secrets: never push your API keys ---
+.env
+
+# --- Local AI: multi-GB models and the Ollama runtime ---
+"local llm"/
+local llm/
+local-llm/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# --- Runtime state ---
+jarvis.state
+
+# --- OS / editor noise ---
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

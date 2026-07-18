@@ -11,38 +11,65 @@ line in a config file.
 - **System control** — "volume up", "mute", "take a screenshot", "how's my PC?", "lock the screen", "shut down"
 - **Answer questions** — general knowledge and conversation (with the AI brains)
 
-## The four brains
+## The five brains — switch any time from the dropdown
 
-| `VONDO_BRAIN` | Cost | Needs | Notes |
-|---------------|------|-------|-------|
-| `gemini` *(default)* | **Free** | Free Google key | Natural language + PC control |
-| `groq` | **Free** | Free Groq key | Same, very fast |
-| `claude` | Paid | Anthropic key | Most capable — flip to this later |
-| `free` | **Free** | Nothing | Rule-based, works fully offline |
+| `VONDO_BRAIN` | Cost | Needs | Internet? | Notes |
+|---------------|------|-------|-----------|-------|
+| `gemini` *(default)* | **Free** | Free Google key | Yes | Natural language + PC control |
+| `groq` | **Free** | Free Groq key | Yes | Same, very fast |
+| `ollama` | **Free** | One 2 GB download | **No** | Runs on your own PC, no key, no limits |
+| `claude` | Paid | Anthropic key | Yes | Most capable — flip to this any time |
+| `free` | **Free** | Nothing | No | Rule-based, always works as a safety net |
 
-Every brain uses the same voice and the same PC controls — only the intelligence differs.
+Every brain uses the same voice and the same PC controls — only the intelligence
+differs. Pick one from the **Brain** dropdown in the Jarvis window and it switches
+instantly; your choice is remembered for next time. If a brain is rate-limited or
+offline, Jarvis silently drops to the rule-based brain instead of dying.
 
-## Setup (5 minutes)
+## Install on ANY computer (5 minutes)
 
-1. **Install Python 3.10+** (you already have 3.13 ✔). Then install dependencies:
+1. **Get the folder onto the PC** — either clone it:
    ```powershell
-   pip install -r requirements.txt
+   git clone <your-repo-url> vondo
+   cd vondo
    ```
-   > If `pyaudio` fails to install: `pip install pipwin && pipwin install pyaudio`
+   or just copy the folder from a USB stick.
 
-2. **Get a free API key** for the default Gemini brain:
-   → https://aistudio.google.com/app/apikey
+2. **Double-click `setup.bat`.** It checks Python, builds a private `.venv`
+   inside the folder, installs everything (with a PyAudio fallback for stubborn
+   PCs), and opens `.env` for your key. Nothing is installed system-wide.
 
-3. **Create your config:** copy `.env.example` to `.env` and paste the key:
-   ```
-   GEMINI_API_KEY=your_key_here
-   ```
+3. **Paste one free key** into the `.env` file it opens:
+   → Gemini: https://aistudio.google.com/app/apikey
+   → Groq: https://console.groq.com/keys
 
-4. **Run it:**
-   ```powershell
-   python vondo.py
-   ```
-   or just double-click **`run.bat`**.
+   *Don't want a key at all?* Skip this and run **`install_local_llm.bat`**
+   instead — see below.
+
+4. **Double-click `start_jarvis.bat`.**
+
+> Requires Python 3.10+ from [python.org](https://python.org/downloads) with
+> **"Add Python to PATH"** ticked. That's the only prerequisite.
+
+## Offline AI — no key, no internet, no limits
+
+`install_local_llm.bat` downloads Ollama **and** the model into a `local llm`
+folder inside the project (never your C: drive), then wires it up. Afterwards
+pick **Ollama** in the Brain dropdown and Jarvis thinks entirely on your own
+machine — nothing you say leaves the PC.
+
+Which model to use, on a typical CPU-only PC:
+
+| Model | Size | Feel | Controls your PC? |
+|-------|------|------|-------------------|
+| **`qwen2.5:3b`** *(default)* | 1.9 GB | Snappy, replies feel instant | ✅ Yes |
+| `llama3.2:3b` | 2.0 GB | Similar speed, chattier tone | ✅ Yes |
+| `qwen2.5:7b` | 4.7 GB | Noticeably smarter, 3-4s pause | ✅ Yes |
+| ~~`phi3:mini`~~ | 2.2 GB | Fast, but **can't call tools** | ❌ No — chat only |
+
+Change it in `.env` (`OLLAMA_MODEL=`) after pulling it with `ollama pull <name>`.
+Anything below ~3B params gets unreliable at tool calling, which is what lets
+Jarvis actually open apps and set reminders.
 
 ## Using it
 
@@ -75,11 +102,16 @@ All in `.env`:
 
 | File | Purpose |
 |------|---------|
+| `setup.bat` | **Run this first on a new PC** — builds everything |
+| `install_local_llm.bat` | Installs the offline AI brain into `local llm/` |
+| `start_jarvis.bat` | Start the window UI · `run.bat` starts the console version |
 | `vondo.py` | Main loop — listen → think → act → speak |
+| `jarvis_gui.py` | The desktop window, status orb, and Brain dropdown |
 | `voice.py` | Microphone (speech-to-text) + speaker (text-to-speech) |
 | `actions.py` | The PC controls (open apps, volume, screenshots, power…) |
-| `brain_gemini.py` / `brain_groq.py` / `brain_claude.py` | The AI brains |
+| `brain_gemini.py` / `brain_groq.py` / `brain_ollama.py` / `brain_claude.py` | The AI brains |
 | `brain_free.py` | Offline rule-based brain (no key) |
+| `brain_fallback.py` | Catches API failures and drops to the offline brain |
 | `llm_tools.py` | Tool definitions shared by the AI brains |
 | `config.py` | Reads your `.env` settings |
 
