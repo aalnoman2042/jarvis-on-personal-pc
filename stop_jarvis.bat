@@ -6,6 +6,11 @@ REM  (This does NOT disable auto-start; it just stops the running one.
 REM   To stop it starting at boot too, run disable_autostart.bat.)
 REM ============================================================
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*jarvis_gui.py*' -or $_.CommandLine -like '*vondo.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+
+REM Also shut the local AI down, so it isn't left holding RAM in the background.
+taskkill /F /IM "ollama.exe" >nul 2>&1
+taskkill /F /IM "ollama app.exe" >nul 2>&1
+
 echo.
 echo   Jarvis has been powered off.
 echo   Start it again with: start_jarvis.bat   (or reboot if auto-start is on)
