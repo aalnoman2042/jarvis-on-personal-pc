@@ -9,6 +9,7 @@ import difflib
 import sys
 
 import config
+import confirm
 import memory
 import reminders
 from voice import Voice
@@ -48,7 +49,11 @@ def make_brain(choice: str | None = None):
     # brain in it answered — which is what lets the local model carry on a
     # conversation the cloud started. Both the window and the console build
     # brains through here, so nothing else needs to know about it.
-    return memory.wrap(_build_brain(choice))
+    #
+    # confirm sits inside memory: a "yes" answering "shut down the PC?" still
+    # gets remembered as a normal exchange, but the model never sees the bare
+    # "yes" — it has no idea an action was parked, and would only guess.
+    return memory.wrap(confirm.wrap(_build_brain(choice)))
 
 
 def _build_brain(choice: str | None = None):

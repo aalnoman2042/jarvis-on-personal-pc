@@ -9,6 +9,7 @@ Wrappers are defined here (not imported from actions) so the type hints are plai
 `str` — which Gemini's schema generator introspects reliably.
 """
 import actions
+import confirm
 import memory
 
 
@@ -19,7 +20,17 @@ def open_app(name: str) -> str:
 
 def close_app(name: str) -> str:
     """Close an app by name (e.g. 'chrome'), or 'this' for the window in front."""
-    return actions.close_app(name)
+    if actions.is_front_window(name):
+        # Closing the window in front is polite — it asks the app to close, so
+        # anything unsaved still prompts. No need to interrogate the user first.
+        return actions.close_app(name)
+    # Closing by name force-kills every window that app owns, unsaved work and
+    # all. Worth a question.
+    label = name.strip().lower()
+    return confirm.request(
+        f"Force close {label}? Anything unsaved there will be lost. Say yes to confirm.",
+        lambda: actions.close_app(label),
+    )
 
 
 def open_website(target: str) -> str:
@@ -73,7 +84,12 @@ def remember(fact: str) -> str:
 
 def forget(fragment: str) -> str:
     """Forget remembered things matching a word or phrase ('all' forgets everything)."""
-    return memory.forget_fact(fragment)
+    if fragment.strip().lower() in ("all", "everything"):
+        return confirm.request(
+            "Forget everything I've remembered about you? Say yes to confirm.",
+            lambda: memory.forget_fact("all"),
+        )
+    return memory.forget_fact(fragment)  # dropping one note is easy to redo
 
 
 def write_code(filename: str, content: str) -> str:
@@ -128,11 +144,20 @@ def lock_screen() -> str:
 
 
 def power_control(action: str) -> str:
-    """Shut down, restart, or cancel a pending shutdown. Confirm before use.
+    """Shut down, restart, or cancel a pending shutdown.
 
     'action' = 'shutdown', 'restart', or 'cancel'.
     """
-    return actions.power_control(action)
+    verb = action.strip().lower()
+    if verb in ("shutdown", "shut down", "restart", "reboot"):
+        # Asked for, not taken on trust: this is the one thing a misheard
+        # sentence must never be able to do on its own.
+        return confirm.request(
+            f"That will {'restart' if 'r' in verb[:2] else 'shut down'} the PC. "
+            f"Say yes to confirm.",
+            lambda: actions.power_control(verb),
+        )
+    return actions.power_control(action)  # 'cancel' undoes; never needs asking
 
 
 def set_autostart(action: str) -> str:

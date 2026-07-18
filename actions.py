@@ -168,6 +168,16 @@ def top_processes(count: str = "3") -> str:
     return "Using the most memory: " + ", ".join(parts) + "."
 
 
+# The ways a person says "the window I'm looking at".
+_THIS_WINDOW = {"this", "that", "this window", "that window", "current",
+                "current window", "the current window", "it", "this app"}
+
+
+def is_front_window(name: str) -> bool:
+    """True if `name` means "whatever is in front" rather than a named app."""
+    return name.strip().lower() in _THIS_WINDOW
+
+
 def close_active_window() -> str:
     """Close just the window in front — politely.
 
@@ -198,8 +208,7 @@ def close_app(name: str) -> str:
     """Close a running desktop application by name (e.g. 'chrome', 'notepad')."""
     name = name.strip().lower()
     # "close this" / "close that window" — whatever is in front.
-    if name in ("this", "that", "this window", "that window", "current",
-                "current window", "the current window", "it", "this app"):
+    if is_front_window(name):
         return close_active_window()
     proc = PROCESS_NAMES.get(name, name if name.endswith(".exe") else f"{name}.exe")
     result = subprocess.run(
