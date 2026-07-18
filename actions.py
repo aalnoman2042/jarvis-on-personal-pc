@@ -7,9 +7,14 @@ so PC control behaves identically in either mode.
 from __future__ import annotations
 
 import datetime
+import html
+import json
 import os
+import re
 import subprocess
 import sys
+import urllib.parse
+import urllib.request
 import webbrowser
 
 import psutil
@@ -127,6 +132,178 @@ def web_search(query: str) -> str:
     query = query.strip()
     webbrowser.open(f"https://www.google.com/search?q={query.replace(' ', '+')}")
     return f"Here are the search results for {query}."
+
+
+# ---------------------------------------------------------------------------
+# Researching the web itself, instead of dumping you into a browser tab.
+# These return raw text for the AI brain to read and summarise out loud, so
+# Jarvis can answer a question rather than just opening Chrome at it.
+# ---------------------------------------------------------------------------
+
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+# Words too common to prove a search result is on-topic.
+_STOPWORDS = {
+    "what", "when", "where", "which", "whose", "that", "this", "with", "from",
+    "about", "into", "your", "yours", "have", "has", "had", "does", "did",
+    "will", "would", "should", "could", "there", "their", "they", "them",
+    "current", "currently", "latest", "please", "tell", "give", "know",
+}
+
+
+def _fetch(url: str, timeout: float = 12.0, form: dict | None = None) -> str:
+    """GET a URL, or POST it a form. Search engines serve a useless landing page
+    to a plain GET, so searches go through as a POST."""
+    data = urllib.parse.urlencode(form).encode() if form else None
+    headers = {"User-Agent": _UA}
+    if form:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    req = urllib.request.Request(url, data=data, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        charset = resp.headers.get_content_charset() or "utf-8"
+        return resp.read().decode(charset, errors="replace")
+
+
+def _strip_html(raw: str) -> str:
+    """Crude but dependency-free HTML -> readable text."""
+    raw = re.sub(r"(?is)<(script|style|noscript|svg|header|footer|nav)[^>]*>.*?</\1>", " ", raw)
+    raw = re.sub(r"(?s)<[^>]+>", " ", raw)
+    text = html.unescape(raw)
+    return re.sub(r"[ \t\r\f\v]+", " ", text).strip()
+
+
+def _wikipedia_summary(query: str) -> str:
+    """One-paragraph Wikipedia summary, or '' if there's no clean match.
+
+    Goes through Wikipedia's search first, so a spoken question like "what is the
+    capital of Bangladesh" still finds the Dhaka article — turning the question
+    straight into a page slug almost never matches.
+    """
+    try:
+        search = ("https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch="
+                  + urllib.parse.quote(query.strip()) + "&format=json&srlimit=1")
+        hits = json.loads(_fetch(search, 8)).get("query", {}).get("search", [])
+        if not hits:
+            return ""
+        slug = urllib.parse.quote(hits[0]["title"].replace(" ", "_"))
+        data = json.loads(_fetch(f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}", 8))
+        if data.get("type", "").endswith("disambiguation"):
+            return ""
+        return (data.get("extract") or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _ddg_instant(query: str) -> str:
+    """DuckDuckGo's direct answer (definitions, facts), or '' if it has none."""
+    try:
+        url = ("https://api.duckduckgo.com/?q=" + urllib.parse.quote(query)
+               + "&format=json&no_html=1&skip_disambig=1")
+        data = json.loads(_fetch(url, 8))
+        if data.get("AbstractText"):
+            return data["AbstractText"].strip()
+        if data.get("Answer"):
+            return str(data["Answer"]).strip()
+        for topic in data.get("RelatedTopics", [])[:1]:
+            if isinstance(topic, dict) and topic.get("Text"):
+                return topic["Text"].strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _ddg_results(query: str, limit: int = 5) -> list[str]:
+    """Top result snippets from DuckDuckGo's no-JavaScript HTML endpoint."""
+    try:
+        page = _fetch("https://html.duckduckgo.com/html/", form={"q": query})
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for chunk in re.findall(r'(?is)<a[^>]+class="result__a".*?</td>', page)[: limit * 2]:
+        title = _strip_html(re.search(r"(?is)<a[^>]*>(.*?)</a>", chunk).group(1)) if re.search(
+            r"(?is)<a[^>]*>(.*?)</a>", chunk) else ""
+        snip = re.search(r'(?is)class="result__snippet".*?>(.*?)</a>', chunk)
+        snippet = _strip_html(snip.group(1)) if snip else ""
+        line = f"{title}. {snippet}".strip(". ").strip()
+        # Only keep a result that actually mentions something from the question.
+        # Search pages carry ads and unrelated filler, and feeding that to the
+        # model makes it wander off into things you never asked about.
+        keywords = {w for w in re.findall(r"[a-z]{4,}", query.lower())
+                    if w not in _STOPWORDS}
+        relevant = not keywords or any(k in line.lower() for k in keywords)
+        if line and len(line) > 25 and relevant:
+            out.append(line)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def web_answer(query: str) -> str:
+    """Search the web and return what was found, as text to summarise aloud.
+
+    This is the tool for 'what/who/when/why' questions — Jarvis looks it up and
+    tells you the answer instead of opening a browser you'd have to read.
+    """
+    query = query.strip()
+    if not query:
+        return "I need something to look up."
+
+    parts = []
+    instant = _ddg_instant(query)
+    if instant:
+        parts.append(f"Direct answer: {instant}")
+    wiki = _wikipedia_summary(query)
+    if wiki and wiki[:60] not in instant:
+        parts.append(f"Wikipedia: {wiki[:700]}")
+    for i, snippet in enumerate(_ddg_results(query), 1):
+        parts.append(f"Result {i}: {snippet[:350]}")
+
+    if not parts:
+        return (f"I couldn't find anything reliable about {query}. "
+                f"Say 'open a search for {query}' if you want the browser instead.")
+    findings = "\n".join(parts)[:3500]
+    return (f"Web findings for '{query}' (summarise these out loud in one or two "
+            f"spoken sentences, no URLs, no lists):\n{findings}")
+
+
+def read_webpage(url: str) -> str:
+    """Fetch one page and return its readable text, for summarising aloud."""
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        text = _strip_html(_fetch(url, 15))
+    except Exception as exc:  # noqa: BLE001
+        return f"I couldn't open that page. {exc}"
+    if not text:
+        return "That page had no readable text."
+    return (f"Text of {url} (summarise the key points out loud, briefly):\n"
+            f"{text[:4000]}")
+
+
+def write_code(filename: str, content: str) -> str:
+    """Save code (or any text) to a file in the Jarvis workspace and open it.
+
+    Lets you dictate work — "write me a Python script that renames my photos" —
+    and end up with a real file on disk instead of code read out loud.
+    """
+    filename = os.path.basename(filename.strip()) or "untitled.txt"
+    workspace = os.path.join(os.path.expanduser("~"), "Documents", "Jarvis Workspace")
+    try:
+        os.makedirs(workspace, exist_ok=True)
+        path = os.path.join(workspace, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    except OSError as exc:
+        return f"I couldn't save that file. {exc}"
+    # Show it, so you can see what was written straight away.
+    try:
+        os.startfile(path)  # noqa: S606  (Windows-only, opens the default editor)
+    except Exception:  # noqa: BLE001
+        pass
+    lines = content.count("\n") + 1
+    return f"Saved {filename}, {lines} lines, in your Jarvis Workspace folder."
 
 
 def wikipedia_lookup(topic: str) -> str:

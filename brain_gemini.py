@@ -12,12 +12,8 @@ from google.genai import types
 import config
 import llm_tools
 
-SYSTEM_PROMPT = (
-    f"You are {config.ASSISTANT_NAME}, a witty, efficient voice assistant for the "
-    f"user's Windows PC. Replies are spoken aloud, so keep them short, natural, and "
-    f"free of markdown, lists, or code. Use the provided tools to control the PC. "
-    + (f"Address the user as '{config.USER_TITLE}' occasionally. " if config.USER_TITLE else "")
-)
+# One shared personality for every brain — see config.system_prompt().
+SYSTEM_PROMPT = config.system_prompt()
 
 
 class GeminiBrain:

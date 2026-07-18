@@ -118,13 +118,8 @@ CLIENT_TOOLS = [
 # Anthropic-hosted web search so VONDO can answer questions about current events.
 SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search"}]
 
-SYSTEM_PROMPT = (
-    f"You are {config.ASSISTANT_NAME}, a witty, efficient voice assistant for the "
-    f"user's Windows PC. Your replies are spoken aloud, so keep them short, natural, "
-    f"and free of markdown, lists, or code. Confirm actions in a few words. "
-    f"Use the web_search tool for anything time-sensitive or that you're unsure of. "
-    + (f"Address the user as '{config.USER_TITLE}' occasionally. " if config.USER_TITLE else "")
-)
+# One shared personality for every brain — see config.system_prompt().
+SYSTEM_PROMPT = config.system_prompt()
 
 
 class ClaudeBrain:
