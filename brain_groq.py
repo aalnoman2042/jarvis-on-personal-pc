@@ -11,19 +11,17 @@ from groq import Groq
 
 import config
 import llm_tools
+import memory
 
-SYSTEM_PROMPT = (
-    f"You are {config.ASSISTANT_NAME}, a witty, efficient voice assistant for the "
-    f"user's Windows PC. Replies are spoken aloud, so keep them short, natural, and "
-    f"free of markdown, lists, or code. "
-    f"You control the PC ONLY through the provided tools. Whenever the user asks for "
-    f"the time or date, system/CPU/battery status, to open or close an app, to search "
-    f"the web, adjust volume, take a screenshot, lock, or shut down — you MUST call the "
-    f"matching tool and then report its result. NEVER say you can't do these things, "
-    f"and NEVER reply 'let me check' or 'one moment' without actually calling the tool "
-    f"in the same turn. Call the tool immediately, then speak the result. "
-    + (f"Address the user as '{config.USER_TITLE}' occasionally. " if config.USER_TITLE else "")
-)
+# One shared personality for every brain — see config.system_prompt().
+SYSTEM_PROMPT = config.system_prompt()
+
+
+def _is_out_of_quota(exc: Exception) -> bool:
+    """True for 'you've used your free allowance' errors, which won't fix
+    themselves on an immediate retry."""
+    text = str(exc).lower()
+    return "rate_limit" in text or "rate limit" in text or "429" in text
 
 
 class GroqBrain:
@@ -48,6 +46,11 @@ class GroqBrain:
         if any(p in text.lower() for p in ("goodbye", "power down", "go to sleep")):
             return "__EXIT__"
 
+        # Refresh the persona each turn so anything just committed to memory is
+        # already in play. (The rolling conversation below stays this brain's
+        # own — only the remembered facts are shared.)
+        self._messages[0] = {"role": "system", "content": memory.system_prompt()}
+
         # Snapshot so a failed turn (e.g. llama's occasional malformed tool call)
         # can be rolled back and retried without corrupting the conversation.
         snapshot = list(self._messages)
@@ -61,6 +64,11 @@ class GroqBrain:
                 return reply
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
+                if _is_out_of_quota(exc):
+                    # Retrying a daily-limit error just wastes seconds before we
+                    # hand over — drop to the next brain straight away.
+                    print("[groq daily free limit reached; handing over]")
+                    break
                 print(f"[groq turn failed (attempt {attempt + 1}): {exc}]")
         self._messages = snapshot  # keep history intact
         # Raise so the fallback wrapper can drop to the offline brain.

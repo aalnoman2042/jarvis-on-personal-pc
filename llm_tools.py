@@ -9,6 +9,7 @@ Wrappers are defined here (not imported from actions) so the type hints are plai
 `str` — which Gemini's schema generator introspects reliably.
 """
 import actions
+import memory
 
 
 def open_app(name: str) -> str:
@@ -29,6 +30,46 @@ def open_website(target: str) -> str:
 def web_open_search(query: str) -> str:
     """Open a Google search results page in the browser for the given query."""
     return actions.web_search(query)
+
+
+def web_answer(query: str) -> str:
+    """Look a question up on the web and get the findings back as text.
+
+    Use this for ANY question about facts, news, people, prices, or anything you
+    don't already know — then say the answer out loud. Do NOT open a browser for
+    questions; the user wants to be told the answer, not shown a search page.
+    """
+    return actions.web_answer(query)
+
+
+def read_webpage(url: str) -> str:
+    """Fetch a specific web page and get its text, to summarise out loud."""
+    return actions.read_webpage(url)
+
+
+def remember(fact: str) -> str:
+    """Remember something about the user for good, beyond this conversation.
+
+    Use when told to remember something, or when the user states a lasting
+    preference or detail about themselves. Store one short sentence in the third
+    person, e.g. "Rohan works night shifts".
+    """
+    return memory.add_fact(fact)
+
+
+def forget(fragment: str) -> str:
+    """Forget remembered things matching a word or phrase ('all' forgets everything)."""
+    return memory.forget_fact(fragment)
+
+
+def write_code(filename: str, content: str) -> str:
+    """Write code or text to a real file in the user's Jarvis Workspace folder.
+
+    Use when asked to write a script, program, note, or document. Put the FULL
+    file content in 'content'. Don't read the code aloud — save it and say what
+    you saved.
+    """
+    return actions.write_code(filename, content)
 
 
 def set_reminder(minutes: str, message: str) -> str:
@@ -89,9 +130,10 @@ def set_autostart(action: str) -> str:
 
 
 TOOL_FUNCTIONS = [
-    open_app, close_app, open_website, web_open_search, set_reminder, get_time,
-    get_date, system_info, control_volume, media_control, take_screenshot,
-    lock_screen, power_control, set_autostart,
+    open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
+    write_code, remember, forget, set_reminder, get_time, get_date, system_info,
+    control_volume, media_control, take_screenshot, lock_screen, power_control,
+    set_autostart,
 ]
 DISPATCH = {fn.__name__: fn for fn in TOOL_FUNCTIONS}
 
@@ -121,7 +163,22 @@ OPENAI_TOOLS = [
           {"name": _STR("Application name")}, ["name"]),
     _tool("open_website", "Open a website: a shortcut like 'youtube', a domain, or a URL.",
           {"target": _STR("Shortcut, domain, or full URL")}, ["target"]),
-    _tool("web_open_search", "Open a Google search results page in the browser.",
+    # Descriptions stay short and plain: long, emphatic ones make some models
+    # (Groq's llama in particular) emit a malformed tool call instead of JSON.
+    _tool("web_answer", "Look up a question on the web and get facts to say aloud.",
+          {"query": _STR("What to look up")}, ["query"]),
+    _tool("read_webpage", "Fetch one web page and get its text to summarise aloud.",
+          {"url": _STR("The page URL")}, ["url"]),
+    _tool("write_code", "Save code or text to a file in the Jarvis Workspace folder.",
+          {"filename": _STR("File name with extension, e.g. rename_photos.py"),
+           "content": _STR("The complete file content")}, ["filename", "content"]),
+    _tool("remember",
+          "Remember something about the user for good, beyond this conversation. "
+          "Use when told to remember, or when they state a lasting preference.",
+          {"fact": _STR("One short sentence, e.g. 'Rohan works night shifts'")}, ["fact"]),
+    _tool("forget", "Forget remembered things matching a word ('all' forgets everything).",
+          {"fragment": _STR("Word or phrase to forget")}, ["fragment"]),
+    _tool("web_open_search", "Open a Google search page in the browser, when asked to.",
           {"query": _STR("What to search for")}, ["query"]),
     _tool("set_reminder", "Set a spoken reminder after some minutes from now.",
           {"minutes": _STR("Minutes from now (number)"),
@@ -140,3 +197,24 @@ OPENAI_TOOLS = [
     _tool("set_autostart", "Turn auto-start-on-boot on or off ('enable' or 'disable').",
           {"action": _STR("enable or disable")}, ["action"]),
 ]
+
+# ---------------------------------------------------------------------------
+# A shorter tool list, for the local model only.
+#
+# Every tool description is re-sent with every single question, and the local
+# model's context is small — the full list above leaves it almost no room to
+# remember the conversation. Trimming it back roughly triples the space
+# available for memory, and gives a 3B model fewer chances to garble a call.
+#
+# read_webpage and write_code are dropped because they genuinely don't work
+# here: both move far more text than the local context can hold. The rest are
+# either rare (auto-start, shut down) or already covered — web_answer tells you
+# the answer, which is what you actually want, rather than opening a browser.
+# The cloud brains keep all of them.
+# ---------------------------------------------------------------------------
+_LOCAL_SKIP = {
+    "read_webpage", "write_code", "set_autostart",
+    "open_website", "web_open_search", "power_control",
+}
+OPENAI_TOOLS_LITE = [t for t in OPENAI_TOOLS
+                     if t["function"]["name"] not in _LOCAL_SKIP]

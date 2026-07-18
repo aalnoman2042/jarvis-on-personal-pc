@@ -9,6 +9,7 @@ import difflib
 import sys
 
 import config
+import memory
 import reminders
 from voice import Voice
 
@@ -38,17 +39,45 @@ def match_wake(heard: str):
 
 
 def make_brain(choice: str | None = None):
-    """Build a brain, wrapped so it auto-drops to the offline brain if the AI
-    service is ever rate-limited or unreachable.
+    """Build a brain that remembers the conversation and falls back gracefully.
 
     Pass `choice` to build a specific brain (the UI dropdown does this when you
     switch); leave it out to use whatever VONDO_BRAIN says in .env.
     """
+    # Wrapping the whole chain means every exchange is recorded once, whichever
+    # brain in it answered — which is what lets the local model carry on a
+    # conversation the cloud started. Both the window and the console build
+    # brains through here, so nothing else needs to know about it.
+    return memory.wrap(_build_brain(choice))
+
+
+def _build_brain(choice: str | None = None):
+    """Build the brain itself, wrapped so it auto-drops to the offline brain if
+    the AI service is ever rate-limited or unreachable."""
     from brain_free import FreeBrain
-    from brain_fallback import FallbackBrain
+    from brain_fallback import FallbackBrain, LazyBrain
+
+    def _lazy_ollama():
+        """The local model, wrapped so it only starts if it's actually reached."""
+        from brain_ollama import OllamaBrain
+        return LazyBrain(OllamaBrain, "ollama")
 
     choice = (choice or config.BRAIN).strip().lower()
     try:
+        if choice == "auto":
+            # Groq first: fastest, and nothing runs on this PC while it lasts.
+            # Then the local model — no daily limit and no network round trip.
+            # Gemini after that, and the rule-based brain as a last resort.
+            # A brain that fails is skipped for a while (see brain_fallback), so
+            # a used-up free tier doesn't slow down every later question.
+            from brain_groq import GroqBrain
+            tail = FreeBrain()
+            try:
+                from brain_gemini import GeminiBrain
+                tail = FallbackBrain(GeminiBrain(), tail)
+            except Exception as exc:  # noqa: BLE001  (no key / package)
+                print(f"[gemini unavailable as a backup ({exc})]")
+            return FallbackBrain(GroqBrain(), FallbackBrain(_lazy_ollama(), tail))
         if choice == "gemini":
             from brain_gemini import GeminiBrain
             return FallbackBrain(GeminiBrain(), FreeBrain())

@@ -40,6 +40,7 @@ STATUS_COLORS = {
 
 # Dropdown label -> VONDO_BRAIN value. Switch any time while Jarvis is running.
 BRAIN_LABELS = {
+    "Auto  ·  cloud first, local only if needed": "auto",
     "Gemini  ·  free, cloud": "gemini",
     "Groq  ·  free, fastest": "groq",
     "Ollama  ·  free, offline, on this PC": "ollama",

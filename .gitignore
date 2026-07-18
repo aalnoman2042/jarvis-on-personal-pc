@@ -16,6 +16,11 @@ env/
 
 # --- Runtime state ---
 jarvis.state
+# What you and Jarvis actually said to each other — personal, stays local.
+jarvis.history.jsonl
+jarvis.history.jsonl.tmp
+jarvis.facts.json
+jarvis.facts.json.tmp
 
 # --- OS / editor noise ---
 Thumbs.db

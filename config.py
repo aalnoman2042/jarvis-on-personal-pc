@@ -14,14 +14,16 @@ ASSISTANT_NAME = os.getenv("ASSISTANT_NAME", "Jarvis")
 USER_TITLE = os.getenv("USER_TITLE", "sir")
 
 # ---- Brain backend ----
-# "gemini" -> natural-language AI via Google Gemini's FREE tier (default).
+# "auto"   -> Groq's free cloud first, local model only if the cloud fails, then
+#             rule-based. Easiest on this PC: nothing local runs unless needed.
+# "gemini" -> natural-language AI via Google Gemini's FREE tier.
 # "groq"   -> natural-language AI via Groq's FREE tier (very fast).
 # "ollama" -> natural-language AI running LOCALLY on this PC (free, offline).
 # "claude" -> natural-language AI via the paid Anthropic Claude API.
 # "free"   -> rule-based, offline, NO key and NO internet needed (fallback).
 # Switch any time from the dropdown in the Jarvis window — no restart needed.
-BRAIN = os.getenv("VONDO_BRAIN", "gemini").strip().lower()
-BRAIN_CHOICES = ["gemini", "groq", "ollama", "claude", "free"]
+BRAIN = os.getenv("VONDO_BRAIN", "auto").strip().lower()
+BRAIN_CHOICES = ["auto", "gemini", "groq", "ollama", "claude", "free"]
 
 # Free — Google Gemini. Key: https://aistudio.google.com/app/apikey
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -38,6 +40,48 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 # Small models on a CPU can take a few seconds to think — be patient before erroring.
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 
+# ---- Keeping the local brain light on this PC ----
+# There's no usable GPU here (the Radeon iGPU is skipped), so every reply is
+# computed on the CPU. Left alone, Ollama grabs every core and the whole machine
+# stutters while Jarvis thinks. These caps trade a little speed for a PC that
+# stays usable. Raise them if you'd rather have faster replies.
+#
+# Threads to give the model. 0 = let Ollama decide (all cores). Default leaves a
+# couple of cores free for Windows, the browser, and whatever you're doing.
+_threads = os.getenv("OLLAMA_THREADS", "").strip()
+if _threads:
+    OLLAMA_THREADS = int(_threads)
+else:
+    OLLAMA_THREADS = max(2, (os.cpu_count() or 8) // 2 - 2)
+# Context window. 4096 is Ollama's default; a voice assistant never needs that
+# much, and halving it roughly halves the memory and work per reply.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "2048"))
+# Cap on reply length. Answers get spoken aloud, so they're short anyway — this
+# just stops a rambling model from burning CPU on text you'd never hear out.
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "256"))
+# How long the model stays in RAM after your last question. It costs no CPU
+# while it sits there, but it does hold ~2 GB, so it lets go a few minutes after
+# you stop talking — long enough to stay warm mid-conversation. "0" = unload
+# immediately, "30m" = stay warm longer if you have RAM to spare.
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "5m")
+# Turns of conversation kept. Every turn is re-read by the model on the next
+# question, so a long memory literally costs CPU on every reply.
+OLLAMA_HISTORY = int(os.getenv("OLLAMA_HISTORY", "12"))
+
+# ---- Conversation memory (memory.py) ----
+# Jarvis remembers what was said, across brain switches and across restarts.
+# Set to 0 to turn it off entirely and go back to a blank slate every launch.
+MEMORY_ENABLED = os.getenv("MEMORY_ENABLED", "1").strip() not in ("0", "false", "no")
+# Past exchanges replayed to the local model. Each one costs context on every
+# question, and qwen's context is small — see the budget note above OLLAMA_NUM_CTX.
+MEMORY_TURNS = int(os.getenv("MEMORY_TURNS", "6"))
+# Things worth keeping for good ("Rohan works night shifts"), as opposed to the
+# rolling conversation above. Say "remember that ..." and Jarvis writes one down.
+# These ride along with EVERY question, so the cap is on rendered size, not just
+# count — an unbounded list would quietly eat the daily free cloud allowance.
+MEMORY_MAX_FACTS = int(os.getenv("MEMORY_MAX_FACTS", "12"))
+MEMORY_FACTS_CHARS = int(os.getenv("MEMORY_FACTS_CHARS", "400"))
+
 # Paid — Anthropic Claude. Key: https://console.anthropic.com
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-4-8")
@@ -53,16 +97,78 @@ WAKE_WORD = os.getenv("WAKE_WORD", "jarvis").strip().lower()
 _mic = os.getenv("MIC_INDEX", "").strip()
 MIC_INDEX = int(_mic) if _mic else None
 
+# ---- Speech recognition accuracy ----
+# Accent model used to transcribe you. "en-IN" understands South Asian English
+# far better than the "en-US" default — the wrong one here is the single biggest
+# cause of Jarvis mishearing you. Others: en-US, en-GB, en-AU, bn-BD (Bangla).
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", "en-IN").strip()
+# Seconds of silence that mean "you've finished talking". Too low and Jarvis cuts
+# you off mid-sentence and transcribes half a command.
+STT_PAUSE = float(os.getenv("STT_PAUSE", "1.0"))
+# Seconds spent listening to the room at startup to learn its noise floor.
+STT_CALIBRATE = float(os.getenv("STT_CALIBRATE", "1.5"))
+# Loudness floor for "this is speech". 0 = work it out automatically. Raise it
+# (try 250-400) if a noisy room keeps triggering Jarvis with nonsense.
+STT_ENERGY = int(os.getenv("STT_ENERGY", "0"))
+
 # Preferred TTS voice substring (e.g. "David" for a deep male voice on Windows).
 # Leave blank to use the system default.
 TTS_VOICE = os.getenv("TTS_VOICE", "")
 TTS_RATE = int(os.getenv("TTS_RATE", "175"))  # words per minute
 
+def system_prompt() -> str:
+    """The single personality shared by every AI brain.
+
+    Kept here (not copied into each brain) so Jarvis behaves identically whether
+    it's running on the cloud or on the local model.
+    """
+    title = (
+        f"You were built by {USER_TITLE}, who owns this PC and is the only person "
+        f"you answer to. You call them {USER_TITLE}, speak TO them directly using "
+        f"'you' and 'your', and never refer to them in the third person. "
+        f"Their word is final — you don't question it, delay it, or make them "
+        f"repeat themselves. The moment they ask for something, you're already "
+        f"doing it. "
+        if USER_TITLE else ""
+    )
+    # Worked out here rather than inline: an f-string expression can't contain a
+    # backslash escape, so "{USER_TITLE + \"'s\"}" is a syntax error.
+    owner = f"{USER_TITLE}'s" if USER_TITLE else "a"
+    return (
+        f"You are {ASSISTANT_NAME}, {owner} "
+        f"personal assistant for their Windows PC — in the spirit of Tony Stark's "
+        f"JARVIS. {title}"
+        f"Your manner is composed, precise, and unflappable: nothing rattles you, "
+        f"nothing is beneath you, and you never make {USER_TITLE or 'the user'} "
+        f"wait on ceremony. Dry, understated wit is welcome — a raised eyebrow in "
+        f"words — but it never gets in the way of the task, and it never tips into "
+        f"sarcasm at their expense. You are candid when something won't work or is "
+        f"a bad idea, said once, plainly, then you proceed as instructed unless "
+        f"told otherwise. "
+        f"You are spoken aloud, so replies are short, natural sentences: no "
+        f"markdown, no bullet points, no code read out, no URLs. One or two "
+        f"sentences is usually plenty. "
+        f"ANSWER THINGS YOURSELF. If you're asked something you don't know — news, "
+        f"facts, people, prices, anything current — call web_answer, read what "
+        f"comes back, and tell them the answer in your own words. Never send them "
+        f"off to read it themselves; only call web_open_search or open_website "
+        f"when they explicitly ask you to open or show something. "
+        f"DO THE WORK. If asked to write a script, program, or document, call "
+        f"write_code with the complete file, then say what you saved — don't read "
+        f"code aloud. Use the other tools for time, date, system status, apps, "
+        f"volume, media, screenshots, reminders, locking and power. "
+        f"Call the needed tool immediately, in the same turn — never say 'let me "
+        f"check' or 'one moment' without already having called it, and never claim "
+        f"you can't do something a tool covers. "
+        f"If a request is ambiguous, make the sensible call and act on it; you ask "
+        f"only when you genuinely cannot proceed without more."
+    )
+
 
 def greeting() -> str:
     """The line the assistant speaks when started manually."""
     title = f", {USER_TITLE}" if USER_TITLE else ""
-    return f"Welcome back{title}. {ASSISTANT_NAME} online and ready."
+    return f"Welcome back{title}. {ASSISTANT_NAME} is ready to serve you."
 
 
 def set_brain(name: str) -> None:
@@ -101,4 +207,4 @@ def _write_env(key: str, value: str) -> None:
 def boot_greeting() -> str:
     """The line the assistant speaks when launched automatically at PC boot."""
     title = f", {USER_TITLE}" if USER_TITLE else ""
-    return f"Welcome back{title}. System booting. {ASSISTANT_NAME} is online and ready."
+    return f"Welcome back{title}. System booting. {ASSISTANT_NAME} is ready to rock."
