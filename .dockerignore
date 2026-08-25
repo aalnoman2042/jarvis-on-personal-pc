@@ -1,0 +1,27 @@
+# Keep the build context small and the image clean.
+.git/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Rohan's desktop half — no place in a container.
+legacy/
+agent/
+tests/
+*.bat
+
+# His data and secrets. The database lives on the Fly volume; the keys are Fly
+# secrets. Neither is ever baked into an image.
+.env
+vondo.db
+vondo.db-wal
+vondo.db-shm
+agent.token
+jarvis.state
+jarvis.history.jsonl
+jarvis.facts.json
+
+# The HUD is built inside the image, from source.
+web/node_modules/
+web/dist/

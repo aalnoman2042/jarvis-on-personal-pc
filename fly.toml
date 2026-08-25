@@ -1,0 +1,56 @@
+# VONDO's cloud core on Fly.io.
+#
+# Deploy:  fly deploy
+# Logs:    fly logs
+# Shell:   fly ssh console
+
+app = "vondo-jarvis"
+primary_region = "sin"   # Singapore — closest region to Dhaka
+
+[build]
+
+[env]
+  VONDO_DB = "/data/vondo.db"
+  VONDO_BRAIN = "groq"
+
+# The database. A real disk, which is the entire reason for choosing this host:
+# SQLite stays one file Rohan owns instead of becoming a second hosted service
+# with a second account.
+[[mounts]]
+  source = "vondo_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Never sleep. Two reasons, both hard requirements rather than preferences:
+  # the PC agent holds a websocket open and a stopped machine drops it, and a
+  # cold start would put fifty seconds in front of the first thing Rohan says.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+  # Fly's proxy needs to know these are long-lived, or it will cut the agent's
+  # connection and the HUD's out from under them.
+  [http_service.http_options]
+    idle_timeout = 900
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+# A little swap, so an unexpected spike degrades instead of getting the process
+# killed. Cheaper than paying for RAM that is idle 99% of the time.
+swap_size_mb = 512
