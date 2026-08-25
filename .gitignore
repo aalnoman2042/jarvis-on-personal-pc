@@ -41,3 +41,7 @@ agent.token
 web/node_modules/
 web/dist/
 web/.vite/
+
+# Local notes holding credentials. Never commit.
+SECRETS.local.md
+*.local.md
