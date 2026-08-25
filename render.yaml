@@ -1,0 +1,39 @@
+# VONDO's cloud core on Render's free tier.
+#
+# Deployed as a Blueprint: in Render, New > Blueprint, point it at this repo.
+#
+# Two things this file cannot fix, and you should know both:
+#
+#  * Free web services have NO persistent disk. That is why the database is
+#    Turso rather than a SQLite file — see core/memory/db.py. Set VONDO_DB_URL
+#    and VONDO_DB_TOKEN in the dashboard or memory silently has nowhere to go.
+#  * Free services spin down after 15 minutes without traffic and take about a
+#    minute to wake. Websocket messages count as traffic, so the PC agent keeps
+#    it awake while the PC is on; .github/workflows/keepalive.yml covers the
+#    rest. If that ping ever stops, the first message after a quiet spell waits.
+
+services:
+  - type: web
+    name: vondo-core
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # Render tells the container which port to listen on.
+      - key: PORT
+        value: 8080
+      - key: VONDO_BRAIN
+        value: groq
+      # Set these in the Render dashboard, never in this file.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VONDO_PAIR_SECRET
+        sync: false
+      - key: VONDO_DB_URL
+        sync: false
+      - key: VONDO_DB_TOKEN
+        sync: false

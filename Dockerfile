@@ -58,5 +58,8 @@ EXPOSE 8080
 # PC agent holds one websocket — a second worker would be a second brain with a
 # second view of the world, and the agent would only be reachable from whichever
 # worker it happened to connect to.
-CMD ["python", "-m", "uvicorn", "server.app:app", \
-     "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+#
+# Shell form, not exec form, so ${PORT} actually expands: Render assigns the
+# port at runtime and an exec-form CMD would try to bind to the literal string
+# "${PORT}". Falls back to 8080, which is what Fly expects.
+CMD python -m uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1

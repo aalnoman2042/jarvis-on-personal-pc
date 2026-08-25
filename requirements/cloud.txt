@@ -7,6 +7,12 @@
 python-dotenv>=1.0.0       # settings from .env
 psutil>=5.9.0              # the server's own health, not the PC's
 
+# --- the database ---
+# Only needed in the cloud, where there is no disk to keep a SQLite file on.
+# Turso speaks SQLite, so every query written for the local file works unchanged
+# against it. On Rohan's PC this is unused: db.py falls back to plain sqlite3.
+libsql-client>=0.3.1
+
 # --- the API ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0  # includes the websocket implementation

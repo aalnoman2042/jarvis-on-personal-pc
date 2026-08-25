@@ -1,0 +1,39 @@
+# Keep the free instance awake.
+#
+# Render spins a free web service down after 15 minutes without traffic, and
+# waking it takes about a minute — which would put a minute in front of the
+# first thing Rohan says after a quiet evening. This pings /health often enough
+# that it never idles out.
+#
+# Being straight about what this is: Render designed that spin-down, and this
+# defeats it. It stays inside the 750 free instance-hours a month (24/7 is 744),
+# but it is a workaround, not an entitlement. On a paid instance, delete it.
+#
+# GitHub disables scheduled workflows after 60 days without repo activity, and
+# cron here is best-effort rather than punctual. Neither matters much: a missed
+# ping costs one slow first message.
+
+name: keep the core awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        env:
+          URL: ${{ secrets.VONDO_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "VONDO_URL secret is not set — nothing to ping."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL/health")
+          echo "GET $URL/health -> $code"
+          # A wake-up can take a minute and may answer 502 on the way up. That is
+          # the ping doing its job, not a failure worth a red cross in the inbox.
+          if [ "$code" = "200" ]; then echo "awake"; else echo "woke it (or it is starting)"; fi

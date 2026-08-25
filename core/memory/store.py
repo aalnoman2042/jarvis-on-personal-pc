@@ -25,16 +25,16 @@ Design notes worth keeping:
 """
 from __future__ import annotations
 
-import os
 import sqlite3
 import threading
 import time
 
 from core import config
+from core.memory import db
 
-# One file, beside .env and the README. VONDO_DB overrides it, which is how the
-# cloud core will point at its mounted volume without touching any code.
-DB_FILE = os.getenv("VONDO_DB") or os.path.join(config.PROJECT_DIR, "vondo.db")
+# Where the database lives is decided in db.py: a file on Rohan's PC, Turso in
+# the cloud. Re-exported because callers and logs still ask for it by this name.
+DB_FILE = db.DB_FILE
 
 MAX_TEXT = 1000          # characters stored per message
 SCHEMA_VERSION = 1
@@ -149,13 +149,9 @@ def connect() -> sqlite3.Connection | None:
     if conn is not None:
         return conn
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=5.0)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA foreign_keys=ON")
+        conn = db.open_connection()
         _ensure_schema(conn)
-    except Exception:  # noqa: BLE001  (disk full, locked, read-only — keep talking)
+    except Exception:  # noqa: BLE001  (disk full, locked, unreachable — keep talking)
         return None
     _local.conn = conn
     return conn
@@ -168,9 +164,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         conn.executescript(_SCHEMA)
         try:
             conn.executescript(_FTS)
-        except sqlite3.OperationalError:
-            # Some Python builds ship SQLite without FTS5. Everything else still
-            # works; only search() goes quiet.
+        except Exception:  # noqa: BLE001
+            # Some SQLite builds ship without FTS5, and Turso raises its own
+            # error type rather than sqlite3's — catching only sqlite3's would
+            # have turned a missing feature into a dead server.
             has_search = False
         conn.execute(
             "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema_version', ?)",
