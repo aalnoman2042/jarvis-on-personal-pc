@@ -152,6 +152,43 @@ opens, edits and occasionally screenshots. A long-lived credential does not
 belong in the middle of that. Gitignored; `VONDO_AGENT_TOKEN_FILE` overrides it
 for tests.
 
+## The HUD (phase 04)
+
+`web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud
+core at `/`. One origin, so no CORS and the token never crosses an origin.
+
+```
+cd web && npm run build          # then the core serves it at /
+cd web && npm run dev            # port 5173, proxies the API to :8000
+python tests/test_hud.py         # 15 checks: built, served, assets resolve
+start_hud.bat                    # its own window, no address bar
+```
+
+**The reactor runs outside React.** `hud/reactorEngine.ts` owns a canvas and one
+`requestAnimationFrame` loop; `hud/Reactor.tsx` only owns the element's
+lifetime. State and mic level reach the loop through a mutable ref, not props —
+passing them as props would tear down and restart the animation every time
+Jarvis started thinking, and the rings would snap back to zero.
+
+Three rules the loop keeps, because "lightweight" was a stated requirement:
+one canvas and one frame (not a frame per ring); nothing at all while the tab is
+hidden; and idle motion slow enough to read as switched-on from the corner of
+your eye without pulling it, since this may sit on a second monitor.
+
+**Everything is a token in `theme.css`.** No hex values in components — that is
+what makes the KAREN palette a second `[data-theme]` block rather than a rewrite.
+
+**`reactorEngine.ts`, not `reactor.ts`.** It sat beside `Reactor.tsx` and the two
+differed only in casing, which Windows resolves ambiguously and Linux resolves
+differently — a bug that would only have appeared on Fly.
+
+**Watch the mount order in `app.py`.** `StaticFiles` is mounted at `/` and must
+stay last; anywhere earlier it swallows `/chat` and `/health`. `test_hud.py`
+checks exactly that.
+
+**Fonts come from Google Fonts today**, with real fallback stacks. Phase 05 must
+self-host them, or an installed app with no signal loses its typography.
+
 ## Imports after the phase-00 move
 
 | Was | Now |

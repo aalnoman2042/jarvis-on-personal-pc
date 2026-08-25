@@ -1,0 +1,374 @@
+/* Layout and components. Colours all come from theme.css — no hex values here. */
+
+/* ---------- shell ---------- */
+.hud {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 var(--s3);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s1);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.22em;
+  color: var(--ink-strong);
+  text-shadow: 0 0 18px rgba(53, 214, 255, 0.35);
+}
+
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.conn-online {
+  color: var(--accent);
+}
+.conn-unauthorised {
+  color: var(--bad);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.dot-on {
+  color: var(--good);
+}
+.dot-off {
+  color: var(--idle);
+  box-shadow: none;
+}
+
+.brain {
+  margin-left: auto;
+}
+
+.linkish {
+  padding: 0;
+  color: var(--dim);
+  border-bottom: 1px solid transparent;
+}
+.linkish:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---------- stage ---------- */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: var(--s4);
+  min-height: 0; /* without this the log cannot scroll inside the grid */
+  padding: var(--s4) 0;
+}
+
+.core {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--s3);
+  min-height: 0;
+}
+
+/* ---------- reactor ---------- */
+.reactor-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.reactor {
+  width: clamp(140px, 22vh, 210px);
+  height: clamp(140px, 22vh, 210px);
+  display: block;
+}
+
+.reactor-state {
+  letter-spacing: 0.28em;
+  color: var(--dim);
+}
+.state-online {
+  color: var(--accent);
+}
+.state-thinking {
+  color: var(--warn);
+}
+.state-listening {
+  color: var(--good);
+}
+.state-offline {
+  color: var(--idle);
+}
+
+/* ---------- log ---------- */
+.log {
+  overflow-y: auto;
+  min-height: 0;
+  padding: var(--s3) var(--s2);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.log-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--dim);
+}
+.log-empty p {
+  max-width: 46ch;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 3.6em 5.2em 1fr;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  align-items: baseline;
+}
+.line + .line {
+  border-top: 1px solid rgba(22, 48, 63, 0.5);
+}
+
+.line-time {
+  font-size: 0.7rem;
+  color: var(--idle);
+}
+.line-who {
+  text-align: right;
+  font-size: 0.62rem;
+}
+.line-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.line-you .line-who {
+  color: var(--dim);
+}
+.line-you .line-text {
+  color: var(--ink-strong);
+}
+.line-jarvis .line-who {
+  color: var(--accent);
+}
+.line-system .line-who,
+.line-system .line-text {
+  color: var(--warn);
+  font-family: var(--f-mono);
+  font-size: 0.82rem;
+}
+
+/* ---------- composer ---------- */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  padding: var(--s2);
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  max-height: 7em;
+  padding: var(--s2);
+  color: var(--ink-strong);
+  background: transparent;
+  border: none;
+  font: inherit;
+  outline: none;
+}
+.composer textarea::placeholder {
+  color: var(--idle);
+}
+
+.send {
+  padding: var(--s2) var(--s3);
+  color: var(--accent);
+  border: 1px solid var(--line);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.send:disabled {
+  color: var(--idle);
+  cursor: default;
+}
+.send:not(:disabled):hover {
+  border-color: var(--accent);
+  background: rgba(53, 214, 255, 0.08);
+}
+
+/* ---------- telemetry gutter ---------- */
+.gutter {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+}
+.gutter-off {
+  opacity: 0.65;
+}
+
+.gutter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gutter-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.meter-value {
+  font-size: 0.82rem;
+  color: var(--ink-strong);
+}
+.meter-track {
+  height: 5px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  transition: width 0.6s ease;
+}
+
+/* ---------- pairing ---------- */
+.pair {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--s4);
+}
+
+.pair-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  width: min(420px, 100%);
+  padding: var(--s5) var(--s4);
+}
+
+.pair-card h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-strong);
+  text-wrap: balance;
+}
+
+.pair-help {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.92rem;
+}
+
+.pair-input {
+  padding: var(--s3);
+  font-size: 1.15rem;
+  letter-spacing: 0.24em;
+  text-align: center;
+  color: var(--ink-strong);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  outline: none;
+}
+.pair-input:focus {
+  border-color: var(--accent);
+}
+
+.pair-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--bad);
+}
+
+.pair-go {
+  padding: var(--s3);
+  font-family: var(--f-display);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ground);
+  background: var(--accent);
+  transition: filter 0.15s ease;
+}
+.pair-go:disabled {
+  color: var(--dim);
+  background: var(--line-soft);
+  cursor: default;
+}
+.pair-go:not(:disabled):hover {
+  filter: brightness(1.12);
+}
+
+.pair-foot {
+  text-align: center;
+  color: var(--idle);
+}
+
+/* ---------- phone ---------- */
+@media (max-width: 760px) {
+  .hud {
+    padding: 0 var(--s2);
+  }
+  .stage {
+    grid-template-columns: 1fr;
+    gap: var(--s3);
+    padding: var(--s3) 0;
+  }
+  /* Telemetry moves below the conversation: on a phone the reactor and what
+     Jarvis just said are what matter, and CPU is a glance, not a fixture. */
+  .gutter {
+    order: 2;
+  }
+  .line {
+    grid-template-columns: 3.4em 1fr;
+  }
+  .line-time {
+    grid-row: 1;
+  }
+  .line-who {
+    text-align: left;
+  }
+  .line-text {
+    grid-column: 1 / -1;
+  }
+}

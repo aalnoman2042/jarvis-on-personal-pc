@@ -29,10 +29,12 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -204,9 +206,14 @@ async def chat(body: ChatIn, device: dict = Depends(caller)):
 
 @app.get("/health")
 async def health():
-    """Unauthenticated on purpose — a load balancer has no token."""
+    """Unauthenticated on purpose — a load balancer has no token.
+
+    `devices_paired` is a bool, never the count: the pairing screen needs to
+    know which door to offer, and nothing beyond that is anyone's business.
+    """
     return {"ok": True, "assistant": config.ASSISTANT_NAME,
-            "pc_online": agents.registry.online()}
+            "pc_online": agents.registry.online(),
+            "devices_paired": auth.device_count() > 0}
 
 
 @app.get("/status")
@@ -321,3 +328,25 @@ async def ws_agent(websocket: WebSocket):
 @app.exception_handler(auth.AuthError)
 async def auth_error(request, exc):  # pragma: no cover - belt and braces
     return JSONResponse(status_code=401, content={"detail": str(exc)})
+
+
+# ---------------------------------------------------------------------------
+# The HUD
+#
+# Served by this same app, deliberately. One origin means no CORS, no
+# preflights, and a token that never crosses an origin boundary — and it means
+# the whole of VONDO is one thing to deploy rather than two.
+#
+# Mounted LAST: a mount at "/" matches everything the routes above did not, so
+# putting it earlier would swallow /chat and /health.
+# ---------------------------------------------------------------------------
+
+_HUD = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    "web", "dist")
+
+if os.path.isdir(_HUD):
+    app.mount("/", StaticFiles(directory=_HUD, html=True), name="hud")
+else:  # pragma: no cover - developer convenience
+    @app.get("/")
+    async def no_hud():
+        return {"detail": "The HUD isn't built yet. Run:  cd web && npm run build"}

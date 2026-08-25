@@ -1,0 +1,133 @@
+/* The HUD's look, as tokens.
+ *
+ * Every colour in the app comes from here. That is the whole point: the
+ * Spider-Man / KAREN palette is meant to drop in later as a second
+ * [data-theme] block without a single component changing. If you find yourself
+ * writing a hex value inside a component, put it here instead.
+ *
+ * This is a deliberately single-world design — a HUD screen is dark, and a
+ * light version of it would be a different product. So there is no
+ * prefers-color-scheme block; the ground is painted explicitly instead.
+ */
+
+:root,
+:root[data-theme="jarvis"] {
+  --ground: #05080d;
+  --panel: #0a121b;
+  --panel-2: #0c1721;
+  --line: #16303f;
+  --line-soft: #102430;
+
+  --ink: #cfe6f2;
+  --ink-strong: #eaf6ff;
+  --dim: #6b8ba0;
+
+  --accent: #35d6ff; /* the HUD's voice: rings, glow, active state */
+  --accent-deep: #0d7fa3;
+  --warn: #ffb340;
+  --good: #4fe0a8;
+  --bad: #ff6b7a;
+  --idle: #3a4657;
+
+  --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  /* One scale, used everywhere. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 14px;
+  --s4: 22px;
+  --s5: 36px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  /* The faint scanline field. Cheap: a repeating gradient, not an animation. */
+  background-image:
+    radial-gradient(1100px 620px at 50% -12%, rgba(53, 214, 255, 0.09), transparent 66%),
+    repeating-linear-gradient(0deg, rgba(53, 214, 255, 0.028) 0 1px, transparent 1px 3px);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-weight: 350;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* the HUD manages its own scrolling regions */
+}
+
+/* Corner brackets — the single most characteristic piece of FUI furniture.
+   Two pseudo-elements, four borders, no images. */
+.bracket {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+}
+.bracket::before,
+.bracket::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  border-color: var(--accent);
+  border-style: solid;
+}
+.bracket::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.bracket::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+.label {
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.mono {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+:where(button, input, textarea, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Motion is opt-out at the system level, everywhere, no exceptions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

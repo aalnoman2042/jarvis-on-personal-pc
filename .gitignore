@@ -36,3 +36,8 @@ vondo.db-shm
 
 # The PC agent's credential. Written by `python -m agent.pair`.
 agent.token
+
+# --- v2: the HUD's build output and its dependencies ---
+web/node_modules/
+web/dist/
+web/.vite/
