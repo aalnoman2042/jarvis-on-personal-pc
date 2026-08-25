@@ -2,9 +2,15 @@
 import os
 from dotenv import load_dotenv
 
-# Always read the .env sitting next to this file, no matter which folder the
+# Always read the .env at the top of the repo, no matter which folder the
 # assistant was launched from (auto-start and USB copies launch from elsewhere).
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+#
+# Note the extra dirname: this file lives in core/, but .env, jarvis.state and
+# the memory files live one level up beside the README. Collapsing these two
+# lines back into one would silently point the whole assistant at core/ — no
+# keys, no history, and it would look exactly like Jarvis had lost its memory.
+CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(CORE_DIR)
 ENV_PATH = os.path.join(PROJECT_DIR, ".env")
 load_dotenv(ENV_PATH)
 

@@ -9,15 +9,27 @@ and reminders as the console version.
 """
 from __future__ import annotations
 
+# --- repo-root bootstrap -------------------------------------------------
+# These scripts are launched directly (double-clicked via the .bat files), so
+# Python puts legacy/ on sys.path, not the repo root -- and `core` would not be
+# importable. Sibling imports below (voice, vondo) still resolve normally.
+import os as _os
+import sys as _sys
+
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _ROOT not in _sys.path:
+    _sys.path.insert(0, _ROOT)
+# -------------------------------------------------------------------------
+
 import sys
 import threading
 import time
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
-import actions
-import config
-import reminders
+from core import actions
+from core import config
+from core import reminders
 import vondo
 from voice import Voice
 

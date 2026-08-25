@@ -8,11 +8,11 @@ REM  On boot it launches hidden and says "Welcome back, Rohan. System booting."
 REM  Double-click this file once. To turn it off: disable_autostart.bat
 REM ============================================================
 cd /d "%~dp0"
-python -c "import actions; print(actions.set_autostart('enable'))"
+python -c "from core import actions; print(actions.set_autostart('enable'))"
 if errorlevel 1 (
     echo.
     echo   [ERROR] Could not set up auto-start with Python.
-    echo   Make sure "python vondo.py" runs first, then try again.
+    echo   Make sure "python legacy\vondo.py" runs first, then try again.
     echo.
     pause
     exit /b 1

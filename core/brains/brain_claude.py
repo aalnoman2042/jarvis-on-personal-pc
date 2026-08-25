@@ -10,8 +10,8 @@ from __future__ import annotations
 import anthropic
 from anthropic import beta_tool
 
-import actions
-import config
+from core.lazy import actions
+from core import config
 
 
 # ---- PC-control actions exposed to Claude as tools ----------------------------

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import re
 
-import actions
-import config
-import llm_tools
+from core.lazy import actions
+from core import config
+from core.tools import llm_tools
 
 # Things you can "turn off" that are emphatically not the computer. Without
 # this, "turn off the music" matched the shutdown rule and powered the PC down

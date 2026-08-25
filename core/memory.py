@@ -25,7 +25,7 @@ import os
 import threading
 import time
 
-import config
+from core import config
 
 HISTORY_FILE = os.path.join(config.PROJECT_DIR, "jarvis.history.jsonl")
 FACTS_FILE = os.path.join(config.PROJECT_DIR, "jarvis.facts.json")

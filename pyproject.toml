@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vondo"
+version = "2.0.0.dev0"
+description = "Jarvis — a personal assistant with a cloud brain and a HUD on every screen"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements/cloud.txt"] }
+
+# Only `core` is a real package. `legacy/` is a folder of directly-run scripts,
+# and `agent/` and `server/` join this list when phases 02 and 03 create them.
+[tool.setuptools]
+packages = ["core", "core.brains", "core.tools"]
+
+[tool.setuptools.package-data]
+core = ["py.typed"]

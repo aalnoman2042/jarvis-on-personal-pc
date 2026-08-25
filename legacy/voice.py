@@ -9,6 +9,18 @@ or a full Edge voice id). Run `python try_voices.py` to hear the options.
 """
 from __future__ import annotations
 
+# --- repo-root bootstrap -------------------------------------------------
+# These scripts are launched directly (double-clicked via the .bat files), so
+# Python puts legacy/ on sys.path, not the repo root -- and `core` would not be
+# importable. Sibling imports below (voice, vondo) still resolve normally.
+import os as _os
+import sys as _sys
+
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _ROOT not in _sys.path:
+    _sys.path.insert(0, _ROOT)
+# -------------------------------------------------------------------------
+
 import asyncio
 import base64
 import ctypes
@@ -19,7 +31,7 @@ import threading
 
 import speech_recognition as sr
 
-import config
+from core import config
 
 # Friendly name -> Edge neural voice id. Add more from `edge-tts --list-voices`.
 EDGE_VOICES = {

@@ -5,13 +5,25 @@ Change the brain (gemini / groq / claude / free) and options in your .env file.
 """
 from __future__ import annotations
 
+# --- repo-root bootstrap -------------------------------------------------
+# These scripts are launched directly (double-clicked via the .bat files), so
+# Python puts legacy/ on sys.path, not the repo root -- and `core` would not be
+# importable. Sibling imports below (voice, vondo) still resolve normally.
+import os as _os
+import sys as _sys
+
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _ROOT not in _sys.path:
+    _sys.path.insert(0, _ROOT)
+# -------------------------------------------------------------------------
+
 import difflib
 import sys
 
-import config
-import confirm
-import memory
-import reminders
+from core import config
+from core import confirm
+from core import memory
+from core import reminders
 from voice import Voice
 
 # Accept common speech-to-text mis-hearings of the wake word too, so it still
@@ -59,12 +71,12 @@ def make_brain(choice: str | None = None):
 def _build_brain(choice: str | None = None):
     """Build the brain itself, wrapped so it auto-drops to the offline brain if
     the AI service is ever rate-limited or unreachable."""
-    from brain_free import FreeBrain
-    from brain_fallback import FallbackBrain, LazyBrain
+    from core.brains.brain_free import FreeBrain
+    from core.brains.brain_fallback import FallbackBrain, LazyBrain
 
     def _lazy_ollama():
         """The local model, wrapped so it only starts if it's actually reached."""
-        from brain_ollama import OllamaBrain
+        from core.brains.brain_ollama import OllamaBrain
         return LazyBrain(OllamaBrain, "ollama")
 
     choice = (choice or config.BRAIN).strip().lower()
@@ -75,25 +87,25 @@ def _build_brain(choice: str | None = None):
             # Gemini after that, and the rule-based brain as a last resort.
             # A brain that fails is skipped for a while (see brain_fallback), so
             # a used-up free tier doesn't slow down every later question.
-            from brain_groq import GroqBrain
+            from core.brains.brain_groq import GroqBrain
             tail = FreeBrain()
             try:
-                from brain_gemini import GeminiBrain
+                from core.brains.brain_gemini import GeminiBrain
                 tail = FallbackBrain(GeminiBrain(), tail)
             except Exception as exc:  # noqa: BLE001  (no key / package)
                 print(f"[gemini unavailable as a backup ({exc})]")
             return FallbackBrain(GroqBrain(), FallbackBrain(_lazy_ollama(), tail))
         if choice == "gemini":
-            from brain_gemini import GeminiBrain
+            from core.brains.brain_gemini import GeminiBrain
             return FallbackBrain(GeminiBrain(), FreeBrain())
         if choice == "groq":
-            from brain_groq import GroqBrain
+            from core.brains.brain_groq import GroqBrain
             return FallbackBrain(GroqBrain(), FreeBrain())
         if choice == "ollama":
-            from brain_ollama import OllamaBrain
+            from core.brains.brain_ollama import OllamaBrain
             return FallbackBrain(OllamaBrain(), FreeBrain())
         if choice == "claude":
-            from brain_claude import ClaudeBrain
+            from core.brains.brain_claude import ClaudeBrain
             return FallbackBrain(ClaudeBrain(), FreeBrain())
         if choice == "free":
             return FreeBrain()

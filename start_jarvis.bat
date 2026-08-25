@@ -17,7 +17,7 @@ REM heavy runs on this PC just because Jarvis is open.
 
 REM Prefer the private environment built by setup.bat; fall back to system Python.
 if exist ".venv\Scripts\pythonw.exe" (
-    start "" ".venv\Scripts\pythonw.exe" "%~dp0jarvis_gui.py" %*
+    start "" ".venv\Scripts\pythonw.exe" "%~dp0legacy\jarvis_gui.py" %*
 ) else (
-    start "" pythonw "%~dp0jarvis_gui.py" %*
+    start "" pythonw "%~dp0legacy\jarvis_gui.py" %*
 )

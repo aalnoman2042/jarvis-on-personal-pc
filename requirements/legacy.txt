@@ -1,0 +1,17 @@
+# VONDO v1 — the original Windows desktop assistant under legacy/.
+#
+# Installed by setup.bat. This is the heavy list, and it is heavy on purpose:
+# v1 does speech, text-to-speech and its own window locally. None of it ships
+# to the cloud, and none of it is needed once the PWA lands.
+
+# --- the portable core it still imports ---
+-r cloud.txt
+
+# --- voice in / voice out ---
+SpeechRecognition>=3.10.0  # microphone -> text
+pyaudio>=0.2.14            # microphone backend
+pyttsx3>=2.90              # offline text -> speech fallback
+edge-tts>=6.1.0            # the neural voice actually used (christopher)
+
+# --- desktop control + window ---
+pyautogui>=0.9.54          # screenshots, volume, media keys

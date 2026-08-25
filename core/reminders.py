@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 import time
 
-import config
+from core import config
 
 _lock = threading.Lock()
 _items: list[tuple[float, str]] = []  # (due_epoch, message)

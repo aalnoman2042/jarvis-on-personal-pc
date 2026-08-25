@@ -1,9 +1,22 @@
 # JARVIS / VONDO — a voice assistant for your PC
 
+> **This README describes v1, the Windows desktop app.** It still works and is
+> still supported — everything below runs, with one change: the Python files now
+> live in `core/` and `legacy/`, so the console version starts with
+> `python legacy/vondo.py`. The `.bat` launchers are unchanged; double-click them
+> as before.
+>
+> **Two sections are now out of date.** The offline Ollama brain was removed on
+> 26 Aug 2026 (it had never actually been installed, so it had never worked), and
+> `requirements.txt` is now three files under `requirements/`. Ignore the Ollama
+> instructions and the "fully offline" claim until this page is rewritten.
+>
+> v2 moves the brain to the cloud and replaces this window with a HUD that runs
+> on desktop and phone. Architecture and build order: **[CLAUDE.md](CLAUDE.md)**.
+
 Speak to your computer and it answers out loud and actually does things — opens
 apps, searches the web, sets reminders, checks your CPU, locks the screen, shuts
-down. It runs **100% free**, works **fully offline** if you want, and installs on
-any Windows PC in about five minutes.
+down. It runs **100% free** and installs on any Windows PC in about five minutes.
 
 ```
     ┌─────────────────────────────┐
@@ -419,28 +432,35 @@ Close it and run **`run.bat`** instead — the console prints everything.
 
 ## File map
 
+Double-click launchers stay at the top level. The Python moved: `core/` is the
+portable half that v2 deploys to the cloud, `legacy/` is this desktop app.
+
 | File | Purpose |
 |------|---------|
 | **`setup.bat`** | **Run first on a new PC** — builds the whole environment |
-| **`install_local_llm.bat`** | Installs the offline AI into `local llm/` |
 | `start_jarvis.bat` | Start the window UI |
 | `run.bat` | Start the console version (shows errors) |
 | `stop_jarvis.bat` | Force-stop Jarvis |
 | `enable_autostart.bat` / `disable_autostart.bat` | Boot launch on/off |
-| `vondo.py` | Main loop — listen → think → act → speak |
-| `jarvis_gui.py` | The window: orb, transcript, brain dropdown, buttons |
-| `voice.py` | Mic (speech→text) and speaker (text→speech) |
-| `actions.py` | Everything it can DO on your PC |
-| `llm_tools.py` | Tool definitions the AI brains call |
-| `brain_gemini.py` | Free cloud brain (Google) |
-| `brain_groq.py` | Free cloud brain (fastest) |
-| `brain_ollama.py` | **Local offline brain — no key, no internet** |
-| `brain_claude.py` | Paid brain (Anthropic) |
-| `brain_free.py` | Offline rule-based brain, no AI |
-| `brain_fallback.py` | Auto-drops to the offline brain on any failure |
-| `reminders.py` | Background reminder timer |
-| `config.py` | Reads and writes your `.env` settings |
-| `test_mic.py` / `test_speaker.py` / `list_mics.py` / `try_voices.py` | Setup helpers |
+| `CLAUDE.md` | How v2 is put together, and what not to break |
+| `requirements/cloud.txt` · `agent.txt` · `legacy.txt` | Dependencies, split by where they run |
+| `core/config.py` | Reads and writes your `.env` settings |
+| `core/memory.py` | The conversation and facts Jarvis remembers |
+| `core/actions.py` | Everything it can DO on your PC |
+| `core/confirm.py` | Asks before anything it cannot undo |
+| `core/reminders.py` | Background reminder timer |
+| `core/lazy.py` | Defers the Windows-only imports so `core` runs on Linux too |
+| `core/tools/llm_tools.py` | Tool definitions the AI brains call |
+| `core/brains/brain_groq.py` | Free cloud brain (fastest) — the current default |
+| `core/brains/brain_gemini.py` | Free cloud brain (Google) |
+| `core/brains/brain_free.py` | Offline rule-based brain, no AI |
+| `core/brains/brain_fallback.py` | Auto-drops to the next brain on any failure |
+| `core/brains/brain_claude.py` | Paid brain (Anthropic) |
+| `core/brains/brain_ollama.py` | Local offline brain — code kept, model removed |
+| `legacy/vondo.py` | Main loop — listen → think → act → speak |
+| `legacy/jarvis_gui.py` | The window: orb, transcript, brain dropdown, buttons |
+| `legacy/voice.py` | Mic (speech→text) and speaker (text→speech) |
+| `legacy/test_mic.py` · `test_speaker.py` · `list_mics.py` · `try_voices.py` | Setup helpers |
 | `.env` | **Your settings and keys — never uploaded to GitHub** |
 
 ---

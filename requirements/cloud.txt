@@ -1,0 +1,15 @@
+# VONDO cloud core — what gets deployed to Fly.io.
+#
+# Deliberately small and platform-neutral: this list must install on Linux with
+# no microphone, no screen and no Windows. Anything that touches the desktop
+# belongs in agent.txt, not here.
+
+python-dotenv>=1.0.0       # settings from .env
+psutil>=5.9.0              # the server's own health, not the PC's
+
+# --- brains (free tiers first) ---
+groq>=0.11.0               # primary
+google-genai>=1.0.0        # backup
+# anthropic>=0.116.0       # paid; uncomment only when VONDO_BRAIN=claude
+
+# Phase 02 adds: fastapi, uvicorn[standard], websockets, pydantic

@@ -47,14 +47,14 @@ set "PY=%~dp0.venv\Scripts\python.exe"
 REM ---- 3. Dependencies ----
 echo   [3/4] Installing dependencies ^(a few minutes the first time^)...
 "%PY%" -m pip install --upgrade pip --quiet
-"%PY%" -m pip install -r requirements.txt --quiet
+"%PY%" -m pip install -r requirements/legacy.txt --quiet
 if errorlevel 1 (
     echo.
     echo   [!] Something failed - most likely PyAudio, which needs a
     echo       prebuilt wheel on some PCs. Trying the fallback...
     "%PY%" -m pip install pipwin --quiet
     "%PY%" -m pipwin install pyaudio
-    "%PY%" -m pip install -r requirements.txt --quiet
+    "%PY%" -m pip install -r requirements/legacy.txt --quiet
     if errorlevel 1 (
         echo.
         echo   [ERROR] Install still failed. Send me the message above.

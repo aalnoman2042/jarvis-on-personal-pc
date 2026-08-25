@@ -9,8 +9,8 @@ from __future__ import annotations
 from google import genai
 from google.genai import types
 
-import config
-import llm_tools
+from core import config
+from core.tools import llm_tools
 
 # One shared personality for every brain — see config.system_prompt().
 SYSTEM_PROMPT = config.system_prompt()

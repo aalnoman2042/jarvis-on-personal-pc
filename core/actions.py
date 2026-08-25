@@ -20,7 +20,7 @@ import webbrowser
 import psutil
 import pyautogui
 
-import reminders
+from core import reminders
 
 # Friendly name -> Windows launch command. Falls back to the raw name if unknown.
 APP_COMMANDS = {
@@ -513,7 +513,10 @@ def lock_screen() -> str:
     return "Locking your screen."
 
 
-_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+# This file lives in core/, but jarvis.state belongs beside the README one level
+# up — same reasoning as core.config.PROJECT_DIR, and the same silent breakage
+# if the extra dirname is ever dropped.
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _STARTUP_DIR = os.path.join(
     os.environ.get("APPDATA", ""),
     "Microsoft", "Windows", "Start Menu", "Programs", "Startup",
@@ -559,7 +562,7 @@ def set_autostart(action: str) -> str:
         pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
         if not os.path.exists(pyw):
             pyw = "pythonw"
-        script = os.path.join(_PROJECT_DIR, "jarvis_gui.py")
+        script = os.path.join(_PROJECT_DIR, "legacy", "jarvis_gui.py")
         # The launcher runs at every login. It reads jarvis.state first and quietly
         # exits if you powered Jarvis off last time; otherwise it starts it hidden.
         vbs = (

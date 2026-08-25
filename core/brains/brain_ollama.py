@@ -19,9 +19,9 @@ import time
 import urllib.error
 import urllib.request
 
-import config
-import llm_tools
-import memory
+from core import config
+from core.tools import llm_tools
+from core import memory
 
 # One shared personality for every brain — see config.system_prompt().
 SYSTEM_PROMPT = config.system_prompt()

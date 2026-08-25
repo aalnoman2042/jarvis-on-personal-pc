@@ -4,7 +4,19 @@ Run:  python try_voices.py
 Each voice speaks a sample. Note the name you like, then set it in .env:
     TTS_VOICE=jenny
 """
-import config
+
+# --- repo-root bootstrap -------------------------------------------------
+# These scripts are launched directly (double-clicked via the .bat files), so
+# Python puts legacy/ on sys.path, not the repo root -- and `core` would not be
+# importable. Sibling imports below (voice, vondo) still resolve normally.
+import os as _os
+import sys as _sys
+
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _ROOT not in _sys.path:
+    _sys.path.insert(0, _ROOT)
+# -------------------------------------------------------------------------
+from core import config
 import voice
 
 SAMPLES = [

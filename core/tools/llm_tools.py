@@ -8,9 +8,9 @@ All of them just forward to actions.py, so PC control is identical across brains
 Wrappers are defined here (not imported from actions) so the type hints are plain
 `str` — which Gemini's schema generator introspects reliably.
 """
-import actions
-import confirm
-import memory
+from core.lazy import actions
+from core import confirm
+from core import memory
 
 
 def open_app(name: str) -> str:
