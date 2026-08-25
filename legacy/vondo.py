@@ -33,6 +33,14 @@ WAKE_VARIANTS = {
     "harvis", "service", "jervais", "jarvis's",
 }
 
+# Longest first, and ORDER MATTERS. Several variants are prefixes of others:
+# "jarvi" sits inside "jarvis", which sits inside "jarvis's". Iterating the set
+# directly meant whichever happened to come up first won, and Python randomises
+# string hashing per process — so "jarvis open chrome" split on "jarvi" and left
+# the command as "s open chrome" on some runs and not others. That is what an
+# assistant that "sometimes mishears you" actually looks like.
+_VARIANTS_LONGEST_FIRST = sorted(WAKE_VARIANTS, key=len, reverse=True)
+
 
 def match_wake(heard: str):
     """Return the command after the wake word, or None if no wake word heard.
@@ -41,7 +49,7 @@ def match_wake(heard: str):
     """
     if not heard:
         return None
-    for variant in WAKE_VARIANTS:
+    for variant in _VARIANTS_LONGEST_FIRST:
         if variant in heard:
             return heard.split(variant, 1)[1].strip()
     # Fuzzy: is the first spoken word close enough to the wake word?

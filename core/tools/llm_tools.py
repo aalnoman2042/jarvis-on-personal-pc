@@ -8,6 +8,8 @@ All of them just forward to actions.py, so PC control is identical across brains
 Wrappers are defined here (not imported from actions) so the type hints are plain
 `str` — which Gemini's schema generator introspects reliably.
 """
+import functools
+
 from core.lazy import actions
 from core import confirm
 from core import memory
@@ -174,7 +176,43 @@ TOOL_FUNCTIONS = [
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
 ]
-DISPATCH = {fn.__name__: fn for fn in TOOL_FUNCTIONS}
+
+
+def _logged(fn):
+    """Record every tool call, so Jarvis can say what it did.
+
+    Wrapping the dispatch table is the honest place for this: it is the point
+    Groq, Ollama and Claude all funnel through, so no brain has to remember to
+    log. A tool that raises is logged as a failure and the exception re-raised —
+    brains have their own handling for that, and swallowing it here would turn a
+    broken tool into a silent no-op.
+
+    KNOWN GAP: Gemini is not covered. It uses TOOL_FUNCTIONS directly for
+    automatic function calling, and its schema generator introspects each
+    callable. functools.wraps keeps __name__ and __annotations__ intact, but a
+    generator that reads the signature without following __wrapped__ sees
+    `(*args, **kwargs)` and emits a broken schema. Rather than risk a fallback
+    brain on an untestable assumption, TOOL_FUNCTIONS stays unwrapped. Close this
+    by logging inside the Gemini brain's own call path when it is next touched.
+    """
+    name = fn.__name__
+
+    @functools.wraps(fn)
+    def call(*args, **kwargs):
+        detail = ", ".join([str(a) for a in args]
+                           + [f"{k}={v}" for k, v in kwargs.items()])
+        try:
+            result = fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001  (log, then let the brain deal with it)
+            memory.log_action(name, detail, f"{type(exc).__name__}: {exc}", ok=False)
+            raise
+        memory.log_action(name, detail, str(result))
+        return result
+
+    return call
+
+
+DISPATCH = {fn.__name__: _logged(fn) for fn in TOOL_FUNCTIONS}
 
 
 def _tool(name: str, desc: str, props: dict | None = None, required: list | None = None) -> dict:

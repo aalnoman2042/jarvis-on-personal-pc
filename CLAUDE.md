@@ -48,6 +48,35 @@ a package. Each entry point carries a small bootstrap that puts the repo root on
 them all would drag in every provider SDK, and one missing optional package
 would break the entire core.
 
+## Memory
+
+`core/memory/` is a package: `store.py` (SQLite), `facts.py` (the notes Jarvis
+keeps about Rohan), `migrate.py` (the one-time import from v1's files), and
+`__init__.py` as the public face. **Callers must go through `__init__`** —
+`memory.add_turn(...)`, `memory.wrap(brain)`, `memory.as_openai(...)`. That
+indirection is what let flat files become SQLite without touching a brain.
+
+- The database is `vondo.db` at the repo root, `VONDO_DB` overrides the path
+  (that is how the cloud core will point at its mounted volume). Gitignored.
+- WAL mode, one connection per thread — there is a reminder thread, a UI thread
+  and soon a websocket loop, and sqlite3 connections are not thread-safe.
+- **Nothing in the package may raise into a conversation.** Every public function
+  swallows storage errors and degrades to "nothing remembered", exactly as the
+  file version did. Memory failing is annoying; memory taking Jarvis down is not.
+- **Retention is forever; context is trimmed.** Storage keeps everything (a few
+  MB for years). `as_openai` decides how much a model sees this turn. These are
+  different decisions — do not conflate them again.
+- `jarvis.history.jsonl` and `jarvis.facts.json` are **frozen, not deleted**.
+  Nothing writes to them. They are the way back if the database disappoints.
+  A marker row in `meta` makes the import run exactly once.
+- Still text only, never tool-call scaffolding — see the note in `__init__`.
+
+**Known gap:** the action log is written by wrapping `DISPATCH` in
+`core/tools/llm_tools.py`, which covers Groq, Ollama and Claude. Gemini calls
+`TOOL_FUNCTIONS` directly and its schema generator introspects each callable, so
+wrapping those risks emitting `(*args, **kwargs)` schemas. Gemini's tool calls
+are therefore unlogged; close it inside the Gemini brain's own call path.
+
 ## Imports after the phase-00 move
 
 | Was | Now |

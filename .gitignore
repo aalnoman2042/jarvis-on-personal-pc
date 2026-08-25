@@ -28,3 +28,8 @@ desktop.ini
 .DS_Store
 .vscode/
 .idea/
+
+# --- v2: the database Jarvis actually remembers into (yours, stays local) ---
+vondo.db
+vondo.db-wal
+vondo.db-shm
