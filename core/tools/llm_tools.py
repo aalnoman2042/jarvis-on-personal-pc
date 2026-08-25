@@ -202,6 +202,8 @@ def _logged(fn):
         detail = ", ".join([str(a) for a in args]
                            + [f"{k}={v}" for k, v in kwargs.items()])
         try:
+            # Whether this runs here or on Rohan's PC is decided a layer down,
+            # in core.lazy — so this wrapper is only ever about logging.
             result = fn(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001  (log, then let the brain deal with it)
             memory.log_action(name, detail, f"{type(exc).__name__}: {exc}", ok=False)

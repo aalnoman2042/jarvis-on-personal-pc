@@ -7,9 +7,12 @@
 python-dotenv>=1.0.0       # settings from .env
 psutil>=5.9.0              # the server's own health, not the PC's
 
+# --- the API ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0  # includes the websocket implementation
+pydantic>=2.0.0
+
 # --- brains (free tiers first) ---
 groq>=0.11.0               # primary
 google-genai>=1.0.0        # backup
 # anthropic>=0.116.0       # paid; uncomment only when VONDO_BRAIN=claude
-
-# Phase 02 adds: fastapi, uvicorn[standard], websockets, pydantic

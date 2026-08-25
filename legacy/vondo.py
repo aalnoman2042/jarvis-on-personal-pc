@@ -1,6 +1,6 @@
 """VONDO — a voice assistant for your PC.
 
-Run:  python vondo.py
+Run:  python legacy/vondo.py
 Change the brain (gemini / groq / claude / free) and options in your .env file.
 """
 from __future__ import annotations
@@ -21,8 +21,7 @@ import difflib
 import sys
 
 from core import config
-from core import confirm
-from core import memory
+from core.brains import factory
 from core import reminders
 from voice import Voice
 
@@ -62,68 +61,11 @@ def match_wake(heard: str):
 def make_brain(choice: str | None = None):
     """Build a brain that remembers the conversation and falls back gracefully.
 
-    Pass `choice` to build a specific brain (the UI dropdown does this when you
-    switch); leave it out to use whatever VONDO_BRAIN says in .env.
+    The construction itself lives in core.brains.factory so the cloud server and
+    this desktop app build brains identically. Kept as a name here because the
+    window's brain dropdown calls it.
     """
-    # Wrapping the whole chain means every exchange is recorded once, whichever
-    # brain in it answered — which is what lets the local model carry on a
-    # conversation the cloud started. Both the window and the console build
-    # brains through here, so nothing else needs to know about it.
-    #
-    # confirm sits inside memory: a "yes" answering "shut down the PC?" still
-    # gets remembered as a normal exchange, but the model never sees the bare
-    # "yes" — it has no idea an action was parked, and would only guess.
-    return memory.wrap(confirm.wrap(_build_brain(choice)))
-
-
-def _build_brain(choice: str | None = None):
-    """Build the brain itself, wrapped so it auto-drops to the offline brain if
-    the AI service is ever rate-limited or unreachable."""
-    from core.brains.brain_free import FreeBrain
-    from core.brains.brain_fallback import FallbackBrain, LazyBrain
-
-    def _lazy_ollama():
-        """The local model, wrapped so it only starts if it's actually reached."""
-        from core.brains.brain_ollama import OllamaBrain
-        return LazyBrain(OllamaBrain, "ollama")
-
-    choice = (choice or config.BRAIN).strip().lower()
-    try:
-        if choice == "auto":
-            # Groq first: fastest, and nothing runs on this PC while it lasts.
-            # Then the local model — no daily limit and no network round trip.
-            # Gemini after that, and the rule-based brain as a last resort.
-            # A brain that fails is skipped for a while (see brain_fallback), so
-            # a used-up free tier doesn't slow down every later question.
-            from core.brains.brain_groq import GroqBrain
-            tail = FreeBrain()
-            try:
-                from core.brains.brain_gemini import GeminiBrain
-                tail = FallbackBrain(GeminiBrain(), tail)
-            except Exception as exc:  # noqa: BLE001  (no key / package)
-                print(f"[gemini unavailable as a backup ({exc})]")
-            return FallbackBrain(GroqBrain(), FallbackBrain(_lazy_ollama(), tail))
-        if choice == "gemini":
-            from core.brains.brain_gemini import GeminiBrain
-            return FallbackBrain(GeminiBrain(), FreeBrain())
-        if choice == "groq":
-            from core.brains.brain_groq import GroqBrain
-            return FallbackBrain(GroqBrain(), FreeBrain())
-        if choice == "ollama":
-            from core.brains.brain_ollama import OllamaBrain
-            return FallbackBrain(OllamaBrain(), FreeBrain())
-        if choice == "claude":
-            from core.brains.brain_claude import ClaudeBrain
-            return FallbackBrain(ClaudeBrain(), FreeBrain())
-        if choice == "free":
-            return FreeBrain()
-        print(f"[unknown VONDO_BRAIN '{choice}', using offline 'free' brain]")
-    except ImportError as exc:
-        print(f"[missing package for '{choice}' brain: {exc}. Run: pip install -r requirements.txt]")
-    except Exception as exc:  # noqa: BLE001  (e.g. missing API key)
-        print(f"[couldn't start '{choice}' brain: {exc}]")
-    print("[falling back to the offline rule-based brain]")
-    return FreeBrain()
+    return factory.make(choice)
 
 
 def wants_action(voice: Voice, brain) -> str:

@@ -77,6 +77,43 @@ indirection is what let flat files become SQLite without touching a brain.
 wrapping those risks emitting `(*args, **kwargs)` schemas. Gemini's tool calls
 are therefore unlogged; close it inside the Gemini brain's own call path.
 
+## The cloud core (phase 02)
+
+`server/` is FastAPI in front of the same brains, memory and tools. `app.py`
+(routes), `auth.py` (pairing and tokens), `agents.py` (the link to the PC).
+
+```
+python -m uvicorn server.app:app --reload --port 8000
+python tests/test_server.py      # 34 checks, real server, real sockets, temp DB
+```
+
+**Brains block, so every turn runs in a worker thread** (`run_in_threadpool`)
+behind an `asyncio.Lock`. Calling a brain directly in an async endpoint would
+freeze the event loop — including the websocket carrying the PC agent. The lock
+also matches what the single shared conversation history already assumes.
+
+**PC routing lives in `core/lazy.py`, not in the tool dispatcher.** This matters:
+the AI brains reach the desktop through `llm_tools.DISPATCH`, but the rule-based
+`FreeBrain` calls `actions.open_app(...)` directly. Hooking the dispatcher alone
+covered the AI brains and silently missed the offline one — the brain most
+likely to be answering when everything else has failed. `core.lazy` sits under
+both and cannot be bypassed. `PC_FUNCTIONS` there is the single list of what
+needs the desktop; do not keep a second copy anywhere.
+
+**A missing PC is answered, not waited for.** No agent connected means an
+immediate spoken sentence, never a hung conversation. Rohan chose that.
+
+**Pairing:** every device pairs from an already-paired one via a six-digit code
+(five minutes, single use, memory only — a restart cancelling them is correct).
+The first device uses `VONDO_PAIR_SECRET`, which works **only while zero devices
+exist**. That self-closing property is the entire security argument for it — do
+not relax it into "the secret always works". Tokens are stored as hashes only.
+
+**"Streaming" is events, not tokens.** Brains return finished strings today, so
+the websocket reports status (`thinking`) and then one `reply`. The frame format
+already has a `token` type so real streaming needs no protocol change. Do not
+fake it by chunking a finished string.
+
 ## Imports after the phase-00 move
 
 | Was | Now |
