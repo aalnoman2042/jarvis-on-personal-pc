@@ -3,9 +3,9 @@
 Jarvis, v2. Live in the cloud, reachable from anywhere, free.
 Architecture and the rules that are easy to break: **[CLAUDE.md](CLAUDE.md)**.
 
-> **Secrets are not in this file.** It is committed to a public repo. The pairing
-> secret and the tokens live in `SECRETS.local.md`, which is gitignored and stays
-> on your machine.
+> **The PIN is not in this file.** It is committed to a public repo. The PIN and
+> the tokens live in `SECRETS.local.md`, which is gitignored and stays on your
+> machine.
 
 ---
 
@@ -17,22 +17,29 @@ Architecture and the rules that are easy to break: **[CLAUDE.md](CLAUDE.md)**.
 | **Health** | https://vondo-core.onrender.com/health |
 | **Repo branch** | `v2/phase-00-core-split` — Render redeploys on every push |
 
-### Getting your phone in
+### Getting a device in
 
-1. Open the URL in Chrome on the phone.
-2. Enter the first-device secret (see `SECRETS.local.md`). It already knows you
-   and your 62 previous exchanges.
+1. Open the URL in Chrome.
+2. Type your 4-digit PIN on the keypad. It already knows you and your 62
+   previous exchanges.
 3. **⋮ → Add to Home Screen.** It installs as a real app: own icon, no address
    bar, opens with no signal.
 
-That secret pairs **one** device and then stops working for good. Every later
-device pairs with a six-digit code from an already-paired one.
+The PIN is typed once per device and then exchanged for a long-lived token, so
+it never travels again. Five wrong tries locks that address out for fifteen
+minutes — per address, never globally, so nobody can lock you out by guessing
+badly on purpose.
+
+**Four digits is 10,000 combinations on a public URL.** The lockout is what
+makes that survivable: about three weeks of continuous guessing from one
+address. Six digits would multiply that by a hundred for two extra keypresses —
+change `VONDO_PIN` in the Render dashboard and it takes effect on restart.
 
 ### Linking this PC back in
 
 ```bat
 set VONDO_URL=https://vondo-core.onrender.com
-pair_agent.bat     :: once — type the six-digit code from the phone
+pair_agent.bat     :: once — type your PIN
 start_agent.bat    :: leave it running
 ```
 
