@@ -189,6 +189,19 @@ checks exactly that.
 **Fonts come from Google Fonts today**, with real fallback stacks. Phase 05 must
 self-host them, or an installed app with no signal loses its typography.
 
+**Two traps in `core/memory`, both of which have already bitten:**
+
+`core.memory.facts` resolves to a *function*, not the submodule — `__init__.py`
+re-exports `facts = _facts_mod.facts`, which shadows the module of the same
+name on the package. Inside the package `from core.memory import facts` still
+gets the module (the rebind happens after), but from outside it does not. Reach
+the module with `importlib.import_module("core.memory.facts")`.
+
+The Turso client runs a background thread, so a **script** that opens a
+connection and never closes it hangs at exit instead of finishing. Call
+`conn.close()` in anything short-lived. The server is unaffected — it holds the
+connection for its lifetime by design.
+
 ## Imports after the phase-00 move
 
 | Was | Now |
