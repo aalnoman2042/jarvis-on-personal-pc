@@ -35,6 +35,40 @@ CODE_DIGITS = 6
 
 PAIR_SECRET = os.getenv("VONDO_PAIR_SECRET", "")
 
+# ---------------------------------------------------------------------------
+# The PIN
+#
+# Rohan asked for a four-digit PIN instead of pairing codes, and it is his
+# assistant. Worth being clear-eyed about what that means: four digits is ten
+# thousand possibilities, this URL is on the open internet, and what is behind
+# it can shut down his PC. Unthrottled, a script exhausts that in under a minute.
+#
+# So the PIN is never the only thing standing there:
+#
+#   * Wrong guesses are counted per IP, and after MAX_TRIES that address is
+#     locked out for LOCKOUT. Ten thousand guesses at five per fifteen minutes
+#     is roughly three weeks of continuous effort from one address.
+#   * Every attempt, right or wrong, costs ATTEMPT_DELAY. Invisible when you
+#     type it once; it multiplies the cost of a script by thousands.
+#   * The lockout is per address, never global — a global one would let anyone
+#     lock Rohan out of his own assistant by guessing badly on purpose.
+#   * A correct PIN is exchanged for a long-lived device token, so it is typed
+#     once per device and then never travels again.
+#
+# Raising this to six digits multiplies the work by a hundred and costs two
+# keypresses. The offer stands.
+# ---------------------------------------------------------------------------
+
+PIN = os.getenv("VONDO_PIN", "").strip()
+
+MAX_TRIES = 5
+LOCKOUT = 900.0        # 15 minutes
+ATTEMPT_DELAY = 0.4    # seconds, paid by every attempt
+
+# ip -> [failure timestamps]. In memory on purpose: a restart clearing lockouts
+# is acceptable, and it keeps failed guesses out of the database entirely.
+_failures: dict[str, list[float]] = {}
+
 # Live pairing codes: code -> {"expires": float, "issued_by": device_id}.
 # Deliberately in memory only. They live five minutes, and a restart cancelling
 # every outstanding code is the correct behaviour, not a bug to fix.
@@ -160,6 +194,55 @@ def claim(code: str, name: str, kind: str) -> tuple[str, str]:
     entry = _codes.pop(code, None)  # single use, whatever happens next
     if entry is None:
         raise AuthError("that code is wrong or has expired")
+    return issue(name, kind)
+
+
+def _recent_failures(ip: str) -> list[float]:
+    now = time.time()
+    kept = [t for t in _failures.get(ip, []) if now - t < LOCKOUT]
+    if kept:
+        _failures[ip] = kept
+    else:
+        _failures.pop(ip, None)
+    return kept
+
+
+def locked_for(ip: str) -> float:
+    """Seconds until this address may try again. 0 if it may try now."""
+    failures = _recent_failures(ip)
+    if len(failures) < MAX_TRIES:
+        return 0.0
+    return max(0.0, LOCKOUT - (time.time() - failures[0]))
+
+
+def login(pin: str, name: str, kind: str, ip: str = "") -> tuple[str, str]:
+    """Exchange the PIN for a device token.
+
+    Raises AuthError with something worth showing a person — including how long
+    a lockout has left, because "wrong PIN" when you are actually locked out is
+    the kind of message that makes people retype a correct PIN twenty times.
+    """
+    if not PIN:
+        raise AuthError("No PIN is set on this server.")
+
+    waiting = locked_for(ip)
+    if waiting > 0:
+        minutes = max(1, int(waiting // 60))
+        raise AuthError(f"Too many wrong tries. Try again in {minutes} minute"
+                        f"{'s' if minutes > 1 else ''}.")
+
+    # Paid whether the PIN is right or wrong: a delay only on failure tells an
+    # attacker which guesses were close to something.
+    time.sleep(ATTEMPT_DELAY)
+
+    if not hmac.compare_digest(PIN, (pin or "").strip()):
+        _failures.setdefault(ip, []).append(time.time())
+        left = MAX_TRIES - len(_recent_failures(ip))
+        if left <= 0:
+            raise AuthError("Too many wrong tries. Locked for 15 minutes.")
+        raise AuthError(f"Wrong PIN. {left} attempt{'s' if left > 1 else ''} left.")
+
+    _failures.pop(ip, None)     # a correct PIN wipes the slate for this address
     return issue(name, kind)
 
 

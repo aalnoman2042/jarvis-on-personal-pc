@@ -32,7 +32,8 @@ import logging
 import os
 import time
 
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (Depends, FastAPI, Header, HTTPException, Request,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -134,6 +135,40 @@ class ClaimIn(BaseModel):
     kind: str = Field(default="client", max_length=20)
 
 
+class LoginIn(BaseModel):
+    pin: str = Field(min_length=1, max_length=32)
+    name: str = Field(default="device", max_length=60)
+    kind: str = Field(default="client", max_length=20)
+
+
+def _client_ip(request: Request) -> str:
+    """The address the lockout counts against.
+
+    Behind Render's proxy `request.client.host` is the proxy, not the visitor —
+    every attempt in the world would share one bucket, so one bad guess anywhere
+    would lock out everyone including Rohan. The left-most X-Forwarded-For entry
+    is the original client. It is spoofable, which matters less than it sounds:
+    an attacker who rotates it gets more guesses, but a normal visitor keeps a
+    working lockout, and the alternative locks the owner out of his own house.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:45]
+    return request.client.host if request.client else "unknown"
+
+
+@app.post("/login")
+async def login(body: LoginIn, request: Request):
+    """Type the PIN, get a device token. The token is what everything else uses."""
+    try:
+        device_id, token = auth.login(body.pin, body.name, body.kind, _client_ip(request))
+    except auth.AuthError as exc:
+        log.warning("failed login from %s: %s", _client_ip(request), exc)
+        raise HTTPException(status_code=403, detail=str(exc)) from None
+    log.info("device signed in: %s (%s)", body.name, body.kind)
+    return {"device_id": device_id, "token": token}
+
+
 @app.post("/pair/bootstrap")
 async def pair_bootstrap(body: BootstrapIn):
     """Pair the very first device. Refuses once any device exists."""
@@ -213,7 +248,8 @@ async def health():
     """
     return {"ok": True, "assistant": config.ASSISTANT_NAME,
             "pc_online": agents.registry.online(),
-            "devices_paired": auth.device_count() > 0}
+            "devices_paired": auth.device_count() > 0,
+            "pin_set": bool(auth.PIN)}
 
 
 @app.get("/status")

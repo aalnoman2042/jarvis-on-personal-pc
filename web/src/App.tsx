@@ -12,7 +12,7 @@ import { Reactor } from "./hud/Reactor";
 import { Telemetry } from "./hud/Telemetry";
 import { useVondo } from "./lib/socket";
 import { clearToken, readToken, writeToken } from "./lib/store";
-import { Pair } from "./screens/Pair";
+import { Pin } from "./screens/Pin";
 
 const CONN_TEXT: Record<string, string> = {
   connecting: "Connecting",
@@ -34,11 +34,11 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
           <span className="label">Refused</span>
           <h1>This device isn&rsquo;t authorised</h1>
           <p className="pair-help">
-            Its access was revoked, or the server no longer recognises it. Pair
-            it again to carry on.
+            Its access was revoked, or the server no longer recognises it. Enter
+            your PIN again to carry on.
           </p>
           <button className="pair-go" onClick={onForget}>
-            Pair again
+            Enter PIN
           </button>
         </div>
       </div>
@@ -60,7 +60,7 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
         )}
         <span className="label brain">{jarvis.brain || "—"}</span>
         <button className="linkish label" onClick={onForget}>
-          Unpair
+          Sign out
         </button>
       </header>
 
@@ -93,7 +93,7 @@ export default function App() {
     setToken("");
   }
 
-  if (!token) return <Pair onPaired={paired} />;
+  if (!token) return <Pin onIn={paired} />;
   // Keyed on the token so unpairing and pairing again builds a fresh socket
   // rather than reusing one wired to a token that no longer works.
   return <Hud key={token} token={token} onForget={forget} />;

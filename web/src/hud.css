@@ -380,3 +380,93 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- PIN ---------- */
+.pin-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  width: min(330px, 100%);
+  padding: var(--s5) var(--s4);
+  text-align: center;
+}
+.pin-card h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--ink-strong);
+}
+
+/* Four dots rather than digits: this gets typed in public. */
+.pin-dots {
+  display: flex;
+  gap: var(--s3);
+  margin: var(--s2) 0;
+}
+.pin-dot {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  transition: background 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.pin-dot-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.pin-msg {
+  margin: 0;
+  min-height: 1.4em; /* reserved, so the pad never jumps when a message appears */
+  font-size: 0.86rem;
+  color: var(--dim);
+}
+.pin-msg-bad {
+  color: var(--bad);
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s2);
+  width: 100%;
+}
+.pin-key {
+  padding: var(--s3) 0;
+  font-family: var(--f-mono);
+  font-size: 1.35rem;
+  color: var(--ink-strong);
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  transition: background 0.12s ease, border-color 0.12s ease;
+  /* Stops a double-tap zooming the page on the second press. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.pin-key:active {
+  background: rgba(53, 214, 255, 0.14);
+  border-color: var(--accent);
+}
+.pin-key:disabled {
+  color: var(--idle);
+}
+.pin-key-del {
+  font-size: 1.1rem;
+  color: var(--dim);
+}
+
+/* A wrong PIN should be felt, not read. */
+.pin-shake {
+  animation: pin-shake 0.4s ease;
+}
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}

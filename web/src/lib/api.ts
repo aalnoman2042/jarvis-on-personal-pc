@@ -23,6 +23,11 @@ async function post(path: string, body: unknown, token?: string) {
   return data;
 }
 
+/** Type the PIN, get a device token. The only way in now. */
+export function login(pin: string, name: string) {
+  return post("/login", { pin, name, kind: "client" });
+}
+
 /** Pair the very first device, using the secret set on the server. */
 export function bootstrap(secret: string, name: string) {
   return post("/pair/bootstrap", { secret, name, kind: "client" });
