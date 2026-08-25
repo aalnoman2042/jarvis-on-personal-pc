@@ -4,8 +4,7 @@
 # point of the cloud migration was to stop putting weight there. No AI SDKs, no
 # models, no speech stack — the browser and the cloud handle all of that.
 
+websockets>=13.0           # the outbound link to the cloud
 psutil>=5.9.0              # CPU / RAM / battery telemetry for the HUD
 pyautogui>=0.9.54          # volume, media keys, screenshots
-python-dotenv>=1.0.0       # reads the pairing token
-
-# Phase 03 adds: websockets
+python-dotenv>=1.0.0       # reads .env for VONDO_URL

@@ -114,6 +114,44 @@ the websocket reports status (`thinking`) and then one `reply`. The frame format
 already has a `token` type so real streaming needs no protocol change. Do not
 fake it by chunking a finished string.
 
+## The PC agent (phase 03)
+
+`agent/` is the only VONDO process on Rohan's machine and must stay small:
+`agent.py` (the loop), `guard.py` (what it will do), `pair.py` (one-time setup),
+`settings.py`. Four dependencies, no AI, no models, no speech, no window. If
+something here starts needing a heavyweight package, the work belongs in the
+cloud instead.
+
+```
+pair_agent.bat     # once — type the six-digit code from the phone
+start_agent.bat    # run it
+python tests/test_agent.py    # 17 checks, real agent, real server, temp everything
+```
+
+**The allow-list is imported, never retyped.** `guard.ALLOWED` *is*
+`core.lazy.PC_FUNCTIONS`. Two copies drift into "the server can ask for
+something the agent forgot about". It is an allow-list on purpose: a block-list
+would have to anticipate every dangerous thing, this has to anticipate nothing.
+
+**Destructive actions ask again, here.** Shutdown, restart and force-closing a
+named app pop a `MessageBoxTimeoutW` on the desk (30s, "No" focused, timeout
+means no). The cloud's confirm gate is code on a server; if that server were
+compromised it is exactly as trustworthy as the thing that failed. Closing the
+*front* window is exempt — that is a polite WM_CLOSE and still prompts to save.
+If `MessageBoxTimeoutW` were ever missing we refuse rather than risk a dialog
+that hangs forever on an unattended machine.
+
+**Stopping cleanly is a feature, not tidiness.** `request_stop()` closes the
+websocket so the cloud marks the PC offline *at once*. Killing the process
+leaves the socket half-open, and until TCP notices, "open chrome" from the phone
+waits out a timeout instead of saying the PC is asleep. The reconnect backoff
+waits on the stop event too, or quitting during a 60-second backoff hangs.
+
+**The token lives in `agent.token`, not `.env`.** `.env` is the file Rohan
+opens, edits and occasionally screenshots. A long-lived credential does not
+belong in the middle of that. Gitignored; `VONDO_AGENT_TOKEN_FILE` overrides it
+for tests.
+
 ## Imports after the phase-00 move
 
 | Was | Now |

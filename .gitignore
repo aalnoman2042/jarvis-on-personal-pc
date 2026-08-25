@@ -33,3 +33,6 @@ desktop.ini
 vondo.db
 vondo.db-wal
 vondo.db-shm
+
+# The PC agent's credential. Written by `python -m agent.pair`.
+agent.token

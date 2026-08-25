@@ -443,6 +443,11 @@ portable half that v2 deploys to the cloud, `legacy/` is this desktop app.
 | `stop_jarvis.bat` | Force-stop Jarvis |
 | `enable_autostart.bat` / `disable_autostart.bat` | Boot launch on/off |
 | `CLAUDE.md` | How v2 is put together, and what not to break |
+| `pair_agent.bat` | v2: pair this PC with your cloud Jarvis (once) |
+| `start_agent.bat` | v2: run the small agent that lets your phone reach this PC |
+| `server/` | v2: the cloud core — pairing, chat, the HUD's websocket |
+| `agent/` | v2: the PC agent — allow-list, local confirmation, telemetry |
+| `tests/` | v2: end-to-end suites for the server and the agent |
 | `requirements/cloud.txt` · `agent.txt` · `legacy.txt` | Dependencies, split by where they run |
 | `core/config.py` | Reads and writes your `.env` settings |
 | `core/memory.py` | The conversation and facts Jarvis remembers |
