@@ -1,0 +1,42 @@
+[
+ {
+  "family": "Barlow",
+  "weight": "300",
+  "file": "Barlow-300.woff2"
+ },
+ {
+  "family": "Barlow",
+  "weight": "400",
+  "file": "Barlow-400.woff2"
+ },
+ {
+  "family": "Barlow",
+  "weight": "500",
+  "file": "Barlow-500.woff2"
+ },
+ {
+  "family": "Chakra Petch",
+  "weight": "500",
+  "file": "ChakraPetch-500.woff2"
+ },
+ {
+  "family": "Chakra Petch",
+  "weight": "600",
+  "file": "ChakraPetch-600.woff2"
+ },
+ {
+  "family": "Chakra Petch",
+  "weight": "700",
+  "file": "ChakraPetch-700.woff2"
+ },
+ {
+  "family": "JetBrains Mono",
+  "weight": "400",
+  "file": "JetBrainsMono-400.woff2"
+ },
+ {
+  "family": "JetBrains Mono",
+  "weight": "500",
+  "file": "JetBrainsMono-500.woff2"
+ }
+]

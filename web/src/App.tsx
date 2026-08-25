@@ -53,6 +53,11 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
           <span className="dot" aria-hidden />
           {CONN_TEXT[jarvis.conn] ?? jarvis.conn}
         </span>
+        {jarvis.queued > 0 && (
+          <span className="held label" title="Waiting for a connection">
+            {jarvis.queued} held
+          </span>
+        )}
         <span className="label brain">{jarvis.brain || "—"}</span>
         <button className="linkish label" onClick={onForget}>
           Unpair

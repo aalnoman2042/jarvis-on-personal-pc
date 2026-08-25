@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import * as outbox from "./outbox";
 import type { ConnState, LogLine, ServerFrame, Telemetry } from "./types";
 import type { ReactorState } from "../hud/reactorEngine";
 
@@ -28,6 +29,7 @@ export interface Vondo {
   pcOnline: boolean;
   telemetry: Telemetry;
   log: LogLine[];
+  queued: number;
   say: (text: string) => void;
   note: (text: string) => void;
 }
@@ -39,6 +41,7 @@ export function useVondo(token: string): Vondo {
   const [pcOnline, setPcOnline] = useState(false);
   const [telemetry, setTelemetry] = useState<Telemetry>({});
   const [log, setLog] = useState<LogLine[]>([]);
+  const [queued, setQueued] = useState(() => outbox.count());
 
   const socket = useRef<WebSocket | null>(null);
   const timer = useRef<number | null>(null);
@@ -66,6 +69,24 @@ export function useVondo(token: string): Vondo {
       backoff.current = BACKOFF_START;
       setConn("online");
       setState("online");
+
+      // Anything typed while offline goes now, oldest first, and only leaves
+      // the queue once it is actually on the wire. Sending is one at a time
+      // because the server answers one turn at a time anyway, and a burst
+      // would just queue up behind the brain lock.
+      const waiting = outbox.read();
+      if (waiting.length) {
+        append("system", `Sending ${waiting.length} message${waiting.length > 1 ? "s" : ""} held while you were offline.`);
+        for (const item of waiting) {
+          try {
+            ws.send(JSON.stringify({ type: "say", text: item.text }));
+            outbox.remove(item.id);
+          } catch {
+            break; // socket went again; the rest stay queued
+          }
+        }
+        setQueued(outbox.count());
+      }
     };
 
     ws.onmessage = (event) => {
@@ -155,7 +176,9 @@ export function useVondo(token: string): Vondo {
       append("you", trimmed);
       const ws = socket.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        append("system", "No connection to Jarvis — that one didn't send.");
+        outbox.add(trimmed);
+        setQueued(outbox.count());
+        append("system", "No signal — held. I'll send it when you're back.");
         return;
       }
       setState("thinking");
@@ -166,5 +189,5 @@ export function useVondo(token: string): Vondo {
 
   const note = useCallback((text: string) => append("system", text), [append]);
 
-  return { conn, state, brain, pcOnline, telemetry, log, say, note };
+  return { conn, state, brain, pcOnline, telemetry, log, queued, say, note };
 }

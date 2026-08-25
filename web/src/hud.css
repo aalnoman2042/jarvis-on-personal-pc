@@ -63,6 +63,14 @@
   margin-left: auto;
 }
 
+/* Messages typed with no signal. Amber, because it is neither an error nor
+   nothing happening — it is work waiting. */
+.held {
+  padding: 2px 8px;
+  color: var(--warn);
+  border: 1px solid currentColor;
+}
+
 .linkish {
   padding: 0;
   color: var(--dim);
