@@ -37,7 +37,11 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # Free — Groq. Key: https://console.groq.com/keys
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Groq retire models without warning — llama-3.3-70b-versatile vanished in
+# Aug 2026 and started answering 404, which surfaced as the offline brain
+# quietly taking over. If Jarvis suddenly sounds stupid, check this first:
+#   curl -H "Authorization: Bearer $GROQ_API_KEY" https://api.groq.com/openai/v1/models
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Free — Ollama, running locally on this PC. No key, no internet, no limits.
 # Install once: run "local llm\install_local_llm.bat", then pick "ollama" in the UI.
