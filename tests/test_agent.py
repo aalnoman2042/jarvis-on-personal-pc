@@ -24,7 +24,7 @@ PORT = 8732
 # All of this must be set before core.config / agent.settings are imported.
 os.environ["VONDO_DB"] = os.path.join(SCRATCH, "test.db")
 os.environ["VONDO_AGENT_TOKEN_FILE"] = os.path.join(SCRATCH, "agent.token")
-os.environ["VONDO_PAIR_SECRET"] = "open-sesame"
+os.environ["VONDO_PIN"] = "2042"
 os.environ["VONDO_BRAIN"] = "free"
 os.environ["VONDO_URL"] = f"http://127.0.0.1:{PORT}"
 os.environ["VONDO_AGENT_NAME"] = "test-pc"
@@ -83,18 +83,16 @@ try:
           guard._needs_local_confirmation("power_control", ["shutdown"], {}), contains="shut down")
     check("reading CPU would not", guard._needs_local_confirmation("system_info", [], {}), "")
 
-    print("\n=== 2. pairing this PC the way Rohan will ===")
-    phone = httpx.post(f"{BASE}/pair/bootstrap",
-                       json={"secret": "open-sesame", "name": "phone"}).json()["token"]
+    print("\n=== 2. signing this PC in the way Rohan will ===")
+    phone = httpx.post(f"{BASE}/login",
+                       json={"pin": "2042", "name": "phone"}, timeout=30).json()["token"]
     hdr = {"Authorization": f"Bearer {phone}"}
-    code = httpx.post(f"{BASE}/pair/start", headers=hdr).json()["code"]
-    check("the phone produced a code", len(code), 6)
 
-    from agent.pair import claim
-    token = claim(code)                      # exactly what pair_agent.bat runs
+    from agent.login import claim
+    token = claim("2042")                    # exactly what link_pc.bat runs
     settings.save_token(token)
-    check("the agent redeemed it for a token", len(token) > 20, True)
-    check("  and saved it outside the repo",
+    check("the agent signed in with the PIN", len(token) > 20, True)
+    check("  and saved the token outside the repo",
           os.path.exists(os.environ["VONDO_AGENT_TOKEN_FILE"]), True)
     check("  the device is listed as an agent",
           [d["kind"] for d in httpx.get(f"{BASE}/devices", headers=hdr).json()["devices"]],

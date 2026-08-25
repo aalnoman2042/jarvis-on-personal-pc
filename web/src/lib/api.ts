@@ -28,21 +28,6 @@ export function login(pin: string, name: string) {
   return post("/login", { pin, name, kind: "client" });
 }
 
-/** Pair the very first device, using the secret set on the server. */
-export function bootstrap(secret: string, name: string) {
-  return post("/pair/bootstrap", { secret, name, kind: "client" });
-}
-
-/** Redeem a six-digit code from an already-paired device. */
-export function claim(code: string, name: string) {
-  return post("/pair/claim", { code, name, kind: "client" });
-}
-
-/** Ask for a code to read out to a new device. */
-export function startPairing(token: string) {
-  return post("/pair/start", {}, token);
-}
-
 export async function health() {
   const res = await fetch("/health");
   return res.json();

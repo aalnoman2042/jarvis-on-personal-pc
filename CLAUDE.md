@@ -103,11 +103,17 @@ needs the desktop; do not keep a second copy anywhere.
 **A missing PC is answered, not waited for.** No agent connected means an
 immediate spoken sentence, never a hung conversation. Rohan chose that.
 
-**Pairing:** every device pairs from an already-paired one via a six-digit code
-(five minutes, single use, memory only — a restart cancelling them is correct).
-The first device uses `VONDO_PAIR_SECRET`, which works **only while zero devices
-exist**. That self-closing property is the entire security argument for it — do
-not relax it into "the secret always works". Tokens are stored as hashes only.
+**Signing in is a four-digit PIN**, and the PIN is the whole story — there is no
+pairing flow any more. It is typed once per device and exchanged for a
+long-lived token; tokens are stored as hashes only.
+
+Four digits is 10,000 combinations on a public URL, so the throttle is not
+optional: five wrong tries locks that **address** for fifteen minutes, and every
+attempt pays a fixed delay whether it is right or wrong (a delay only on failure
+tells an attacker which guesses were warm). The lockout must stay per-address —
+a global one lets anyone lock Rohan out by guessing badly on purpose. Behind a
+proxy that means reading the forwarded address, or every visitor shares one
+bucket.
 
 **"Streaming" is events, not tokens.** Brains return finished strings today, so
 the websocket reports status (`thinking`) and then one `reply`. The frame format
@@ -123,7 +129,7 @@ something here starts needing a heavyweight package, the work belongs in the
 cloud instead.
 
 ```
-pair_agent.bat     # once — type the six-digit code from the phone
+link_pc.bat        # once — type your PIN
 start_agent.bat    # run it
 python tests/test_agent.py    # 17 checks, real agent, real server, temp everything
 ```

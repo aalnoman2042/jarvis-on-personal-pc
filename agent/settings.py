@@ -3,7 +3,7 @@
 The token is kept in its own file rather than in `.env` for one reason: `.env`
 is the file Rohan opens, edits and occasionally screenshots when something needs
 configuring. A long-lived credential should not be in the middle of that.
-`agent.token` is written once by the pairing step, gitignored, and never needs
+`agent.token` is written once when you sign in, gitignored, and never needs
 looking at again.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ CLOUD_WS = CLOUD_URL.replace("https://", "wss://").replace("http://", "ws://")
 
 
 def agent_name() -> str:
-    """What this PC calls itself when pairing, so the device list is readable."""
+    """What this PC calls itself when signing in, so the device list is readable."""
     return os.getenv("VONDO_AGENT_NAME") or f"{socket.gethostname()} (PC)"
 
 

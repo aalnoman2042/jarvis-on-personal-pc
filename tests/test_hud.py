@@ -22,7 +22,7 @@ SCRATCH = tempfile.mkdtemp(prefix="vondo-hud-test-")
 PORT = 8733
 
 os.environ["VONDO_DB"] = os.path.join(SCRATCH, "test.db")
-os.environ["VONDO_PAIR_SECRET"] = "open-sesame"
+os.environ["VONDO_PIN"] = "2042"
 os.environ["VONDO_BRAIN"] = "free"
 
 import httpx  # noqa: E402
@@ -95,18 +95,18 @@ try:
 
     print("\n=== 4. the static mount has not swallowed the API ===")
     check("/health still answers", httpx.get(f"{BASE}/health").status_code, 200)
-    check("  and says nothing is paired yet",
-          httpx.get(f"{BASE}/health").json()["devices_paired"], False)
+    check("  and says a PIN is configured",
+          httpx.get(f"{BASE}/health").json()["pin_set"], True)
     check("/chat still refuses without a token",
           httpx.post(f"{BASE}/chat", json={"message": "hi"}).status_code, 401)
+    check("/login is reachable and not swallowed by the static mount",
+          httpx.post(f"{BASE}/login", json={"pin": "0000", "name": "probe"}).status_code, 403)
 
-    print("\n=== 5. the pairing screen's flow works over HTTP ===")
-    r = httpx.post(f"{BASE}/pair/bootstrap",
-                   json={"secret": "open-sesame", "name": "desktop", "kind": "client"})
-    check("first device can claim it", r.status_code, 200)
+    print("\n=== 5. the login flow works over HTTP ===")
+    r = httpx.post(f"{BASE}/login",
+                   json={"pin": "2042", "name": "desktop", "kind": "client"})
+    check("the PIN signs a device in", r.status_code, 200)
     token = r.json()["token"]
-    check("health now reports it paired",
-          httpx.get(f"{BASE}/health").json()["devices_paired"], True)
     check("and the token works",
           httpx.post(f"{BASE}/chat", headers={"Authorization": f"Bearer {token}"},
                      json={"message": "what time is it"}, timeout=30).status_code, 200)

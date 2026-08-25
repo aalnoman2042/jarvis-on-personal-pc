@@ -4,7 +4,7 @@ Keys belong in Fly's vault, not in the image and not in git. This reads the
 .env Rohan already maintains and sets the same names as Fly secrets, so there
 is one place to edit a key rather than two.
 
-It also mints VONDO_PAIR_SECRET on first run and prints it once. That secret
+It also mints VONDO_PIN on first run and prints it once. That secret
 pairs the very first device and stops working the moment a device exists, so it
 is worth exactly one showing and no storage.
 """
@@ -49,9 +49,9 @@ def main() -> int:
             pairs.append(f"{key}={value}")
 
     listed = fly("secrets", "list", "-a", app).stdout
-    if "VONDO_PAIR_SECRET" not in listed:
+    if "VONDO_PIN" not in listed:
         made = secrets.token_urlsafe(24)
-        pairs.append(f"VONDO_PAIR_SECRET={made}")
+        pairs.append(f"VONDO_PIN={made}")
         print()
         print("  " + "=" * 58)
         print("   FIRST-DEVICE PAIRING SECRET — write this down now.")

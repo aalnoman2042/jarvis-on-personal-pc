@@ -82,6 +82,6 @@ echo.
 echo   Next:
 echo     1. Open that address on your phone and pair it with the secret above.
 echo     2. On this PC:  set VONDO_URL=https://%APP%.fly.dev
-echo        then run pair_agent.bat and start_agent.bat
+echo        then run link_pc.bat and start_agent.bat
 echo.
 pause

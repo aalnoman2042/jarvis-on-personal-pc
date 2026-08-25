@@ -10,7 +10,7 @@ network — routers exist to stop that — so the connection is one this machine
 chose to make, and there is no port open on this PC for anyone to find.
 
 Run:  python -m agent.agent        (or start_agent.bat)
-Pair: python -m agent.pair         (once, with a code from the phone)
+Pair: python -m agent.login         (once, with a code from the phone)
 """
 from __future__ import annotations
 
@@ -169,7 +169,7 @@ async def run() -> None:
 
     token = load_token()
     if not token:
-        _say("not paired yet — run:  python -m agent.pair")
+        _say("not paired yet — run:  python -m agent.login")
         return
 
     url = f"{CLOUD_WS}/ws/agent?token={token}"
@@ -188,8 +188,8 @@ async def run() -> None:
             # 4401 / 401 means the token is wrong or revoked. Retrying forever
             # would hammer the server for nothing, and the fix is human.
             if "401" in str(exc) or "403" in str(exc):
-                _say("this PC is not authorised any more — pair it again:"
-                     "  python -m agent.pair")
+                _say("this PC is not authorised any more — sign in again:"
+                     "  python -m agent.login")
                 return
             _say(f"server refused the connection: {exc}")
         except (OSError, websockets.WebSocketException) as exc:

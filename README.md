@@ -443,7 +443,7 @@ portable half that v2 deploys to the cloud, `legacy/` is this desktop app.
 | `stop_jarvis.bat` | Force-stop Jarvis |
 | `enable_autostart.bat` / `disable_autostart.bat` | Boot launch on/off |
 | `CLAUDE.md` | How v2 is put together, and what not to break |
-| `pair_agent.bat` | v2: pair this PC with your cloud Jarvis (once) |
+| `link_pc.bat` | v2: link this PC to your cloud Jarvis (once, with your PIN) |
 | `start_agent.bat` | v2: run the small agent that lets your phone reach this PC |
 | `server/` | v2: the cloud core — pairing, chat, the HUD's websocket |
 | `agent/` | v2: the PC agent — allow-list, local confirmation, telemetry |

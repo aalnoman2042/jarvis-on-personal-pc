@@ -12,7 +12,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/chat": "http://127.0.0.1:8000",
-      "/pair": "http://127.0.0.1:8000",
+      "/login": "http://127.0.0.1:8000",
       "/status": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
       "/devices": "http://127.0.0.1:8000",

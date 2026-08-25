@@ -470,3 +470,56 @@
   60% { transform: translateX(-4px); }
   80% { transform: translateX(2px); }
 }
+
+/* ---------- install ---------- */
+.install {
+  width: 100%;
+  padding: var(--s2) var(--s3);
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(53, 214, 255, 0.07);
+  border: 1px solid var(--accent);
+  touch-action: manipulation;
+}
+.install:active {
+  background: rgba(53, 214, 255, 0.18);
+}
+.install-small {
+  width: auto;
+  padding: 3px 9px;
+  font-size: 0.62rem;
+}
+
+/* ---------- phone: the HUD should feel like an app, not a page ---------- */
+@media (max-width: 760px) {
+  /* Sit clear of the notch and the gesture bar. Without this the composer ends
+     up under the home indicator and the top bar under the status bar. */
+  .hud {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: max(var(--s2), env(safe-area-inset-left));
+    padding-right: max(var(--s2), env(safe-area-inset-right));
+  }
+  .topbar {
+    gap: var(--s2);
+    padding: var(--s2) var(--s1);
+  }
+  .wordmark {
+    font-size: 0.92rem;
+    letter-spacing: 0.16em;
+  }
+  /* 16px stops iOS and some Android keyboards zooming the page on focus. */
+  .composer textarea {
+    font-size: 16px;
+  }
+  .send {
+    padding: var(--s3);
+  }
+  .reactor {
+    width: clamp(120px, 30vw, 170px);
+    height: clamp(120px, 30vw, 170px);
+  }
+}

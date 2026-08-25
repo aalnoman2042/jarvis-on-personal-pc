@@ -16,7 +16,6 @@ sys.path.insert(0, ROOT)
 # Must be set before core.config / store / auth are imported.
 TMPDB = os.path.join(tempfile.mkdtemp(prefix="vondo-test-"), "test.db")
 os.environ["VONDO_DB"] = TMPDB
-os.environ["VONDO_PAIR_SECRET"] = "open-sesame"
 os.environ["VONDO_BRAIN"] = "free"
 
 import httpx  # noqa: E402
@@ -77,29 +76,23 @@ try:
     check("/chat without a token is refused", httpx.post(f"{BASE}/chat", json={"message": "hi"}).status_code, 401)
     check("/status without a token is refused", httpx.get(f"{BASE}/status").status_code, 401)
 
-    print("\n=== 2. first device pairing ===")
-    bad = httpx.post(f"{BASE}/pair/bootstrap", json={"secret": "guess", "name": "attacker"})
-    check("wrong secret is refused", bad.status_code, 403)
-    r = httpx.post(f"{BASE}/pair/bootstrap", json={"secret": "open-sesame", "name": "phone", "kind": "client"})
-    check("right secret pairs the first device", r.status_code, 200)
+    print("\n=== 2. the PIN ===")
+    bad = httpx.post(f"{BASE}/login", json={"pin": "1111", "name": "attacker"})
+    check("a wrong PIN is refused", bad.status_code, 403)
+    check("  and says how many tries are left", bad.json()["detail"], contains="attempt")
+
+    r = httpx.post(f"{BASE}/login", json={"pin": "2042", "name": "phone", "kind": "client"})
+    check("the right PIN signs you in", r.status_code, 200)
     phone = r.json()["token"]
     check("  a token came back", len(phone) > 20, True)
-
-    again = httpx.post(f"{BASE}/pair/bootstrap", json={"secret": "open-sesame", "name": "second"})
-    check("the bootstrap door shuts once a device exists", again.status_code, 403)
-    check("  and says why", again.json()["detail"], contains="already paired")
-
     auth_phone = {"Authorization": f"Bearer {phone}"}
 
-    print("\n=== 3. pairing a second device from the first ===")
-    code = httpx.post(f"{BASE}/pair/start", headers=auth_phone).json()["code"]
-    check("an authorised device gets a 6-digit code", len(code), 6)
-    check("a wrong code is refused", httpx.post(f"{BASE}/pair/claim", json={"code": "000000", "name": "x"}).status_code, 403)
-    r = httpx.post(f"{BASE}/pair/claim", json={"code": code, "name": "desktop-agent", "kind": "agent"})
-    check("the real code pairs a device", r.status_code, 200)
-    agent_token = r.json()["token"]
-    check("codes are single use", httpx.post(f"{BASE}/pair/claim", json={"code": code, "name": "y"}).status_code, 403)
-    check("both devices are listed", len(httpx.get(f"{BASE}/devices", headers=auth_phone).json()["devices"]), 2)
+    print("\n=== 3. more devices, then the lockout ===")
+    again = httpx.post(f"{BASE}/login", json={"pin": "2042", "name": "desktop", "kind": "client"})
+    check("a second device can sign in too", again.status_code, 200)
+    agent_token = httpx.post(f"{BASE}/login", json={"pin": "2042", "name": "pc-agent", "kind": "agent"}).json()["token"]
+    check("and so can the PC agent", len(agent_token) > 20, True)
+    check("all three are listed", len(httpx.get(f"{BASE}/devices", headers=auth_phone).json()["devices"]), 3)
 
     print("\n=== 4. THE ACCEPTANCE TEST: a conversation that remembers ===")
     r1 = httpx.post(f"{BASE}/chat", headers=auth_phone, json={"message": "remember my favourite colour is green"}, timeout=30)
@@ -182,6 +175,18 @@ try:
           httpx.post(f"{BASE}/chat", headers={"Authorization": f"Bearer {agent_token}"},
                      json={"message": "hi"}).status_code, 401)
     check("the other device is unaffected",
+          httpx.get(f"{BASE}/devices", headers=auth_phone).status_code, 200)
+
+
+    print("\n=== 9. the lockout, last, because it shuts this address out ===")
+    detail = ""
+    for _ in range(6):
+        detail = httpx.post(f"{BASE}/login", json={"pin": "0000", "name": "attacker"}).json()["detail"]
+    check("five wrong tries locks the address out", detail, contains="too many")
+    check("  and a correct PIN is refused while locked",
+          httpx.post(f"{BASE}/login", json={"pin": "2042", "name": "x"}).json()["detail"],
+          contains="too many")
+    check("  but an already-issued token still works",
           httpx.get(f"{BASE}/devices", headers=auth_phone).status_code, 200)
 
 finally:

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { login } from "../lib/api";
+import { useInstall } from "../lib/install";
 import { deviceName } from "../lib/store";
 
 const LENGTH = 4;
@@ -20,6 +21,7 @@ export function Pin({ onIn }: { onIn: (token: string) => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
+  const { canInstall, install } = useInstall();
 
   const submit = useCallback(
     async (value: string) => {
@@ -79,6 +81,12 @@ export function Pin({ onIn }: { onIn: (token: string) => void }) {
         <p className={`pin-msg${error ? " pin-msg-bad" : ""}`}>
           {busy ? "Checking…" : error || " "}
         </p>
+
+        {canInstall && (
+          <button className="install" onClick={install} type="button">
+            Add Jarvis to your home screen
+          </button>
+        )}
 
         <div className="pin-pad">
           {KEYS.map((key, i) =>

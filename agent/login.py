@@ -3,7 +3,7 @@
 Run it, type your PIN. The token is saved to agent.token and that is the last
 time any of this needs thinking about.
 
-    python -m agent.pair
+    python -m agent.login
 
 Typing the PIN rather than pasting a token around is the point: the long-lived
 credential is generated on the server and written straight to a file, so it

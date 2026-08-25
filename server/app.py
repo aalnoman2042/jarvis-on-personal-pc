@@ -6,7 +6,7 @@ who is asking, which machine should do the work, and how the answer gets back.
 
 Run it locally exactly as it will run in the cloud:
 
-    set VONDO_PAIR_SECRET=something-only-you-know
+    set VONDO_PIN=2042
     python -m uvicorn server.app:app --reload --port 8000
 
 Two things worth knowing before reading on.
@@ -70,7 +70,8 @@ def get_brain():
 async def lifespan(app: FastAPI):
     store.connect()                                   # open the database, migrate v1 files
     agents.install_hook(asyncio.get_running_loop())   # PC tools now route to the agent
-    log.info("vondo core up | devices paired: %d", auth.device_count())
+    log.info("vondo core up | pin set: %s | devices: %d",
+             bool(auth.PIN), auth.device_count())
     yield
 
 
@@ -120,20 +121,8 @@ async def socket_caller(websocket: WebSocket) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Pairing
+# Signing in
 # ---------------------------------------------------------------------------
-
-class BootstrapIn(BaseModel):
-    secret: str
-    name: str = Field(default="first device", max_length=60)
-    kind: str = Field(default="client", max_length=20)
-
-
-class ClaimIn(BaseModel):
-    code: str
-    name: str = Field(default="device", max_length=60)
-    kind: str = Field(default="client", max_length=20)
-
 
 class LoginIn(BaseModel):
     pin: str = Field(min_length=1, max_length=32)
@@ -167,37 +156,6 @@ async def login(body: LoginIn, request: Request):
         raise HTTPException(status_code=403, detail=str(exc)) from None
     log.info("device signed in: %s (%s)", body.name, body.kind)
     return {"device_id": device_id, "token": token}
-
-
-@app.post("/pair/bootstrap")
-async def pair_bootstrap(body: BootstrapIn):
-    """Pair the very first device. Refuses once any device exists."""
-    try:
-        device_id, token = auth.bootstrap(body.secret, body.name, body.kind)
-    except auth.AuthError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from None
-    log.info("first device paired: %s (%s)", body.name, body.kind)
-    return {"device_id": device_id, "token": token,
-            "note": "Save this token — it is not shown again."}
-
-
-@app.post("/pair/start")
-async def pair_start(device: dict = Depends(caller)):
-    """An authorised device asks for a code to read out to a new one."""
-    code, ttl = auth.start_pairing(device["id"])
-    return {"code": code, "expires_in": ttl}
-
-
-@app.post("/pair/claim")
-async def pair_claim(body: ClaimIn):
-    """A new device redeems the code."""
-    try:
-        device_id, token = auth.claim(body.code, body.name, body.kind)
-    except auth.AuthError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from None
-    log.info("device paired: %s (%s)", body.name, body.kind)
-    return {"device_id": device_id, "token": token,
-            "note": "Save this token — it is not shown again."}
 
 
 @app.get("/devices")
@@ -243,12 +201,12 @@ async def chat(body: ChatIn, device: dict = Depends(caller)):
 async def health():
     """Unauthenticated on purpose — a load balancer has no token.
 
-    `devices_paired` is a bool, never the count: the pairing screen needs to
-    know which door to offer, and nothing beyond that is anyone's business.
+    `pin_set` tells the login screen whether this server is configured at all,
+    so "no PIN on the server" reads differently from "wrong PIN". Nothing beyond
+    that is anyone's business — no counts, no names.
     """
     return {"ok": True, "assistant": config.ASSISTANT_NAME,
             "pc_online": agents.registry.online(),
-            "devices_paired": auth.device_count() > 0,
             "pin_set": bool(auth.PIN)}
 
 

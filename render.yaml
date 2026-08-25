@@ -31,7 +31,7 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: VONDO_PAIR_SECRET
+      - key: VONDO_PIN
         sync: false
       - key: VONDO_DB_URL
         sync: false

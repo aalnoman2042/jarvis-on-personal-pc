@@ -10,6 +10,7 @@ import { Composer } from "./hud/Composer";
 import { Log } from "./hud/Log";
 import { Reactor } from "./hud/Reactor";
 import { Telemetry } from "./hud/Telemetry";
+import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
 import { clearToken, readToken, writeToken } from "./lib/store";
 import { Pin } from "./screens/Pin";
@@ -23,6 +24,7 @@ const CONN_TEXT: Record<string, string> = {
 
 function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   const jarvis = useVondo(token);
+  const { canInstall, install } = useInstall();
   const busy = jarvis.state === "thinking";
 
   // A revoked or unknown token cannot fix itself by retrying, so say what
@@ -57,6 +59,11 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
           <span className="held label" title="Waiting for a connection">
             {jarvis.queued} held
           </span>
+        )}
+        {canInstall && (
+          <button className="install install-small" onClick={install} type="button">
+            Install
+          </button>
         )}
         <span className="label brain">{jarvis.brain || "—"}</span>
         <button className="linkish label" onClick={onForget}>

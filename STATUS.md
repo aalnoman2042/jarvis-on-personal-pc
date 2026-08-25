@@ -39,7 +39,7 @@ change `VONDO_PIN` in the Render dashboard and it takes effect on restart.
 
 ```bat
 set VONDO_URL=https://vondo-core.onrender.com
-pair_agent.bat     :: once — type your PIN
+link_pc.bat        :: once — type your PIN
 start_agent.bat    :: leave it running
 ```
 

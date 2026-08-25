@@ -25,7 +25,7 @@ const SHELL = [
 
 // Anything under these paths is live data. Caching a reply would mean Jarvis
 // answering a new question with an old answer, which is worse than an error.
-const NEVER_CACHE = ["/chat", "/ws", "/pair", "/health", "/status", "/devices", "/push"];
+const NEVER_CACHE = ["/chat", "/ws", "/login", "/health", "/status", "/devices", "/push"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
