@@ -49,7 +49,9 @@ class GroqBrain:
         # Refresh the persona each turn so anything just committed to memory is
         # already in play. (The rolling conversation below stays this brain's
         # own — only the remembered facts are shared.)
-        self._messages[0] = {"role": "system", "content": memory.system_prompt()}
+        # What was just said goes in, so the system prompt can carry anything
+        # relevant the full-text index turns up from months back.
+        self._messages[0] = {"role": "system", "content": memory.system_prompt(text)}
 
         # Snapshot so a failed turn (e.g. llama's occasional malformed tool call)
         # can be rolled back and retried without corrupting the conversation.

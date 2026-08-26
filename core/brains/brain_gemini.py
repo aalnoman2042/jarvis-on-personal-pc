@@ -10,6 +10,7 @@ from google import genai
 from google.genai import types
 
 from core import config
+from core import memory
 from core.tools import llm_tools
 
 # One shared personality for every brain — see config.system_prompt().
@@ -46,7 +47,22 @@ class GeminiBrain:
             return ""
         if any(p in text.lower() for p in ("goodbye", "power down", "go to sleep")):
             return "__EXIT__"
+
+        # The remembered facts, the diary, today's date and anything the index
+        # recalls all live in memory.system_prompt() — and none of it was
+        # reaching here. `system_instruction` is fixed when the chat is created,
+        # from config.system_prompt(), which is the persona WITHOUT any of that.
+        # So Gemini knew Jarvis's manner and nothing whatever about Rohan, and
+        # since Gemini is what answers when Groq's free tier runs out, running
+        # out looked exactly like Jarvis forgetting everything.
+        #
+        # Prepended to the message instead, because the SDK will not let the
+        # system instruction be changed on a live chat and rebuilding the chat
+        # every turn would throw away Gemini's own history with it.
+        prompt = memory.system_prompt(text)
+        message = f"{prompt}\n\n---\nThey now say: {text}" if prompt else text
+
         # Let API errors (rate limits, network) propagate so the fallback
         # wrapper can drop to the offline brain.
-        resp = self._chat.send_message(text)
+        resp = self._chat.send_message(message)
         return (resp.text or "Done.").strip()

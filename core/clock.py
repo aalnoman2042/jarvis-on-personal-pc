@@ -353,6 +353,32 @@ def say(ts: float, all_day: bool = False, base: float | None = None) -> str:
     return "on " + _date_words(moment) + at
 
 
+def was(ts: float, base: float | None = None) -> str:
+    """When something happened, in the past tense — "yesterday", "on 12 August".
+
+    `say` is written for things that have not happened yet, so it reaches for
+    "later today" and "tomorrow". Handed a timestamp from the archive it
+    produces "later today at 3pm" for a sentence spoken this morning, which
+    reads as though Jarvis has lost track of which way time runs.
+    """
+    moment = local(ts)
+    start = local(base)
+    days = (start.date() - moment.date()).days
+    at = " at " + _clock_words(moment)
+
+    if days <= 0:
+        return "earlier today" + at
+    if days == 1:
+        return "yesterday" + at
+    if days < 7:
+        return f"{days} days ago"
+    if days < 14:
+        return "last week"
+    if days < 60:
+        return f"{days // 7} weeks ago"
+    return "on " + _date_words(moment)
+
+
 def until(ts: float, base: float | None = None) -> str:
     """How far away something is, in words: "in 3 days", "in 20 minutes"."""
     gap = ts - (now() if base is None else base)

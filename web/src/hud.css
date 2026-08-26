@@ -456,6 +456,46 @@
   opacity: 0.45;
 }
 
+/* ---------- the recall readout ----------
+   Folded away until asked for. An answer can be wrong two ways — bad reasoning
+   or bad memories — and this is the only thing that separates them. */
+.recalled {
+  grid-column: 1 / -1;
+  display: block;
+  margin-top: 4px;
+}
+.recalled-tag {
+  padding: 1px 6px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.recalled-tag:hover {
+  background: var(--chip);
+}
+.recalled-list {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--ground);
+  border-left: 2px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+.recalled-list li {
+  display: grid;
+  grid-template-columns: 4.2em 1fr;
+  gap: var(--s2);
+}
+.recalled-when {
+  font-size: 0.68rem;
+  color: var(--idle);
+}
+
 /* ---------- the briefing ----------
    Takes the top of the board on a new day, then folds down to a chip. A panel
    that greets you identically at 9am and 9pm is wallpaper, and wallpaper is not

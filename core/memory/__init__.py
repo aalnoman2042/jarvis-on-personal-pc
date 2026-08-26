@@ -31,6 +31,7 @@ from core import config
 from core.memory import agenda as _agenda_mod
 from core.memory import facts as _facts_mod
 from core.memory import migrate as _migrate
+from core.memory import recall as _recall_mod
 from core.memory import store
 
 # --- storage, re-exported -------------------------------------------------
@@ -54,6 +55,7 @@ facts_block = _facts_mod.block
 # Exposed as functions, not as `agenda = _agenda_mod`, on purpose: `facts` was
 # bound to a function here and has shadowed the submodule of the same name twice
 # now (see the note in CLAUDE.md). One trap of that shape is enough.
+recalled_for = _recall_mod.describe   # what was recalled, for the screen
 upcoming = _agenda_mod.upcoming
 schedule_count = _agenda_mod.count
 agenda_block = _agenda_mod.block
@@ -78,20 +80,28 @@ def load() -> None:
     store.connect()
 
 
-def system_prompt() -> str:
+def system_prompt(about: str = "") -> str:
     """The persona, plus whatever Jarvis has been told to remember.
 
     Deliberately NOT part of config.system_prompt(): every brain reads that once
     at import, so a fact remembered mid-session wouldn't reach the model until a
     restart — and config importing memory would be a circular import.
     """
+    # `about` is what was just said. Given it, the full-text index is searched
+    # and anything relevant from months ago is put in front of the model —
+    # otherwise it sees only the last MEMORY_TURNS exchanges, which is six, and
+    # "what did I say about NILM last week" is answered by something that was
+    # never shown it. Costs no API call: one indexed query against SQLite.
+    #
     # Today's date matters more than it looks. Without it a model dates
     # everything from its training cut-off, so "next Thursday" lands in the
     # wrong year and nobody finds out until the reminder does not arrive.
     return (config.system_prompt()
             + f"\n\nRight now it is {clock.today_line()}."
             + facts_block()
-            + agenda_block())
+            + agenda_block()
+            + (_recall_mod.block(about, skip_recent=config.MEMORY_TURNS)
+               if about else ""))
 
 
 # ---------------------------------------------------------------------------

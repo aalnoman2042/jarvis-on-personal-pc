@@ -41,6 +41,9 @@ export type ServerFrame =
       /** Somewhere the phone was asked to go — a URL or a deep link like
           tel: or whatsapp:. Present only when a tool asked for it. */
       open?: string;
+      /** What the full-text index dug out of the archive for this question.
+          Shown so a wrong answer can be told apart from a wrong recall. */
+      recalled?: { when: number; said: string }[];
     }
   | { type: "token"; text: string }
   | ({ type: "telemetry" } & Telemetry)
@@ -53,6 +56,8 @@ export interface LogLine {
   text: string;
   at: number;
   brain?: string;
+  /** Past exchanges the index surfaced for this answer, if any. */
+  recalled?: { when: number; said: string }[];
 }
 
 /** What the settings screen loads from /me, in one call. */

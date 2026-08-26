@@ -137,7 +137,10 @@ export function useVondo(token: string): Vondo {
           setBrain(frame.brain);
           setPcOnline(frame.pc_online);
           setState("online");
-          append("jarvis", frame.reply, { brain: frame.brain });
+          append("jarvis", frame.reply, {
+            brain: frame.brain,
+            recalled: frame.recalled,
+          });
           // A tool asked the phone to open something — YouTube, a dialler, a
           // map. Done here rather than in a component because it must happen
           // whether or not the conversation drawer is on screen.

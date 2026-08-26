@@ -71,6 +71,46 @@ indirection is what let flat files become SQLite without touching a brain.
   A marker row in `meta` makes the import run exactly once.
 - Still text only, never tool-call scaffolding — see the note in `__init__`.
 
+**Retrieval is `core/memory/recall.py`, and the query is the whole job.** The
+FTS5 index existed from phase 01 and nothing called it for months: every turn
+the model saw `recent(MEMORY_TURNS)` — six exchanges — so anything older was
+answered by something that had never been shown it.
+
+Wiring it up naively would have looked like it worked and returned nothing
+forever, because `store.search` hands its argument straight to FTS5 and FTS5
+reads a bare word list as *all of these must appear*. "What did I say about
+NILM" therefore asks for messages containing *what* AND *did* AND *I* AND
+*say* — essentially never — and punctuation raises an error that is swallowed
+into an empty list. So `recall` strips stopwords, drops the punctuation (which
+doubles as the escaping), and joins what is left with **OR**.
+
+Two guards keep OR from becoming noise:
+- **a relevance floor.** OR returns anything with one common word in it, and
+  ranking orders the results without excluding the rubbish. A hit must match two
+  query terms (one, if the question was two words). A recalled irrelevance is
+  worse than an empty recall — it is noise in the prompt and a lie on screen.
+- **commands recall nothing.** "Open youtube" wants a tool, and searching it
+  drags in every past "open calculator".
+
+Recalled text goes in the **system prompt**, never as extra messages — injecting
+old exchanges as real turns is the fastest way to build the non-alternating
+history providers reject.
+
+**`clock.was`, not `clock.say`, for anything from the archive.** `say` is
+written for things that have not happened, so it renders a sentence spoken this
+morning as "later today at 3pm", which reads as Jarvis losing track of which way
+time runs.
+
+**Every brain must build its prompt through `memory.system_prompt(text)`.**
+Groq rebuilds it per turn. Gemini did not: `system_instruction` is fixed when
+the chat is created, and it was built from `config.system_prompt()` — the
+persona *without* facts, diary, date or recall. So Gemini knew Jarvis's manner
+and nothing whatever about Rohan, and since Gemini is what answers when Groq's
+free tier runs out, running out looked exactly like Jarvis forgetting
+everything. It prepends the prompt to each message instead, because the SDK will
+not let a live chat's system instruction change and rebuilding the chat would
+throw away its history.
+
 **Known gap:** the action log is written by wrapping `DISPATCH` in
 `core/tools/llm_tools.py`, which covers Groq, Ollama and Claude. Gemini calls
 `TOOL_FUNCTIONS` directly and its schema generator introspects each callable, so

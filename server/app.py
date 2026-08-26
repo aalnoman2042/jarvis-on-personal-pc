@@ -243,10 +243,18 @@ async def _answer(text: str) -> dict:
         # lock, so it can only ever belong to the turn that just finished — a
         # concurrent turn cannot walk off with someone else's instruction.
         opening = phone.take()
+        # What the index dug up for this question. Asked for again rather than
+        # threaded out of the brain: it is one indexed query and the brains do
+        # not agree on how their prompt is built, so plumbing it through all
+        # three would be more moving parts for the same answer.
+        recalled = await run_in_threadpool(
+            memory.recalled_for, text, config.MEMORY_TURNS)
     answer = {"reply": reply, "brain": getattr(brain, "name", "brain"),
               "pc_online": agents.registry.online()}
     if opening:
         answer["open"] = opening
+    if recalled:
+        answer["recalled"] = recalled
     return answer
 
 

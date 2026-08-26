@@ -4,12 +4,46 @@
  * a source on every line, and system lines that look like the machine talking
  * rather than a person. Which is honest — a tool call is not Jarvis speaking.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { LogLine } from "../lib/types";
 
 function clock(at: number) {
   return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/* What the archive gave up for this answer.
+ *
+ * Folded away by default and one tap from open. It matters because an answer
+ * can be wrong two different ways — the model reasoned badly, or it was handed
+ * the wrong memories — and without this there is no way to tell them apart.
+ * Which also makes it the most FUI thing on the screen: a retrieval readout is
+ * exactly the furniture the reference is full of, and this one is true.
+ */
+function Recalled({ items }: { items: { when: number; said: string }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="recalled">
+      <button className="recalled-tag label" onClick={() => setOpen((v) => !v)}>
+        ⟲ recalled {items.length}
+      </button>
+      {open && (
+        <ul className="recalled-list">
+          {items.map((item, i) => (
+            <li key={i}>
+              <span className="mono recalled-when">
+                {new Date(item.when * 1000).toLocaleDateString([], {
+                  day: "numeric",
+                  month: "short",
+                })}
+              </span>
+              <span>{item.said}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  );
 }
 
 export function Log({ lines }: { lines: LogLine[] }) {
@@ -58,6 +92,7 @@ export function Log({ lines }: { lines: LogLine[] }) {
             {line.who === "you" ? "You" : line.who === "jarvis" ? line.brain || "Jarvis" : "sys"}
           </span>
           <span className="line-text">{line.text}</span>
+          {line.recalled?.length ? <Recalled items={line.recalled} /> : null}
         </div>
       ))}
       <div ref={end} />
