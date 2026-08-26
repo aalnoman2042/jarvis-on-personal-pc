@@ -45,39 +45,81 @@ def build(choice: str | None = None):
         return LazyBrain(OllamaBrain, "ollama")
 
     choice = (choice or config.BRAIN).strip().lower()
-    try:
-        if choice == "auto":
-            # Groq first: fastest, and nothing runs on the PC while it lasts.
-            # Gemini after that, and the rule-based brain as a last resort.
-            # A brain that fails is skipped for a while (see brain_fallback), so
-            # a used-up free tier doesn't slow down every later question.
-            #
-            # The local model is no longer in this chain by default: it was
-            # deleted in Aug 2026, and the whole point of v2 is that Rohan's PC
-            # stays light. `VONDO_BRAIN=ollama` still reaches it if reinstalled.
-            from core.brains.brain_groq import GroqBrain
-            tail = FreeBrain()
+
+    # Every AI brain that could answer, in the order they are worth trying.
+    # Named separately from the chain-builder so "which brains exist" and "which
+    # order" stay one decision each.
+    def _groq():
+        from core.brains.brain_groq import GroqBrain
+        return GroqBrain()
+
+    def _gemini():
+        from core.brains.brain_gemini import GeminiBrain
+        return GeminiBrain()
+
+    def _claude():
+        from core.brains.brain_claude import ClaudeBrain
+        return ClaudeBrain()
+
+    def _ollama():
+        from core.brains.brain_ollama import OllamaBrain
+        return OllamaBrain()
+
+    # Groq first: fastest and free. Gemini second: free, and the only one that
+    # sees images. Claude only when explicitly chosen — it is the paid one.
+    PREFERRED = (("groq", _groq), ("gemini", _gemini))
+
+    def _chain(first: str | None) -> object:
+        """Every brain that will start, tried in turn, ending offline.
+
+        The point of the whole arrangement: if one is rate-limited, down, or
+        has had its model retired from under it, the next one answers and Rohan
+        never sees a failure. The offline brain is last because it always works
+        and is always the worst of them.
+
+        Built by *trying* each brain rather than by asking whether a key is set.
+        A key that is present but wrong, a package that is missing, a model that
+        was withdrawn — all of those look fine to a config check and fail at the
+        first question.
+        """
+        from core.brains.brain_free import FreeBrain
+
+        wanted: list[tuple[str, object]] = []
+        extra = {"claude": _claude, "ollama": _ollama}
+        if first and first in extra:
+            wanted.append((first, extra[first]))
+        for name, maker in PREFERRED:
+            if name == first:
+                wanted.insert(0, (name, maker))
+            else:
+                wanted.append((name, maker))
+
+        built = []
+        for name, maker in wanted:
             try:
-                from core.brains.brain_gemini import GeminiBrain
-                tail = FallbackBrain(GeminiBrain(), tail)
-            except Exception as exc:  # noqa: BLE001  (no key / package)
-                print(f"[gemini unavailable as a backup ({exc})]")
-            return FallbackBrain(GroqBrain(), tail)
-        if choice == "gemini":
-            from core.brains.brain_gemini import GeminiBrain
-            return FallbackBrain(GeminiBrain(), FreeBrain())
-        if choice == "groq":
-            from core.brains.brain_groq import GroqBrain
-            return FallbackBrain(GroqBrain(), FreeBrain())
-        if choice == "ollama":
-            from core.brains.brain_ollama import OllamaBrain
-            return FallbackBrain(OllamaBrain(), FreeBrain())
-        if choice == "claude":
-            from core.brains.brain_claude import ClaudeBrain
-            return FallbackBrain(ClaudeBrain(), FreeBrain())
+                built.append(maker())
+            except Exception as exc:  # noqa: BLE001  (no key, no package, bad model)
+                print(f"[{name} not available: {exc}]")
+
+        # Assembled from the back so the offline brain is everyone's last
+        # resort rather than only the last one's.
+        brain = FreeBrain()
+        for candidate in reversed(built):
+            brain = FallbackBrain(candidate, brain)
+        return brain
+
+    try:
+        if choice in ("auto", "groq", "gemini", "claude", "ollama"):
+            # A named brain goes FIRST — it does not go ALONE. Choosing "groq"
+            # used to build groq+free and silently drop Gemini, so a Groq outage
+            # fell straight past a perfectly good second brain to the rule-based
+            # one, which answers but cannot think. That looked like Jarvis
+            # having a bad day rather than a chain with a hole in it.
+            return _chain(None if choice == "auto" else choice)
         if choice == "free":
             return FreeBrain()
-        print(f"[unknown VONDO_BRAIN '{choice}', using offline 'free' brain]")
+        print(f"[unknown VONDO_BRAIN '{choice}', using the full chain]")
+        return _chain(None)
     except ImportError as exc:
         print(f"[missing package for '{choice}' brain: {exc}. "
               f"Run: pip install -r requirements/cloud.txt]")

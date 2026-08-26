@@ -321,6 +321,28 @@ it in the WebView.
 **No new plugin, so no new APK.** Capacitor already routes unknown schemes to
 the OS. That was worth checking before adding a dependency.
 
+## The brain chain
+
+`factory.build()` assembles **every** brain that will start, tried in turn,
+ending at the offline one. `groq -> gemini -> free` by default.
+
+**A named brain goes first; it does not go alone.** `VONDO_BRAIN=groq` used to
+build `groq+free` and silently drop Gemini — so a Groq outage, or a model
+retired from under it, fell straight past a perfectly good second brain to the
+rule-based one, which answers but cannot think. That reads as Jarvis having a
+bad day rather than as a chain with a hole in it, which is why it went unnoticed
+for so long.
+
+**Availability is decided by trying, not by asking.** A key that is present but
+wrong, a package that is missing, a model that was withdrawn — all of those look
+fine to a config check and fail at the first question.
+
+**The chain is built back to front** so the offline brain is everyone's last
+resort rather than only the last one's.
+
+Failure puts a brain on cooldown (5 min ordinary, 30 min for quota) so a dead
+free tier is not re-paid on every question — see `brain_fallback.py`.
+
 ## Mail (phase 08)
 
 `core/mail.py` reads Rohan's inboxes over IMAP. Standard library only —
