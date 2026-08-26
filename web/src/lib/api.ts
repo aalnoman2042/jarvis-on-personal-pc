@@ -134,6 +134,20 @@ export async function look(token: string, image: Blob, question = ""): Promise<s
   return (data.said || "").trim();
 }
 
+/** Today, before anyone asks. `fresh` says it is the first of a new day. */
+export async function brief(token: string): Promise<{ text: string; fresh: boolean }> {
+  const res = await fetch(apiBase() + "/brief", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't load today");
+  return res.json();
+}
+
+/** Mark it read, so it does not reappear for the rest of the day. */
+export function briefSeen(token: string) {
+  return post("/brief/seen", {}, token);
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

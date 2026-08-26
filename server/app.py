@@ -40,6 +40,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from core import brief
 from core import config
 from core import ears
 from core import eyes
@@ -52,6 +53,11 @@ from core.memory import store
 from server import agents, auth, nudges
 
 log = logging.getLogger("vondo")
+
+
+def clock_now() -> float:
+    from core import clock
+    return clock.now()
 
 # One brain for the whole server, and one turn at a time. Both deliberate: the
 # conversation is a single shared thread, and brains keep internal state that is
@@ -378,6 +384,30 @@ async def listen(clip: UploadFile = File(...), device: dict = Depends(caller)):
         raise HTTPException(status_code=413, detail="That clip is too long.")
     text = await run_in_threadpool(ears.transcribe, data, clip.filename or "clip.webm")
     return {"text": text, "heard": bool(text)}
+
+
+@app.get("/brief")
+async def briefing(spoken: bool = False, device: dict = Depends(caller)):
+    """Today, before anyone asks for it.
+
+    `fresh` says whether this is the first briefing of a new day, so the board
+    can show it once in the morning rather than every time the app is opened.
+    The marker is per device: reading it on the phone should not silence it on
+    the desktop.
+    """
+    key = f"brief_seen_{device['id']}"
+    last = await run_in_threadpool(store.meta_get, key, "")
+    fresh = brief.is_new_day(float(last) if last else None)
+    text = await run_in_threadpool(brief.compose, agents.registry.online(), spoken)
+    return {"text": text, "fresh": fresh}
+
+
+@app.post("/brief/seen")
+async def brief_seen(device: dict = Depends(caller)):
+    """Mark today's briefing as read, so it does not reappear all day."""
+    await run_in_threadpool(
+        store.meta_set, f"brief_seen_{device['id']}", str(clock_now()))
+    return {"ok": True}
 
 
 @app.post("/look")

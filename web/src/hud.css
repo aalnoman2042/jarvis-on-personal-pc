@@ -456,6 +456,34 @@
   opacity: 0.45;
 }
 
+/* ---------- the briefing ----------
+   Takes the top of the board on a new day, then folds down to a chip. A panel
+   that greets you identically at 9am and 9pm is wallpaper, and wallpaper is not
+   read. */
+.brief {
+  border-left: 2px solid var(--accent);
+}
+.brief-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.brief-acts {
+  display: flex;
+  gap: var(--s3);
+}
+.brief-text {
+  margin: var(--s2) 0 0;
+  color: var(--ink-strong);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.brief-peek {
+  align-self: flex-start;
+  cursor: pointer;
+}
+
 /* ---------- vision ----------
    The honest face-scan panel: a frame you fill with a picture, and what Jarvis
    saw beside it. The scan line only runs while it is looking — motion that

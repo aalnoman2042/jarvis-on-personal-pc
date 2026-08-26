@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { Brief } from "../hud/Brief";
 import { Gauge } from "../hud/Gauge";
 import { Reactor } from "../hud/Reactor";
 import { Vision } from "../hud/Vision";
@@ -133,6 +134,8 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
           <span className="label alert-x">Dismiss</span>
         </button>
       )}
+
+      <Brief token={token} tick={answers} />
 
       <section className="hero">
         <div className="hero-reactor">
