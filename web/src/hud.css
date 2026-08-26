@@ -865,11 +865,17 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   z-index: 20;
   border-top: 1px solid var(--accent);
   box-shadow: 0 -18px 40px -20px rgb(0 0 0 / 0.9);
-  display: grid;
-  /* The bar, the log, the composer. `1fr` in the middle is what pins the
-     composer to the bottom and makes the log the only thing that scrolls —
-     without it the log grows until the box you are typing into is off-screen. */
-  grid-template-rows: auto 1fr auto;
+  /* The background animation is deliberately larger than the panel so its grid
+     has somewhere to drift from. Without this it bleeds out over the board and
+     the drawer stops looking like a drawer. */
+  overflow: hidden;
+  /* Flex, not grid. The rows were auto/1fr/auto for three children, and the
+     voice-error line is a conditional fourth — when it appeared the error took
+     the flexible row and the log took an auto one, so the conversation grew
+     without limit and pushed the composer off the bottom. A column where only
+     the log flexes cannot be miscounted. */
+  display: flex;
+  flex-direction: column;
   gap: var(--s2);
   background: var(--ground);
   animation: sheet-in 0.2s ease;
@@ -945,6 +951,13 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 .chat-sheet > * {
   position: relative;
   z-index: 1;
+  flex: none;
+}
+/* Only the conversation grows and scrolls; everything else keeps its size, so
+   the composer is pinned to the bottom whatever else is on screen. */
+.chat-sheet > .log {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* A fine grid, drifting up. */
