@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 
 import { Gauge } from "../hud/Gauge";
 import { Reactor } from "../hud/Reactor";
+import { Vision } from "../hud/Vision";
 import { dropAgenda, me } from "../lib/api";
 import { askPermission, syncAlarms } from "../lib/notify";
 import type { Me } from "../lib/types";
@@ -240,6 +241,8 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
             Settings →
           </button>
         </section>
+
+        <Vision token={token} />
 
         {info?.recent_actions?.length ? (
           <section className="panel bracket panel-wide">

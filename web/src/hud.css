@@ -456,6 +456,91 @@
   opacity: 0.45;
 }
 
+/* ---------- vision ----------
+   The honest face-scan panel: a frame you fill with a picture, and what Jarvis
+   saw beside it. The scan line only runs while it is looking — motion that
+   means something, rather than motion for atmosphere. */
+.vision-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.vision-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: var(--s3);
+  margin-top: var(--s2);
+}
+.vision-frame {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--dim);
+  background: var(--ground);
+  border: 1px solid var(--line);
+}
+.vision-shot {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vision-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3);
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+.vision-glyph {
+  font-size: 1.8rem;
+  color: var(--accent);
+}
+/* The scan line — a bar of light sweeping the frame while Gemini reads it. */
+.vision-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: vision-sweep 1.5s ease-in-out infinite;
+}
+@keyframes vision-sweep {
+  0% { top: 4%; }
+  50% { top: 96%; }
+  100% { top: 4%; }
+}
+.vision-read {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.vision-said {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  /* A long read scrolls inside its own half rather than stretching the panel. */
+  max-height: 12em;
+  overflow-y: auto;
+}
+@media (max-width: 620px) {
+  .vision-body {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vision-scan { animation: none; opacity: 0.6; }
+}
+
 /* ---------- the conversation drawer ---------- */
 .chat-sheet {
   position: fixed;

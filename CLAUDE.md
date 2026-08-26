@@ -208,6 +208,44 @@ seconds. It exists because a sleeping instance has no timers.
 schema string and a live database drift apart silently — and the drift only
 shows up on the deployed copy.
 
+## Voice and vision (phase 06)
+
+`core/ears.py` turns a recorded clip into words (Groq Whisper); `core/eyes.py`
+turns a picture into a description (Gemini). Both are on the keys that already
+run the brains — no new account.
+
+**Neither answers the question it received.** `/listen` returns the transcript
+and `/look` returns a description; acting on either is a separate step, so what
+was heard or seen can be shown before it is obeyed. A misheard "shut down the
+PC" must be visible, not executed.
+
+**Kept out of the brains on purpose.** A brain holds a running conversation with
+the whole tool schema bound to it; a glance at an image or a few seconds of
+audio is a single stateless call with no tools and no history. Binding them
+together would drag every tool into every photo.
+
+**Whisper hallucinates on silence** — trained on subtitled video, it fills a
+quiet clip with "thank you", "the end", a credit line. `ears._is_hallucination`
+drops a clip that is *only* one of those or only punctuation. Real one-word
+answers (ok, so, yes, no) are deliberately left through: eating a real answer is
+worse than fielding a stray one.
+
+**Vision is comprehension, not recognition.** It reads what is in the frame; it
+does not identify strangers, which needs a face database nobody has and would
+not be built. `eyes.look` records the *description* in memory, never the image —
+so "what did that error say" is answerable later without storing the picture.
+
+**Speaking back uses the browser, listening does not.** `speechSynthesis` is the
+half of the Web Speech API the Android WebView reliably has; `SpeechRecognition`
+is not, which is why audio is recorded and sent to Whisper rather than
+recognised on-device. A mic that worked in Chrome and not in the app would be
+worse than one that behaves the same everywhere.
+
+**Two native permissions gate this, and only a new APK carries them:**
+`RECORD_AUDIO` for the mic and `CAMERA` for `capture="environment"`. Screens
+update from the cloud; permissions live in the manifest. Adding either is one of
+the rare times a reinstall is genuinely required.
+
 ## The HUD (phase 04)
 
 `web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud

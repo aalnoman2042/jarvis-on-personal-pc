@@ -182,10 +182,12 @@ day, and the phone stays quiet; the reminder is still safe in the cloud and
 appears the moment you do open it. Closing that properly is real push, which
 means Firebase.
 
-**It cannot watch your phone screen.** A web app has no way to do that on
-Android — `getDisplayMedia` is desktop-only and Chrome hides it on mobile. The
-working version is handing it a picture: share a screenshot to Jarvis, or use a
-camera button. Gemini reads screenshots well (tested). Not built yet.
+**It can see a still picture, not a live screen.** Show it something — point
+the camera or pick an image on the **Vision** panel — and Gemini reads the text
+and describes what is there. It does *not* identify people: that needs a
+database of faces nobody has. Watching a live phone screen is still impossible
+from a web app (`getDisplayMedia` is desktop-only), and that has not changed;
+the still-image version is the real, buildable one, and it is built.
 
 **Gemini's tool calls are unlogged.** The action log wraps the dispatch table,
 which covers Groq, Ollama and Claude. Gemini hands its callables to a schema

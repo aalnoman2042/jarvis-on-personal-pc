@@ -42,6 +42,7 @@ from starlette.concurrency import run_in_threadpool
 
 from core import config
 from core import ears
+from core import eyes
 from core.brains import factory
 from core import memory
 from core import reminders
@@ -369,6 +370,37 @@ async def listen(clip: UploadFile = File(...), device: dict = Depends(caller)):
         raise HTTPException(status_code=413, detail="That clip is too long.")
     text = await run_in_threadpool(ears.transcribe, data, clip.filename or "clip.webm")
     return {"text": text, "heard": bool(text)}
+
+
+@app.post("/look")
+async def look(clip: UploadFile = File(...),
+               question: str = "",
+               device: dict = Depends(caller)):
+    """An image in, a description out — the honest version of the face panel.
+
+    Point a camera or share a screenshot; Gemini says what is in it. It does NOT
+    identify strangers — that needs a database nobody has and I would not build —
+    it comprehends: reads the text, describes the scene, spots what is wrong.
+
+    The description is recorded as an exchange so it is in the memory like
+    anything else Jarvis said, and so "what did that error say" is answerable
+    later. The question, if any, rides in as a form field beside the file.
+    """
+    if not eyes.available():
+        raise HTTPException(status_code=503, detail="Vision isn't set up on the server.")
+    if not _rate_ok(device["id"]):
+        raise HTTPException(status_code=429, detail="Slow down a moment.")
+    data = await clip.read()
+    if len(data) > eyes.MAX_BYTES:
+        raise HTTPException(status_code=413, detail="That image is too large.")
+    said = await run_in_threadpool(
+        eyes.look, data, question, clip.filename or "image.jpg")
+    # Recorded so it survives the turn and joins the searchable history. The
+    # picture itself is not stored — only what was seen, which is the part a
+    # later question ("what did that say") actually needs.
+    await run_in_threadpool(
+        memory.add_turn, question.strip() or "[showed Jarvis an image]", said, "gemini")
+    return {"said": said}
 
 
 @app.post("/tick")

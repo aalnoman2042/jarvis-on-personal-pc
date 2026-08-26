@@ -106,6 +106,34 @@ export async function transcribe(token: string, clip: Blob): Promise<string> {
   throw new Error("The core didn't answer after two tries.");
 }
 
+/** An image in, a description out. The honest half of the face-scan panel:
+    Gemini says what is in the frame — reads the text, describes the scene —
+    rather than identifying anyone. `question` is optional; empty means "what
+    is this". */
+export async function look(token: string, image: Blob, question = ""): Promise<string> {
+  const form = new FormData();
+  form.append("clip", image, "image.jpg");
+  form.append("question", question);
+  const res = await fetch(apiBase() + "/look", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    if (res.status === 503) throw new Error("Vision isn't set up on the server.");
+    if (res.status === 413) throw new Error("That image is too large.");
+    let detail = "";
+    try {
+      detail = (await res.json())?.detail || "";
+    } catch {
+      /* not json */
+    }
+    throw new Error(detail || `The core answered ${res.status}.`);
+  }
+  const data = await res.json();
+  return (data.said || "").trim();
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {
