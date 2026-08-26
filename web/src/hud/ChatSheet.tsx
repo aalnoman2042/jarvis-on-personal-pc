@@ -35,7 +35,11 @@ export function ChatSheet({ jarvis, voice, token, onClose }: {
   }, [onClose]);
 
   return (
-    <div className="chat-sheet">
+    <>
+      {/* Tapping the board behind closes it, the way a drawer should. A button
+          rather than a div so it is reachable without a pointer. */}
+      <button className="chat-backdrop" onClick={onClose} aria-label="Close the conversation" />
+      <div className="chat-sheet">
       <header className="chat-top">
         <span className={`conn conn-${jarvis.conn}`}>
           <span className="dot" aria-hidden />
@@ -64,6 +68,7 @@ export function ChatSheet({ jarvis, voice, token, onClose }: {
         token={token}
         onShow={jarvis.show}
       />
-    </div>
+      </div>
+    </>
   );
 }

@@ -838,10 +838,33 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 }
 
 /* ---------- the conversation drawer ---------- */
-.chat-sheet {
+/* A drawer over the lower half, not a takeover.
+   The board stays visible above it, which is the point: you glance at what is
+   coming up while you ask about it. Full screen made the conversation feel like
+   a different app rather than a panel of the same one. */
+.chat-backdrop {
   position: fixed;
   inset: 0;
+  z-index: 19;
+  background: rgb(0 0 0 / 0.45);
+  animation: fade-in 0.18s ease;
+  border: none;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+.chat-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Just over half, so the board above is readable rather than a sliver. */
+  height: 58%;
+  max-height: 58%;
   z-index: 20;
+  border-top: 1px solid var(--accent);
+  box-shadow: 0 -18px 40px -20px rgb(0 0 0 / 0.9);
   display: grid;
   /* The bar, the log, the composer. `1fr` in the middle is what pins the
      composer to the bottom and makes the log the only thing that scrolls —
@@ -850,8 +873,100 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   gap: var(--s2);
   background: var(--ground);
   animation: sheet-in 0.2s ease;
-  padding: env(safe-area-inset-top) max(var(--s3), env(safe-area-inset-right))
+  padding: 0 max(var(--s3), env(safe-area-inset-right))
            env(safe-area-inset-bottom) max(var(--s3), env(safe-area-inset-left));
+}
+
+/* With the keyboard up there is no room to be half of anything — the visible
+   viewport is already the bottom half of the screen. So it takes what is left,
+   which keeps the composer and a few lines of the conversation in view instead
+   of squeezing both into a third of a third. */
+.keyboard-up .chat-sheet {
+  height: 100%;
+  max-height: 100%;
+}
+.keyboard-up .chat-backdrop {
+  display: none;
+}
+
+/* ---------- the machine, idling ----------
+   Something behind the conversation that reads as switched-on. Three cheap
+   layers, and every one of them animates transform or opacity only — so it is
+   GPU compositing rather than layout, which is the difference between
+   atmosphere and a warm phone.
+   No canvas and no animation frame: the reactor earns a rAF loop because it
+   reacts to things, and this does not. It is wallpaper that moves.
+
+   Deliberately faint. It sits behind text that has to stay readable, and the
+   test for background motion is that you notice it when you look for it and
+   never while you are reading. */
+.chat-sheet > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* A fine grid, drifting up. */
+.chat-sheet::before {
+  content: "";
+  position: absolute;
+  inset: -40% -10%;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, rgb(var(--accent-rgb) / 0.05) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05) 0 1px, transparent 1px 34px);
+  animation: grid-drift 22s linear infinite;
+}
+@keyframes grid-drift {
+  to { transform: translateY(34px); }
+}
+
+/* A slow scan passing down the panel, the way an instrument sweeps. */
+.chat-sheet::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 34%;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    transparent,
+    rgb(var(--accent-rgb) / 0.055) 62%,
+    rgb(var(--accent-rgb) / 0.11) 84%,
+    transparent);
+  animation: chat-scan 9s ease-in-out infinite;
+}
+@keyframes chat-scan {
+  0%   { transform: translateY(-40%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(300%); opacity: 0; }
+}
+
+/* Reduced motion keeps the texture and drops the movement — the grid is still
+   worth having, the sweep is not worth insisting on. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-sheet::before { animation: none; }
+  .chat-sheet::after { display: none; }
+}
+
+/* Wide screens have room for a proper panel rather than a full-width band. */
+@media (min-width: 900px) {
+  .chat-sheet {
+    left: auto;
+    right: var(--s4);
+    bottom: var(--s4);
+    width: min(460px, 40vw);
+    height: min(70vh, 640px);
+    max-height: min(70vh, 640px);
+    border: 1px solid var(--accent);
+    padding: 0 var(--s3) var(--s3);
+  }
+  .chat-backdrop {
+    background: rgb(0 0 0 / 0.25);
+  }
 }
 .chat-top {
   display: flex;
@@ -1412,7 +1527,7 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   padding-bottom: env(safe-area-inset-bottom);
 }
 @keyframes sheet-in {
-  from { transform: translateY(18px); opacity: 0; }
+  from { transform: translateY(28px); opacity: 0; }
 }
 
 .sheet-top {
