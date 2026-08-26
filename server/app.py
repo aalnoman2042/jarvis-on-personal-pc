@@ -279,6 +279,11 @@ async def me(device: dict = Depends(caller)):
         "recent_actions": store.recent_actions(8),
         "pc": agents.registry.status(),
         "devices": auth.devices(),
+        # The dashboard's UP NEXT panel. Carried here rather than fetched
+        # separately for the same reason as everything else in this response:
+        # a screen filling in two stages looks broken on a slow connection.
+        "upcoming": [{**item, "said": agenda_store.describe(item)}
+                     for item in agenda_store.upcoming(8)],
     }
 
 

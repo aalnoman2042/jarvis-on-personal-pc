@@ -31,6 +31,11 @@ export interface Vondo {
   telemetry: Telemetry;
   log: LogLine[];
   queued: number;
+  /** The most recent reminder to arrive, until it is dismissed. The dashboard
+      shows it as a banner: it is the one thing here that Jarvis said first,
+      rather than answered, so it must not just scroll past in the log. */
+  alert: { id: number; text: string } | null;
+  dismiss: () => void;
   say: (text: string) => void;
   note: (text: string) => void;
 }
@@ -43,6 +48,7 @@ export function useVondo(token: string): Vondo {
   const [telemetry, setTelemetry] = useState<Telemetry>({});
   const [log, setLog] = useState<LogLine[]>([]);
   const [queued, setQueued] = useState(() => outbox.count());
+  const [alert, setAlert] = useState<{ id: number; text: string } | null>(null);
 
   const socket = useRef<WebSocket | null>(null);
   const timer = useRef<number | null>(null);
@@ -117,6 +123,12 @@ export function useVondo(token: string): Vondo {
             ts: frame.ts,
           });
           break;
+        case "reminder":
+          // Into the log so it is still there tomorrow, and into the banner so
+          // it is seen today.
+          append("jarvis", frame.text, { brain: "reminder" });
+          setAlert({ id: frame.id, text: frame.text });
+          break;
         case "error":
           setState("online");
           append("system", frame.error);
@@ -188,6 +200,7 @@ export function useVondo(token: string): Vondo {
   );
 
   const note = useCallback((text: string) => append("system", text), [append]);
+  const dismiss = useCallback(() => setAlert(null), []);
 
-  return { conn, state, brain, pcOnline, telemetry, log, queued, say, note };
+  return { conn, state, brain, pcOnline, telemetry, log, queued, alert, dismiss, say, note };
 }

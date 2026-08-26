@@ -82,20 +82,249 @@
   border-bottom-color: var(--accent);
 }
 
-/* ---------- stage ---------- */
+/* ---------- stage ----------
+   The board lives here and is the only thing that scrolls. The shell above it
+   is fixed to the visible viewport, so this is where the overflow has to go. */
 .stage {
-  display: grid;
-  grid-template-columns: 1fr 250px;
-  gap: var(--s4);
-  min-height: 0; /* without this the log cannot scroll inside the grid */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--s4) 0;
 }
 
-.core {
+/* ---------- the board ---------- */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  /* Room for the floating button to sit over, so the last panel is never stuck
+     underneath it. */
+  padding-bottom: 88px;
+}
+
+/* A reminder that has just arrived. The one thing on this screen Jarvis said
+   first rather than in answer to something, so it gets the top of the board and
+   the accent colour, and stays until it is dismissed. */
+.alert {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: var(--s3);
-  min-height: 0;
+  width: 100%;
+  padding: var(--s3);
+  text-align: left;
+  color: var(--ink-strong);
+  border: 1px solid var(--accent);
+  background: rgba(53, 214, 255, 0.07);
+  animation: alert-in 0.3s ease;
+}
+.alert-text {
+  font-size: 1rem;
+}
+.alert-x {
+  color: var(--dim);
+}
+@keyframes alert-in {
+  from { transform: translateY(-8px); opacity: 0; }
+}
+
+/* ---------- hero ---------- */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+/* Smaller than the reactor was when it was the centrepiece. It is now a status
+   light beside the greeting — still the thing that moves when Jarvis thinks,
+   but no longer paying for that with a third of the screen. */
+.hero-reactor {
+  flex: none;
+}
+.hero-reactor .reactor {
+  width: clamp(88px, 20vw, 132px);
+  height: clamp(88px, 20vw, 132px);
+}
+.hero-words {
+  min-width: 0;
+}
+.hero-greet {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: clamp(1.15rem, 4.5vw, 1.7rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.hero-name {
+  color: var(--accent);
+}
+.clock-time {
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  line-height: 1.1;
+  color: var(--ink-strong);
+  text-shadow: 0 0 22px rgba(53, 214, 255, 0.3);
+}
+.clock-date {
+  color: var(--dim);
+}
+
+/* ---------- panels ----------
+   Auto-fit rather than a fixed column count: the same board is a phone in one
+   hand and a second monitor across the room, and neither should be told how
+   many columns it has. */
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--s3);
+}
+.panel-wide {
+  grid-column: 1 / -1;
+}
+.panel-head {
+  margin: 2px 0 0;
+  font-family: var(--f-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+.panel-off {
+  color: var(--idle);
+}
+.panel-more {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: 6px;
+}
+.stat-row .mono {
+  color: var(--ink-strong);
+}
+
+/* ---------- what is coming ---------- */
+.agenda {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.agenda li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: var(--s2);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-soft);
+}
+.agenda li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.agenda-what {
+  color: var(--ink-strong);
+}
+.agenda-when {
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+/* Something with a date rather than a countdown — an exam, a deadline. */
+.agenda-event .agenda-what {
+  color: var(--accent);
+}
+
+/* ---------- gauges ---------- */
+.gauge {
+  display: grid;
+  grid-template-columns: 4.5em 1fr 2.8em;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: 8px;
+}
+.gauge-label {
+  color: var(--dim);
+}
+.gauge-track {
+  height: 6px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.gauge-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.gauge-warn .gauge-fill {
+  background: var(--warn);
+}
+.gauge-bad .gauge-fill {
+  background: var(--bad);
+}
+.gauge-value {
+  font-size: 0.72rem;
+  text-align: right;
+  color: var(--ink);
+}
+
+/* ---------- the way in to a conversation ----------
+   Fixed to the corner, above the safe area, so it is reachable with a thumb and
+   never scrolls away. */
+.fab {
+  position: fixed;
+  right: max(var(--s3), env(safe-area-inset-right));
+  bottom: calc(var(--s3) + env(safe-area-inset-bottom));
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  color: var(--ground);
+  background: var(--accent);
+  border: none;
+  box-shadow: 0 0 26px rgba(53, 214, 255, 0.4);
+}
+.fab:hover {
+  filter: brightness(1.1);
+}
+.fab-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.fab-word {
+  color: var(--ground);
+}
+
+/* ---------- the conversation drawer ---------- */
+.chat-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  /* The bar, the log, the composer. `1fr` in the middle is what pins the
+     composer to the bottom and makes the log the only thing that scrolls —
+     without it the log grows until the box you are typing into is off-screen. */
+  grid-template-rows: auto 1fr auto;
+  gap: var(--s2);
+  background: var(--ground);
+  animation: sheet-in 0.2s ease;
+  padding: env(safe-area-inset-top) max(var(--s3), env(safe-area-inset-right))
+           env(safe-area-inset-bottom) max(var(--s3), env(safe-area-inset-left));
+}
+.chat-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s1);
+  border-bottom: 1px solid var(--line);
+}
+.chat-close {
+  margin-left: auto;
 }
 
 /* ---------- reactor ---------- */
@@ -361,20 +590,16 @@
   .hud {
     padding: 0 var(--s2);
   }
-  /* One column, and — the part that matters — explicit rows. Left to `auto`
-     the conversation grows with every message until it pushes the composer off
-     the bottom of the screen. `1fr auto` pins the composer and makes the log
-     the only thing that scrolls. */
   .stage {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-    gap: var(--s3);
     padding: var(--s3) 0;
   }
-  /* Telemetry moves below the conversation: on a phone the reactor and what
-     Jarvis just said are what matter, and CPU is a glance, not a fixture. */
-  .gutter {
-    order: 2;
+  .board {
+    gap: var(--s3);
+  }
+  /* The reactor keeps the greeting company rather than sitting above it: on a
+     phone the vertical space it would take is the first two panels. */
+  .hero {
+    gap: var(--s3);
   }
   .line {
     grid-template-columns: 3.4em 1fr;
@@ -541,30 +766,21 @@
 }
 
 /* ---------- while the keyboard is up ----------
-   About 300px of a phone screen has just gone. The reactor is atmosphere and
-   the conversation is the point, so the reactor gets small, the telemetry
-   gutter steps out entirely, and what is left is: what was said, and where you
-   type. It comes back the moment the keyboard closes.
+   About 300px of a phone screen has just gone. What is left has to be what was
+   said and where you type, so the ornament steps out and the bar above the log
+   goes with it. It all comes back the moment the keyboard closes.
    Driven by a class on <html> from lib/viewport.ts — CSS alone cannot see a
    keyboard. */
-.keyboard-up .reactor {
-  width: 44px;
-  height: 44px;
-}
-.keyboard-up .reactor-wrap {
-  flex-direction: row;
-  justify-content: center;
-  gap: var(--s2);
-}
-.keyboard-up .gutter {
-  display: none;
-}
-.keyboard-up .stage {
-  padding-top: var(--s2);
-  gap: var(--s2);
+.keyboard-up .chat-top {
+  padding: 2px var(--s1);
 }
 .keyboard-up .sweep,
 .keyboard-up .frame {
+  display: none;
+}
+/* The button that opens the conversation, while the conversation is open and
+   you are typing into it. */
+.keyboard-up .fab {
   display: none;
 }
 

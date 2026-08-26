@@ -16,12 +16,27 @@ export interface Telemetry {
   ts?: number;
 }
 
+/** One thing in the diary: a reminder, a deadline, an exam. */
+export interface AgendaItem {
+  id: number;
+  due: number;
+  remind_at: number;
+  message: string;
+  all_day: number;
+  kind: string;
+  fired?: number;
+  /** The same line Jarvis would speak, built on the server so the screen and
+      the spoken answer can never disagree about what is in the diary. */
+  said: string;
+}
+
 /** Frames the server sends down /ws/client. */
 export type ServerFrame =
   | { type: "status"; state: string; brain?: string; pc_online?: boolean }
   | { type: "reply"; reply: string; brain: string; pc_online: boolean }
   | { type: "token"; text: string }
   | ({ type: "telemetry" } & Telemetry)
+  | { type: "reminder"; id: number; text: string; message: string; due: number; all_day: boolean }
   | { type: "error"; error: string };
 
 export interface LogLine {
@@ -43,4 +58,5 @@ export interface Me {
   recent_actions: { ts: number; tool: string; args: string; result: string; ok: number }[];
   pc: { name: string; last_seen: number; telemetry: Telemetry }[];
   devices: { id: string; name: string; kind: string; last_seen: number; revoked: number }[];
+  upcoming: AgendaItem[];
 }

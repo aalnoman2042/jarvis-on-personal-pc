@@ -48,3 +48,26 @@ export async function me(token: string) {
 export function forgetFact(token: string, fragment: string) {
   return post("/facts/forget", { fragment }, token);
 }
+
+/** What is coming up. */
+export async function agenda(token: string) {
+  const res = await fetch(apiBase() + "/agenda", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not load the diary");
+  return res.json();
+}
+
+/** Add something without going through a brain — a form, not a conversation. */
+export function addAgenda(token: string, when: string, message: string, warn = "") {
+  return post("/agenda", { when, message, warn }, token);
+}
+
+export async function dropAgenda(token: string, id: number) {
+  const res = await fetch(`${apiBase()}/agenda/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not remove that");
+  return res.json();
+}

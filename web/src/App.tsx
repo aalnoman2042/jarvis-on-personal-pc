@@ -1,18 +1,18 @@
 /* The HUD.
  *
- * Layout is two columns on a desktop — the reactor and conversation in the
- * middle, telemetry down the side — and a single reactor-first column on a
- * phone. Same build, same components; only the grid changes.
+ * Home is the board — what is coming up, what the PC is doing, what Jarvis
+ * remembers. The conversation is a drawer over it, opened from the button in
+ * the corner, and settings is a second drawer behind the gear. One socket
+ * underneath all three, held by this component, so opening and closing a drawer
+ * never drops the connection or loses the log.
  */
 import { useEffect, useState } from "react";
 
-import { Composer } from "./hud/Composer";
-import { Log } from "./hud/Log";
-import { Reactor } from "./hud/Reactor";
-import { Telemetry } from "./hud/Telemetry";
+import { ChatSheet } from "./hud/ChatSheet";
 import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
 import { clearToken, readToken, writeToken } from "./lib/store";
+import { Dashboard } from "./screens/Dashboard";
 import { Pin } from "./screens/Pin";
 import { Settings } from "./screens/Settings";
 
@@ -26,8 +26,7 @@ const CONN_TEXT: Record<string, string> = {
 function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   const jarvis = useVondo(token);
   const { canInstall, install } = useInstall();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const busy = jarvis.state === "thinking";
+  const [open, setOpen] = useState<"none" | "chat" | "settings">("none");
 
   // A revoked or unknown token cannot fix itself by retrying, so say what
   // happened and offer the one thing that helps.
@@ -68,29 +67,26 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
             Install
           </button>
         )}
-        {/* Which brain answered, how much is stored, which PC is linked — all of
-            it lives behind this. The main screen is a conversation, not a
-            dashboard. */}
-        <button className="gear" onClick={() => setSettingsOpen(true)} aria-label="Settings">
+        {/* Which brain answered, what is stored, which devices are signed in —
+            all of it lives behind this. The board is a readout, not a control
+            panel. */}
+        <button className="gear" onClick={() => setOpen("settings")} aria-label="Settings">
           <span aria-hidden>&#9881;</span>
         </button>
       </header>
 
       <main className="stage">
-        <section className="core">
-          <div className="reactor-wrap">
-            <Reactor state={jarvis.state} />
-            <span className={`reactor-state label state-${jarvis.state}`}>{jarvis.state}</span>
-          </div>
-          <Log lines={jarvis.log} />
-          <Composer onSay={jarvis.say} busy={busy} />
-        </section>
-
-        <Telemetry data={jarvis.telemetry} online={jarvis.pcOnline} />
+        <Dashboard
+          token={token}
+          jarvis={jarvis}
+          onOpenChat={() => setOpen("chat")}
+          onSettings={() => setOpen("settings")}
+        />
       </main>
 
-      {settingsOpen && (
-        <Settings token={token} onClose={() => setSettingsOpen(false)} onSignOut={onForget} />
+      {open === "chat" && <ChatSheet jarvis={jarvis} onClose={() => setOpen("none")} />}
+      {open === "settings" && (
+        <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />
       )}
     </div>
   );
@@ -137,7 +133,7 @@ export default function App() {
 
   if (!booted) return <Boot />;
   if (!token) return <Pin onIn={paired} />;
-  // Keyed on the token so unpairing and pairing again builds a fresh socket
-  // rather than reusing one wired to a token that no longer works.
+  // Keyed on the token so signing out and in again builds a fresh socket rather
+  // than reusing one wired to a token that no longer works.
   return <Hud key={token} token={token} onForget={forget} />;
 }
