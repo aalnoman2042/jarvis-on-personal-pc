@@ -26,7 +26,7 @@ from core import clock
 from core.memory import store
 
 MAX_TEXT = store.MAX_TEXT
-KINDS = ("reminder", "event")
+KINDS = ("reminder", "event", "checkin")
 
 
 def _clean(text: str) -> str:
@@ -34,7 +34,8 @@ def _clean(text: str) -> str:
 
 
 def add(due: float, message: str, remind_at: float | None = None,
-        all_day: bool = False, kind: str = "reminder", device: str = "") -> int | None:
+        all_day: bool = False, kind: str = "reminder", device: str = "",
+        parent: int = 0) -> int | None:
     """Put something in the diary. Returns its id, or None if nothing was stored."""
     conn = store.connect()
     message = _clean(message)
@@ -43,10 +44,10 @@ def add(due: float, message: str, remind_at: float | None = None,
     try:
         cursor = conn.execute(
             "INSERT INTO reminders(due, remind_at, message, created, fired, "
-            "all_day, kind, device) VALUES (?,?,?,?,0,?,?,?)",
+            "all_day, kind, device, parent) VALUES (?,?,?,?,0,?,?,?,?)",
             (float(due), float(remind_at if remind_at is not None else due), message,
              round(clock.now(), 1), 1 if all_day else 0,
-             kind if kind in KINDS else "reminder", device or ""),
+             kind if kind in KINDS else "reminder", device or "", int(parent)),
         )
         conn.commit()
         return cursor.lastrowid
@@ -133,6 +134,10 @@ def cancel(fragment: str) -> int:
         ids = [r["id"] for r in rows]
         for one in ids:
             conn.execute("DELETE FROM reminders WHERE id = ?", (one,))
+            # A check-in only exists to ask about its parent. Left behind, it
+            # would arrive days later asking how the preparation is going for
+            # something that was cancelled.
+            conn.execute("DELETE FROM reminders WHERE parent = ?", (one,))
         conn.commit()
         return len(ids)
     except Exception:  # noqa: BLE001
@@ -146,6 +151,7 @@ def cancel_id(item_id: int) -> bool:
         return False
     try:
         cursor = conn.execute("DELETE FROM reminders WHERE id = ?", (int(item_id),))
+        conn.execute("DELETE FROM reminders WHERE parent = ?", (int(item_id),))
         conn.commit()
         return bool(cursor.rowcount)
     except Exception:  # noqa: BLE001

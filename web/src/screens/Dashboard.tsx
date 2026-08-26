@@ -167,7 +167,7 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
           {upcoming.length ? (
             <ul className="agenda">
               {upcoming.map((item) => (
-                <li key={item.id} className={item.kind === "event" ? "agenda-event" : ""}>
+                <li key={item.id} className={`agenda-${item.kind}`}>
                   <span className="agenda-what">{item.message}</span>
                   <span className="agenda-when mono">
                     {item.said.replace(`${item.message} — `, "")}

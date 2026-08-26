@@ -18,6 +18,7 @@ delivered once even with a desktop and a server watching the same database.
 """
 from __future__ import annotations
 
+import re
 import threading
 
 from core import clock, config
@@ -70,13 +71,93 @@ def schedule(when_text: str, message: str, warn: str = "") -> str:
         remind_at = clock.now()
 
     kind = "event" if (all_day or lead) else "reminder"
-    if agenda.add(due, message, remind_at=remind_at, all_day=all_day, kind=kind) is None:
+    new_id = agenda.add(due, message, remind_at=remind_at, all_day=all_day, kind=kind)
+    if new_id is None:
         return "I couldn't write that down just now."
 
     said = f"Noted: {message} {clock.say(due, all_day)}."
     if lead and abs(remind_at - due) > 60:
         said += f" I'll remind you {clock.say(remind_at)}."
+
+    # And, for anything there is work to be done about, one unprompted "how is
+    # it going?" partway there. Said out loud when it is set, because an
+    # assistant that is going to ask you something later should tell you so
+    # rather than surprising you with it.
+    asked = plan_checkin(new_id, due, message)
+    if asked:
+        said += f" I'll check in with you {clock.say(asked)}."
     return said
+
+
+# ---------------------------------------------------------------------------
+# Asking how it is going
+# ---------------------------------------------------------------------------
+#
+# The difference between a diary and an assistant. A diary holds "exam on the
+# 18th" and says it back on the 18th. Someone who is actually helping asks, a
+# few days beforehand, how the preparation is going — unprompted, because they
+# remembered on their own.
+#
+# Two rules keep it from becoming nagging, which is the only way this feature
+# fails. It asks ONCE per thing, and only about things there is something to be
+# done about: an exam, a deadline, a submission. Nobody wants to be asked how
+# their dentist appointment is coming along.
+
+# Things you prepare for. A check-in only makes sense where there is work
+# between now and then.
+_WORTH_ASKING = re.compile(
+    r"\b(exam|test|quiz|ct\b|midterm|final|viva|assignment|homework|"
+    r"submission|submit|deadline|due|project|paper|report|thesis|"
+    r"presentation|present|interview|defence|defense|application|apply|"
+    r"proposal|draft|revision|revise|prepare|study)\b", re.I)
+
+# Below this there is no room to ask and still be useful — the reminder itself
+# is doing that job.
+MIN_GAP_FOR_CHECKIN = 3 * 86400.0
+# How far through the wait to ask. Early enough that the answer can change what
+# happens, late enough that there is something to report.
+CHECKIN_POINT = 0.55
+
+
+def worth_asking_about(message: str) -> bool:
+    return bool(_WORTH_ASKING.search(message or ""))
+
+
+def checkin_question(message: str) -> str:
+    """The wording. A question, not an announcement.
+
+    "Exam on Friday" is a reminder. "How is the exam going?" is a person. The
+    whole point of this feature lives in that difference, so the phrasing is not
+    left to a model that might be having an off day — or unavailable entirely.
+    """
+    subject = " ".join((message or "").split())
+    return f"How's it going with {subject}?"
+
+
+def plan_checkin(parent_id: int, due: float, message: str,
+                 base: float | None = None) -> float | None:
+    """Schedule one "how is it going?" between now and `due`, if it is warranted.
+
+    Returns when it will ask, or None if it decided not to.
+    """
+    now = clock.now() if base is None else base
+    gap = due - now
+    if gap < MIN_GAP_FOR_CHECKIN or not worth_asking_about(message):
+        return None
+
+    when = now + gap * CHECKIN_POINT
+    # Never in the small hours. A question at 4am is not a friend asking.
+    local = clock.local(when)
+    if local.hour < 8:
+        when = clock.epoch(local.replace(hour=9, minute=0, second=0, microsecond=0))
+    elif local.hour > 21:
+        when = clock.epoch(local.replace(hour=20, minute=0, second=0, microsecond=0))
+    if not (now < when < due):
+        return None
+
+    stored = agenda.add(when, checkin_question(message), remind_at=when,
+                        all_day=False, kind="checkin", parent=parent_id)
+    return when if stored else None
 
 
 def upcoming_text(limit: int = 8) -> str:
@@ -105,6 +186,11 @@ def wording(item: dict) -> str:
     off at its own moment — "tomorrow: exam" rather than "reminder: exam" — and
     getting that wrong makes Jarvis sound like it has lost track of the date.
     """
+    if item.get("kind") == "checkin":
+        # Already phrased as a question when it was planned; announcing it as
+        # "Reminder:" would turn a friendly nudge back into an alarm.
+        return item["message"]
+
     title = f", {config.USER_TITLE}" if config.USER_TITLE else ""
     early = item["due"] - item.get("remind_at", item["due"]) > 60
     if early:

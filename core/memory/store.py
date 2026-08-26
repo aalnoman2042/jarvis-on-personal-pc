@@ -170,6 +170,9 @@ _LATER_COLUMNS = (
     ("reminders", "all_day INTEGER NOT NULL DEFAULT 0"),
     ("reminders", "kind TEXT NOT NULL DEFAULT 'reminder'"),
     ("reminders", "device TEXT NOT NULL DEFAULT ''"),
+    # A check-in belongs to the thing it asks about, so cancelling the exam
+    # takes its "how is the prep going?" with it.
+    ("reminders", "parent INTEGER NOT NULL DEFAULT 0"),
 )
 
 has_search = True  # flipped off below if this SQLite build lacks FTS5

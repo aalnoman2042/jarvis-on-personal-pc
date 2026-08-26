@@ -153,15 +153,19 @@ try:
     check("added over HTTP", r.status_code, 200)
     check("  and read back", r.json()["said"], contains="18th september")
     listed = httpx.get(f"{BASE}/agenda", headers=hdr).json()
-    check("it is in the diary", listed["count"], 1)
-    check("  with a line the screen can show", listed["items"][0]["said"],
-          contains="physics exam")
+    # Two rows, not one: an exam three weeks out earns a check-in partway
+    # there, and the check-in is a real diary row so it rides the same
+    # delivery, the same alarms and the same screens as everything else.
+    check("it is in the diary, with its check-in", listed["count"], 2)
+    check("  with a line the screen can show",
+          " ".join(i["said"] for i in listed["items"]), contains="physics exam")
     check("  and the count reaches /status",
-          httpx.get(f"{BASE}/status", headers=hdr).json()["upcoming"], 1)
-    item_id = listed["items"][0]["id"]
+          httpx.get(f"{BASE}/status", headers=hdr).json()["upcoming"], 2)
+
+    exam = next(i for i in listed["items"] if i["kind"] != "checkin")
     check("it can be dropped",
-          httpx.delete(f"{BASE}/agenda/{item_id}", headers=hdr).json()["dropped"], True)
-    check("  and the diary is empty",
+          httpx.delete(f"{BASE}/agenda/{exam['id']}", headers=hdr).json()["dropped"], True)
+    check("  and its check-in goes with it",
           httpx.get(f"{BASE}/agenda", headers=hdr).json()["count"], 0)
     check("the diary needs a token",
           httpx.get(f"{BASE}/agenda").status_code, 401)
