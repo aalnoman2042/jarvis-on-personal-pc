@@ -12,47 +12,54 @@
 
 :root,
 :root[data-theme="jarvis"] {
-  /* A blue room, not a black one.
-     Near-black with a cyan accent is the safe HUD cliché and it reads flat: one
-     hue, so everything competes with everything. This is built the way the
-     reference is — a deep blue *field* with orange as the voice on top of it.
-     Two hues on opposite sides of the wheel, which is what lets a number be
-     loud without a glow doing the shouting: the accent has somewhere to be
-     loud *against*. Blue carries the furniture; orange carries meaning. */
-  --ground: #071523;
-  /* The field is a gradient, not a flat fill — light gathering low and centre,
-     the way the reference does. Painted on body; this is its far end. */
-  --ground-lift: #10314c;
-  --panel: #0d2437;
-  --panel-2: #15334c;
-  /* Raised, filled blocks — the little steel-blue tiles that make a dense
-     readout look built rather than printed. */
-  --chip: #1c4666;
-  --chip-hot: #2d7099;
-  --line: #2a5c85;
-  --line-soft: #1c4260;
+  /* One cool hue, worked in depth rather than contrasted against a warm one.
+     The orange experiment is gone: it was doing the separating for me, and
+     leaning on a second hue is the easy way to make a dark UI legible. Doing it
+     inside one family is harder and quieter, and quiet is right for something
+     that sits on a second monitor beside real work.
+     So the separation comes from *value and temperature* instead — the ground
+     is cold and nearly black, panels lift toward slate, chips lift again, and
+     cyan is kept back for the few things that are actually live. An accent used
+     everywhere stops being an accent. */
+  --ground: #060d16;
+  /* The field is a gradient rather than a flat fill: light gathering low and
+     centre. It is most of what stops a dark screen reading as a black
+     rectangle with widgets sitting on it. */
+  --ground-lift: #0d2135;
+  --panel: #0e1e2d;
+  --panel-2: #14293c;
+  /* Raised, filled blocks — the small steel tiles that make a dense readout
+     look built rather than printed. */
+  --chip: #1b3b56;
+  --chip-hot: #2c6a92;
+  --line: #23516f;
+  --line-soft: #193850;
 
-  --ink: #d8e9f6;
-  --ink-strong: #ffffff;
-  --dim: #86aecb;
+  --ink: #d5e9f5;
+  --ink-strong: #f4fbff;
+  --dim: #82a6bf;
 
-  /* Orange is the voice: live values, active state, the ring that matters.
-     Cyan stays as the second voice for anything structural or informational, so
-     "this is a reading" and "this is a label" never look like the same thing. */
-  --accent: #ff9d2e;
-  --accent-deep: #b3610d;
-  --accent-2: #4ecdf5;
-  --accent-2-deep: #1a7fa8;
-  --warn: #ffc85c;
+  /* Cyan is the live colour and nothing else uses it: a reading that is moving,
+     a control that is armed, the reactor when it is thinking. --accent-2 is a
+     cooler steel for structure — rules, ticks, captions — so "this is a
+     reading" and "this is a label" never look like the same thing without
+     needing a second hue to say so. */
+  --accent: #35d6ff;
+  --accent-deep: #0d7fa3;
+  --accent-2: #6f9fc4;
+  --accent-2-deep: #34617f;
+  /* Amber only ever means attention. It is the one warm colour left, which is
+     precisely what makes it work: nothing else on screen competes with it. */
+  --warn: #ffc36b;
   --good: #4fe0a8;
   --bad: #ff6b7a;
-  --idle: #4b6b85;
+  --idle: #45586c;
 
-  /* The accents as bare channels, so a glow can be written rgb(var(--accent-rgb)
-     / 0.4) and follow the theme. Hardcoded rgba() was why every shadow in the
-     app stayed cyan no matter what the tokens said. */
-  --accent-rgb: 255 157 46;
-  --accent-2-rgb: 78 205 245;
+  /* The accents as bare channels, so a glow can be written
+     rgb(var(--accent-rgb) / 0.4) and follow the theme. Hardcoded rgba() was why
+     every shadow in the app stayed one colour no matter what the tokens said. */
+  --accent-rgb: 53 214 255;
+  --accent-2-rgb: 111 159 196;
 
   --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
@@ -105,9 +112,9 @@ body {
      which is what stops a dark UI reading as a black rectangle with widgets on
      it. The scanlines stay: cheap, a repeating gradient rather than animation. */
   background-image:
-    radial-gradient(1400px 900px at 50% 118%, var(--ground-lift), transparent 70%),
-    radial-gradient(900px 520px at 50% -10%, rgb(var(--accent-2-rgb) / 0.07), transparent 68%),
-    repeating-linear-gradient(0deg, rgb(var(--accent-2-rgb) / 0.022) 0 1px, transparent 1px 3px);
+    radial-gradient(1500px 950px at 50% 120%, var(--ground-lift), transparent 72%),
+    radial-gradient(1000px 560px at 50% -12%, rgb(var(--accent-rgb) / 0.06), transparent 66%),
+    repeating-linear-gradient(0deg, rgb(var(--accent-rgb) / 0.02) 0 1px, transparent 1px 3px);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--f-body);

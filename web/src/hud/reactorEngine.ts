@@ -49,13 +49,14 @@ function colours(): Record<ReactorState, Pair> {
   if (palette) return palette;
   palette = {
     offline: { core: token("--idle", "#4b6b85"), ring: token("--line-soft", "#1c4260") },
-    // Online is the second voice, not the first: a reactor that idles in the
-    // accent leaves the accent nothing to mean when something is happening.
-    online: { core: token("--accent-2", "#4ecdf5"), ring: token("--accent-2-deep", "#1a7fa8") },
+    // Idling in the structural steel, not the live cyan: a reactor that sits in
+    // the accent all day leaves the accent nothing to mean when something
+    // actually starts happening.
+    online: { core: token("--accent", "#35d6ff"), ring: token("--accent-deep", "#0d7fa3") },
     listening: { core: token("--good", "#4fe0a8"), ring: "#1f9c74" },
-    // Thinking is the loud one, in the loud colour.
-    thinking: { core: token("--accent", "#ff9d2e"), ring: token("--accent-deep", "#b3610d") },
-    speaking: { core: token("--accent-2", "#4ecdf5"), ring: token("--accent-2-deep", "#1a7fa8") },
+    // Amber is the one warm colour in the palette and it means "working".
+    thinking: { core: token("--warn", "#ffc36b"), ring: token("--accent-deep", "#0d7fa3") },
+    speaking: { core: token("--accent", "#35d6ff"), ring: token("--accent-deep", "#0d7fa3") },
   };
   return palette;
 }

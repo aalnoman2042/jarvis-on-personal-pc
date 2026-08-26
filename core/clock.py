@@ -353,6 +353,129 @@ def say(ts: float, all_day: bool = False, base: float | None = None) -> str:
     return "on " + _date_words(moment) + at
 
 
+# ---------------------------------------------------------------------------
+# Things that happen again
+# ---------------------------------------------------------------------------
+
+REPEATS = ("daily", "weekdays", "weekly", "monthly", "yearly")
+
+
+def parse_repeat(text: str) -> tuple[str, list[int]]:
+    """Read a recurrence out of a phrase: ("weekly", [0, 2]) for "every Mon and Wed".
+
+    Returns ("", []) when the phrase names no repetition, which is most of them.
+
+    Weekly with named days is the case that matters and the one a simpler
+    implementation gets wrong: a university timetable is "Monday and Wednesday",
+    not "every 7 days from today", and storing it as the latter means moving one
+    week's class moves every week after it.
+    """
+    if not text:
+        return ("", [])
+    words = " ".join(text.lower().split())
+
+    if not re.search(r"\b(every|each|daily|weekly|monthly|yearly|weekdays|weekday)\b", words):
+        return ("", [])
+
+    # Named days win over everything: "every monday and wednesday".
+    days = sorted({
+        WEEKDAYS[name]
+        for name in WEEKDAYS
+        if re.search(r"\b" + name + r"\b", words)
+    })
+    if days:
+        return ("weekly", days)
+
+    if re.search(r"\b(weekdays?|working days?|every work day)\b", words):
+        return ("weekdays", [])
+    if re.search(r"\b(daily|every day|each day|every single day)\b", words):
+        return ("daily", [])
+    if re.search(r"\b(weekly|every week|each week)\b", words):
+        return ("weekly", [])
+    if re.search(r"\b(monthly|every month|each month)\b", words):
+        return ("monthly", [])
+    if re.search(r"\b(yearly|annually|every year|each year)\b", words):
+        return ("yearly", [])
+    return ("", [])
+
+
+def next_occurrence(after: float, rule: str, days: list[int] | None = None) -> float | None:
+    """The next time a repeating thing happens, strictly after `after`.
+
+    Advances in *local* time rather than by adding seconds. Adding 86400 to an
+    epoch is only the same as "tomorrow" while the offset holds; the day and the
+    time of day are what a person means, so those are what move.
+    """
+    if rule not in REPEATS:
+        return None
+    moment = local(after)
+
+    if rule == "daily":
+        return epoch(moment + dt.timedelta(days=1))
+
+    if rule == "weekdays":
+        step = moment
+        for _ in range(7):
+            step += dt.timedelta(days=1)
+            if step.weekday() < 5:
+                return epoch(step)
+        return None
+
+    if rule == "weekly":
+        wanted = sorted(days or [moment.weekday()])
+        step = moment
+        for _ in range(14):
+            step += dt.timedelta(days=1)
+            if step.weekday() in wanted:
+                return epoch(step)
+        return None
+
+    if rule == "monthly":
+        year, month = moment.year, moment.month + 1
+        if month > 12:
+            year, month = year + 1, 1
+        # The 31st does not exist in every month. Falling back to the last day
+        # is what a person means by "the 31st of next month" when there is no
+        # 31st — skipping the month entirely would silently drop an occurrence.
+        day = min(moment.day, _days_in(year, month))
+        return epoch(moment.replace(year=year, month=month, day=day))
+
+    if rule == "yearly":
+        try:
+            return epoch(moment.replace(year=moment.year + 1))
+        except ValueError:  # 29 February
+            return epoch(moment.replace(year=moment.year + 1, day=28))
+    return None
+
+
+def _days_in(year: int, month: int) -> int:
+    if month == 12:
+        return 31
+    return (dt.date(year, month + 1, 1) - dt.timedelta(days=1)).day
+
+
+def repeat_words(rule: str, days: list[int] | None = None) -> str:
+    """How a recurrence reads aloud: "every Monday and Wednesday"."""
+    if rule == "daily":
+        return "every day"
+    if rule == "weekdays":
+        return "every weekday"
+    if rule == "monthly":
+        return "every month"
+    if rule == "yearly":
+        return "every year"
+    if rule == "weekly":
+        if not days:
+            return "every week"
+        names = [n for n in ("Monday", "Tuesday", "Wednesday", "Thursday",
+                             "Friday", "Saturday", "Sunday")]
+        chosen = [names[d] for d in sorted(days)]
+        if len(chosen) == 1:
+            return f"every {chosen[0]}"
+        return "every " + ", ".join(chosen[:-1]) + " and " + chosen[-1]
+    return ""
+
+
 def was(ts: float, base: float | None = None) -> str:
     """When something happened, in the past tense — "yesterday", "on 12 August".
 
