@@ -104,6 +104,28 @@ CREATE TABLE IF NOT EXISTS reminders (
     device    TEXT NOT NULL DEFAULT ''
 );
 
+-- Things to do, as opposed to things that happen at a time (which are
+-- reminders). A task has no required date and does have a finished state —
+-- those two differences are why it is not a row in the table above.
+--
+-- `source` separates what Rohan asked for from what Jarvis noticed him say he
+-- would do. A noticed commitment is a guess and must be raised as one; treating
+-- the two identically is how an assistant starts nagging about things nobody
+-- actually committed to.
+CREATE TABLE IF NOT EXISTS tasks (
+    id       INTEGER PRIMARY KEY,
+    text     TEXT NOT NULL,
+    created  REAL NOT NULL,
+    done     INTEGER NOT NULL DEFAULT 0,
+    done_at  REAL NOT NULL DEFAULT 0,
+    priority INTEGER NOT NULL DEFAULT 1,   -- 0 low, 1 normal, 2 high
+    due      REAL NOT NULL DEFAULT 0,      -- 0 means no deadline
+    minutes  INTEGER NOT NULL DEFAULT 0,   -- estimate; 0 means unknown
+    tag      TEXT NOT NULL DEFAULT '',
+    source   TEXT NOT NULL DEFAULT 'asked',
+    asked_at REAL NOT NULL DEFAULT 0       -- when it was last chased
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

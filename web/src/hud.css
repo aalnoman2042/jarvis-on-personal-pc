@@ -638,6 +638,64 @@ button.chip:hover {
   cursor: pointer;
 }
 
+/* ---------- mail ----------
+   Ranked, not listed. The reason each message earned its place sits next to it,
+   because a ranking whose reasoning you cannot see is one you re-check. */
+.mail-said {
+  margin: var(--s2) 0 0;
+  color: var(--ink-strong);
+  font-size: 0.94rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.mail-list {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+.mail-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--panel-2);
+  min-width: 0;
+}
+.mail-who {
+  color: var(--ink-strong);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+.mail-subject {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  color: var(--ink);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.mail-meta {
+  font-size: 0.68rem;
+  color: var(--accent);
+  text-align: right;
+  white-space: nowrap;
+}
+.mail-why,
+.mail-box {
+  grid-row: 3;
+  font-size: 0.56rem;
+}
+.mail-why { color: var(--accent-2); }
+.mail-box { text-align: right; color: var(--idle); }
+/* Worth acting on today gets an edge; noise gets faded rather than hidden, so
+   the ranking can be argued with. */
+.mail-hot { border-left: 2px solid var(--accent); }
+.mail-cold { opacity: 0.55; }
+
 /* ---------- vision ----------
    The honest face-scan panel: a frame you fill with a picture, and what Jarvis
    saw beside it. The scan line only runs while it is looking — motion that

@@ -12,6 +12,7 @@ import functools
 
 from core.lazy import actions
 from core import confirm
+from core import mail
 from core import memory
 from core import phone
 from core import reminders
@@ -181,6 +182,21 @@ def remind(when: str, message: str, warn: str = "") -> str:
     return reminders.schedule(when, message, warn)
 
 
+def check_mail(days: str = "1") -> str:
+    """Look at the user's inboxes and say what is worth their attention.
+
+    Use for "any important email", "check my mail", "anything from my
+    supervisor", "what's in my inbox". Ranks by who sent it and what it is
+    about, and ignores newsletters and automated post. Read-only: it can never
+    send, delete or mark anything.
+    """
+    try:
+        window = max(1, min(30, int(str(days).strip() or 1)))
+    except (TypeError, ValueError):
+        window = 1
+    return mail.summary(days=window)
+
+
 def check_agenda() -> str:
     """See what is coming up: reminders, deadlines, appointments, events.
 
@@ -261,7 +277,7 @@ def set_autostart(action: str) -> str:
 TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
-    remind, check_agenda, cancel_reminder,
+    remind, check_agenda, cancel_reminder, check_mail,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
@@ -380,6 +396,10 @@ OPENAI_TOOLS = [
            "who": _STR("Who it is, if known")}, ["number"]),
     _tool("navigate_to", "Open maps with directions somewhere.",
           {"place": _STR("Where to go")}, ["place"]),
+    _tool("check_mail",
+          "Look at the user's email and say what is worth their attention. "
+          "Use for 'any important mail', 'check my inbox', 'did X reply'.",
+          {"days": _STR("How many days back to look, default 1")}),
     _tool("check_agenda",
           "See what is coming up. Use for 'what's coming up', 'what do I have "
           "tomorrow', 'when is my exam'."),

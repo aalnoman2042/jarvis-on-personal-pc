@@ -148,6 +148,21 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** The inboxes, ranked. Nothing is fetched until this is called: it is an IMAP
+    round-trip per account, which is too slow to do on every board load. */
+export async function mail(token: string, days = 2) {
+  const res = await fetch(`${apiBase()}/mail?days=${days}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not read the mailboxes");
+  return res.json() as Promise<{
+    configured: boolean;
+    count: number;
+    said: string;
+    messages: import("./types").MailMessage[];
+  }>;
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

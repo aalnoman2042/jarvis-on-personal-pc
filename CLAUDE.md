@@ -321,6 +321,41 @@ it in the WebView.
 **No new plugin, so no new APK.** Capacitor already routes unknown schemes to
 the OS. That was worth checking before adding a dependency.
 
+## Mail (phase 08)
+
+`core/mail.py` reads Rohan's inboxes over IMAP. Standard library only —
+`imaplib` and `email` — so no new dependency and no new account.
+
+**IMAP with app passwords, not the Gmail API.** The official route is OAuth,
+which for an app Google has not verified hands out refresh tokens that expire
+every seven days. An assistant that stops working every Sunday is not one. An
+app password never expires, is one string, and the same code reaches any
+provider.
+
+**Read-only is enforced, not intended.** `select(..., readonly=True)` and
+`BODY.PEEK` on every fetch — PEEK being the form that does not set `\Seen`, so
+deciding whether a message matters cannot mark it read. No `store`, `copy`,
+`expunge` or `append` call exists in the module. The credential could do all of
+those; the code cannot.
+
+**Priority is rules, not a model.** Scoring is over headers — sent to you or to
+a list, sender known from the facts, subject about a deadline, how old. That
+makes it free to run all day and, more importantly, makes the reasoning
+printable next to the result. `Message.why` carries it, and the HUD shows it: a
+ranking whose reasoning you cannot see is one you re-check, at which point it
+has saved nothing.
+
+**Nothing is stored.** No body reaches the database. Mail is fetched, ranked,
+shown and forgotten — the mail server is already the archive.
+
+**One bad mailbox must not lose the rest.** Each account is fetched inside its
+own try/except and a failure is logged and skipped, so a wrong password on the
+second account does not hide the first.
+
+**Timeouts matter more than they look.** IMAP over a poor connection can hang
+for minutes and a turn cannot. `socket.setdefaulttimeout` is set around the
+fetch and restored afterwards.
+
 ## The HUD (phase 04)
 
 `web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud

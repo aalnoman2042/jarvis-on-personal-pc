@@ -30,6 +30,20 @@ export interface AgendaItem {
   said: string;
 }
 
+/** One message, already ranked by the server. `why` is the reasoning behind
+    its place in the list — a ranking you cannot see the reasoning of is one you
+    end up double-checking. */
+export interface MailMessage {
+  account: string;
+  from: string;
+  address: string;
+  subject: string;
+  date: number;
+  unread: boolean;
+  score: number;
+  why: string;
+}
+
 /** Frames the server sends down /ws/client. */
 export type ServerFrame =
   | { type: "status"; state: string; brain?: string; pc_online?: boolean }

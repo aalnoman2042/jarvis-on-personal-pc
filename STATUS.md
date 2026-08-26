@@ -151,6 +151,36 @@ Reminders reach you three ways, and the phone one is the one that matters:
 A reminder that comes due with nothing listening is **not** thrown away — it
 waits and arrives the moment you open the app.
 
+### Connecting your mailboxes
+
+Jarvis reads mail over IMAP with an **app password** — not OAuth, which for an
+unverified personal app expires every seven days. One string per mailbox, never
+expires, works with Gmail and everything else.
+
+For each account:
+
+1. Turn on 2-step verification on the account.
+2. Generate an **app password** (Gmail: myaccount.google.com → Security → App
+   passwords). It is 16 characters.
+3. In the Render dashboard, add an environment variable:
+
+```
+VONDO_MAIL_1 = Personal|imap.gmail.com|993|you@gmail.com|abcdefghijklmnop
+VONDO_MAIL_2 = University|imap.gmail.com|993|you@uni.edu|qrstuvwxyzabcdef
+```
+
+Up to `VONDO_MAIL_9`. The port may be left out; 993 is assumed.
+
+**It can only read.** The IMAP session is opened `readonly=True` and every fetch
+uses `BODY.PEEK`, which is the form that does not mark mail as seen — so Jarvis
+deciding whether something matters cannot change your inbox. There is no code
+path that sends, deletes, moves or flags anything. No message body is stored;
+mail is read, ranked, shown and forgotten.
+
+**Treat an app password like the mailbox key it is.** It goes in Render's
+environment, never in the repo. If one leaks, revoke it from the same page you
+made it on.
+
 **It uses the phone when the PC is asleep.** *"Open YouTube"*, *"call dad"*,
 *"message Rifat on WhatsApp"*, *"navigate to CUET"* — the desktop still wins
 when it is awake, and the phone catches it when it is not. Calls and messages

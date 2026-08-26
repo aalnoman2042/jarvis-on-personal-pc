@@ -44,6 +44,7 @@ from core import brief
 from core import config
 from core import ears
 from core import eyes
+from core import mail
 from core.brains import factory
 from core import memory
 from core import phone
@@ -416,6 +417,39 @@ async def brief_seen(device: dict = Depends(caller)):
     await run_in_threadpool(
         store.meta_set, f"brief_seen_{device['id']}", str(clock_now()))
     return {"ok": True}
+
+
+@app.get("/mail")
+async def read_mail(days: int = 2, device: dict = Depends(caller)):
+    """What is in the inboxes, ranked, for the board's mail panel.
+
+    Read-only all the way down: the IMAP session is opened readonly and every
+    fetch uses BODY.PEEK, so looking at whether a message matters cannot mark it
+    read. No body is stored anywhere — this reads, ranks, and forgets.
+    """
+    if not mail.configured():
+        return {"configured": False, "messages": [], "said": "", "count": 0}
+    window = max(1, min(30, days))
+    messages = await run_in_threadpool(mail.inbox, window, False, 12)
+    said = await run_in_threadpool(mail.summary, window)
+    return {
+        "configured": True,
+        "count": len(messages),
+        "said": said,
+        "messages": [
+            {
+                "account": m.account,
+                "from": m.sender_name or m.sender,
+                "address": m.sender,
+                "subject": m.subject,
+                "date": m.date,
+                "unread": m.unread,
+                "score": m.score,
+                "why": m.why,
+            }
+            for m in messages
+        ],
+    }
 
 
 @app.post("/look")
