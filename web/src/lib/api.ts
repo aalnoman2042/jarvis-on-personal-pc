@@ -34,3 +34,17 @@ export async function health() {
   const res = await fetch(apiBase() + "/health");
   return res.json();
 }
+
+/** Everything the settings screen shows, in one round trip. */
+export async function me(token: string) {
+  const res = await fetch(apiBase() + "/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not load settings");
+  return res.json();
+}
+
+/** Drop something Jarvis remembers. */
+export function forgetFact(token: string, fragment: string) {
+  return post("/facts/forget", { fragment }, token);
+}

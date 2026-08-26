@@ -31,3 +31,16 @@ export interface LogLine {
   at: number;
   brain?: string;
 }
+
+/** What the settings screen loads from /me, in one call. */
+export interface Me {
+  device: { id: string; name: string; kind: string };
+  brain: string;
+  assistant: string;
+  user: string;
+  facts: string[];
+  remembered: number;
+  recent_actions: { ts: number; tool: string; args: string; result: string; ok: number }[];
+  pc: { name: string; last_seen: number; telemetry: Telemetry }[];
+  devices: { id: string; name: string; kind: string; last_seen: number; revoked: number }[];
+}

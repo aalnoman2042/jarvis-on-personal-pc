@@ -523,3 +523,187 @@
     height: clamp(120px, 30vw, 170px);
   }
 }
+
+/* ---------- settings sheet ---------- */
+.gear {
+  margin-left: auto;
+  padding: 4px 8px;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--dim);
+  border: 1px solid transparent;
+  transition: color 0.15s ease, transform 0.35s ease, border-color 0.15s ease;
+}
+.gear:hover {
+  color: var(--accent);
+  border-color: var(--line);
+  transform: rotate(60deg);
+}
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--ground);
+  /* Slides up rather than appearing: it is a drawer over the HUD, not a page. */
+  animation: sheet-in 0.22s ease;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@keyframes sheet-in {
+  from { transform: translateY(18px); opacity: 0; }
+}
+
+.sheet-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-body {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
+}
+.panel h3 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+.muted { margin: 0; color: var(--dim); }
+.small { font-size: 0.84rem; }
+.centre { text-align: center; }
+
+.facts,
+.acts {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+.facts li,
+.acts li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--panel-2);
+  font-size: 0.9rem;
+}
+.acts li { justify-content: flex-start; }
+.act-tool { color: var(--accent); font-size: 0.82rem; min-width: 9em; }
+
+.danger {
+  padding: var(--s3);
+  font-family: var(--f-display);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  background: rgba(255, 107, 122, 0.06);
+}
+.danger:hover { background: rgba(255, 107, 122, 0.15); }
+
+/* ---------- futurism: the frame around everything ---------- */
+/* Four corner brackets on the viewport itself, so the whole screen reads as an
+   instrument rather than a page. Pure CSS, no elements, no cost. */
+.hud::before,
+.hud::after {
+  content: "";
+  position: fixed;
+  width: 26px;
+  height: 26px;
+  border-color: var(--cyan-deep);
+  border-style: solid;
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 5;
+}
+.hud::before {
+  top: calc(6px + env(safe-area-inset-top));
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+.hud::after {
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  right: 6px;
+  border-width: 0 1px 1px 0;
+}
+
+/* A slow scanline crossing the screen. One element, one transform, GPU only —
+   and it stops dead when the tab is hidden because the animation pauses with it. */
+.sweep {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 120px;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(180deg, transparent, rgba(53, 214, 255, 0.045), transparent);
+  animation: sweep 9s linear infinite;
+}
+@keyframes sweep {
+  from { transform: translateY(-140px); }
+  to   { transform: translateY(100vh); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sweep { display: none; }
+}
+
+/* ---------- boot sequence ---------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  gap: var(--s2);
+  background: var(--ground);
+  font-family: var(--f-mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  animation: boot-out 0.4s ease 1.5s forwards;
+}
+.boot span {
+  opacity: 0;
+  animation: boot-line 0.3s ease forwards;
+}
+.boot span:nth-child(1) { animation-delay: 0.05s; }
+.boot span:nth-child(2) { animation-delay: 0.35s; }
+.boot span:nth-child(3) { animation-delay: 0.65s; }
+.boot span:nth-child(4) { animation-delay: 0.95s; }
+@keyframes boot-line {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes boot-out {
+  to { opacity: 0; visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot { display: none; }
+}

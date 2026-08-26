@@ -41,6 +41,7 @@ from starlette.concurrency import run_in_threadpool
 
 from core import config
 from core.brains import factory
+from core import memory
 from core.memory import store
 from server import agents, auth
 
@@ -208,6 +209,37 @@ async def health():
     return {"ok": True, "assistant": config.ASSISTANT_NAME,
             "pc_online": agents.registry.online(),
             "pin_set": bool(auth.PIN)}
+
+
+class ForgetIn(BaseModel):
+    fragment: str = Field(min_length=1, max_length=200)
+
+
+@app.get("/me")
+async def me(device: dict = Depends(caller)):
+    """Everything the settings screen shows.
+
+    Deliberately one call: settings is a screen you glance at, and three
+    round-trips to fill it means three chances to look half-broken.
+    """
+    brain = get_brain()
+    return {
+        "device": device,
+        "brain": getattr(brain, "name", "?"),
+        "assistant": config.ASSISTANT_NAME,
+        "user": config.USER_TITLE,
+        "facts": memory.facts(),
+        "remembered": store.count(),
+        "recent_actions": store.recent_actions(8),
+        "pc": agents.registry.status(),
+        "devices": auth.devices(),
+    }
+
+
+@app.post("/facts/forget")
+async def forget_fact(body: ForgetIn, device: dict = Depends(caller)):
+    """Drop something Jarvis remembers. 'all' clears the lot."""
+    return {"said": memory.forget_fact(body.fragment), "facts": memory.facts()}
 
 
 @app.get("/status")
