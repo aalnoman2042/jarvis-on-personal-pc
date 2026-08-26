@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { transcribe } from "./api";
+import { apiBase } from "./endpoint";
 
 /** Below this, that is room tone rather than a voice. */
 const SILENCE = 0.045;
@@ -92,6 +93,14 @@ export function useVoice(token: string, onHeard: (text: string) => void): Voice 
   const start = useCallback(async () => {
     setError("");
     heardSomething.current = false;
+
+    // Wake the free tier the instant the mic opens, not when the clip is ready.
+    // A Render cold start is the better part of a minute; the few seconds spent
+    // talking is a head start on it, so by the time there is a clip to send the
+    // server is far more likely to be up. Fire-and-forget — the transcribe call
+    // has its own retry if this was not enough.
+    fetch(apiBase() + "/health").catch(() => {});
+
     try {
       const media = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },

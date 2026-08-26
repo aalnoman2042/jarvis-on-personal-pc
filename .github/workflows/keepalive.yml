@@ -32,12 +32,14 @@ jobs:
     steps:
       - name: Wake the core and sweep the diary
         env:
-          URL: ${{ secrets.VONDO_URL }}
+          # The address is public — it is printed in the app store listing and
+          # baked into the APK — so it is a plain default, not a secret. The
+          # secret is only an override for pointing this at a different
+          # deployment, and its absence used to make this whole job a silent
+          # no-op: the server slept, first messages were slow, and voice hit
+          # cold-start 502s. Defaulting fixes all three.
+          URL: ${{ secrets.VONDO_URL || 'https://vondo-core.onrender.com' }}
         run: |
-          if [ -z "$URL" ]; then
-            echo "VONDO_URL secret is not set — nothing to ping."
-            exit 0
-          fi
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 -X POST "$URL/tick")
           echo "POST $URL/tick -> $code"
           # A wake-up can take a minute and may answer 502 on the way up. That is

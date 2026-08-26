@@ -86,14 +86,24 @@ export async function transcribe(token: string, clip: Blob): Promise<string> {
     if (res.status === 503) throw new Error("Speech isn't set up on the server.");
     if (res.status === 413) throw new Error("That was a bit long — keep it short.");
     if (res.status === 429) throw new Error("One moment — too many in a row.");
+    if (res.status === 401) throw new Error("Sign-in expired — enter your PIN again.");
     // 5xx from a waking free tier: pause and try the second attempt.
     if (res.status >= 500 && attempt === 0) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2500));
       continue;
     }
-    throw new Error("The core didn't answer — try once more.");
+    // The status is in the message on purpose: every remaining cause is a
+    // different number (502 waking, 422 bad upload, 400 bad request), and one
+    // catch-all sentence has already cost two rounds of guessing.
+    let detail = "";
+    try {
+      detail = (await res.json())?.detail || "";
+    } catch {
+      /* body was not json */
+    }
+    throw new Error(`The core answered ${res.status}${detail ? ` (${detail})` : ""}.`);
   }
-  throw new Error("The core didn't answer — try once more.");
+  throw new Error("The core didn't answer after two tries.");
 }
 
 /** What is coming up. */
