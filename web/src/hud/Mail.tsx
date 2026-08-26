@@ -89,13 +89,15 @@ export function Mail({ token }: { token: string }) {
           {items.map((m, i) => (
             <li key={i} className={m.score >= 6 ? "mail-hot" : m.score < 2 ? "mail-cold" : ""}>
               <span className="mail-who">{m.from}</span>
+              <span className="mail-box chip chip-quiet" title={m.account}>
+                {m.account}
+              </span>
               <span className="mail-subject">{m.subject}</span>
               <span className="mail-meta mono">
                 {m.unread ? "● " : ""}
                 {ago(m.date)}
               </span>
               {m.why && <span className="mail-why label">{m.why}</span>}
-              <span className="mail-box label">{m.account}</span>
             </li>
           ))}
         </ul>

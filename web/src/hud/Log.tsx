@@ -89,7 +89,7 @@ export function Log({ lines }: { lines: LogLine[] }) {
         <div key={line.id} className={`line line-${line.who}`}>
           <span className="mono line-time">{clock(line.at)}</span>
           <span className="line-who label">
-            {line.who === "you" ? "You" : line.who === "jarvis" ? line.brain || "Jarvis" : "sys"}
+            {line.who === "you" ? "You" : line.who === "jarvis" ? "Jarvis" : "sys"}
           </span>
           <span className="line-text">{line.text}</span>
           {line.recalled?.length ? <Recalled items={line.recalled} /> : null}

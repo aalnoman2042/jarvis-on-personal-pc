@@ -666,7 +666,9 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 }
 .mail-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* sender | which inbox | when — the inbox has its own column because with
+     more than one account "who sent it" is only half the answer. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 2px var(--s2);
   padding: var(--s2) var(--s3);
   background: var(--panel-2);
@@ -690,13 +692,21 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   text-align: right;
   white-space: nowrap;
 }
-.mail-why,
-.mail-box {
+.mail-why {
+  grid-column: 1 / -1;
   grid-row: 3;
   font-size: 0.56rem;
+  color: var(--accent-2);
 }
-.mail-why { color: var(--accent-2); }
-.mail-box { text-align: right; color: var(--idle); }
+.mail-box {
+  align-self: center;
+  font-size: 0.54rem;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-subject { grid-column: 1 / -1; }
 /* Worth acting on today gets an edge; noise gets faded rather than hidden, so
    the ranking can be argued with. */
 .mail-hot { border-left: 2px solid var(--accent); }

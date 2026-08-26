@@ -327,12 +327,27 @@ def _ddg_results(query: str, limit: int = 5) -> list[str]:
         page = _fetch("https://html.duckduckgo.com/html/", form={"q": query})
     except Exception:  # noqa: BLE001
         return []
+    # Titles and snippets are collected separately and zipped, rather than by
+    # matching a block that contains both.
+    #
+    # The block version anchored on `</td>` — DuckDuckGo's no-JS page used to be
+    # a table and is a stack of divs now, so the regex matched exactly nothing
+    # and every web question quietly fell through to a Wikipedia guess. Asked
+    # for today's news, Jarvis confidently described a newspaper in Chennai.
+    #
+    # Two flat scans have no containing element to be wrong about, which is the
+    # part of someone else's markup most likely to change again.
+    titles = [_strip_html(t) for t in
+              re.findall(r'(?is)class="result__a"[^>]*>(.*?)</a>', page)]
+    snippets = [_strip_html(s) for s in
+                re.findall(r'(?is)class="result__snippet"[^>]*>(.*?)</a>', page)]
+
     out = []
-    for chunk in re.findall(r'(?is)<a[^>]+class="result__a".*?</td>', page)[: limit * 2]:
-        title = _strip_html(re.search(r"(?is)<a[^>]*>(.*?)</a>", chunk).group(1)) if re.search(
-            r"(?is)<a[^>]*>(.*?)</a>", chunk) else ""
-        snip = re.search(r'(?is)class="result__snippet".*?>(.*?)</a>', chunk)
-        snippet = _strip_html(snip.group(1)) if snip else ""
+    for index, title in enumerate(titles[: limit * 3]):
+        # A result may carry a title and no snippet; that is still a usable
+        # line, and pairing by position is right because the page emits them in
+        # the same order.
+        snippet = snippets[index] if index < len(snippets) else ""
         line = f"{title}. {snippet}".strip(". ").strip()
         # Only keep a result that actually mentions something from the question.
         # Search pages carry ads and unrelated filler, and feeding that to the
@@ -347,6 +362,71 @@ def _ddg_results(query: str, limit: int = 5) -> list[str]:
     return out
 
 
+# Where Rohan is, so "the news" means his news. Google News wants these three.
+NEWS_LOCALE = (os.getenv("VONDO_NEWS_HL", "en-IN"),
+               os.getenv("VONDO_NEWS_GL", "BD"),
+               os.getenv("VONDO_NEWS_CEID", "BD:en"))
+
+_NEWS_WORDS = re.compile(
+    r"\b(news|headline|headlines|happening|going on|latest|current affairs|"
+    r"today.s news|breaking)\b", re.I)
+
+# Words that carry no topic. Boundaries matter: without them this eats the
+# letters out of real words, and "bangladesh" becomes "banglade h".
+_NEWS_FILLER = re.compile(
+    r"\b(brief|tell|give|show|me|my|the|a|an|any|on|of|for|"
+    r"today|todays|about|what|whats|is|are|do|you|have|got|some)\b", re.I)
+
+
+def _news(topic: str = "", limit: int = 6) -> list[str]:
+    """Headlines from Google News' RSS feed.
+
+    A feed rather than a scrape, which matters: asked for the news, the search
+    path had to guess from page markup and came back with a Wikipedia article
+    about a newspaper in Chennai. RSS is a contract — titles in title elements —
+    so it does not quietly rot the way someone else's HTML does. Free, no key,
+    no account.
+    """
+    hl, gl, ceid = NEWS_LOCALE
+    base = "https://news.google.com/rss"
+    if topic.strip():
+        url = (f"{base}/search?q={urllib.parse.quote(topic.strip())}"
+               f"&hl={hl}&gl={gl}&ceid={ceid}")
+    else:
+        url = f"{base}?hl={hl}&gl={gl}&ceid={ceid}"
+    try:
+        feed = _fetch(url)
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for block in re.findall(r"(?is)<item>(.*?)</item>", feed)[:limit]:
+        title = re.search(r"(?is)<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", block)
+        source = re.search(r"(?is)<source[^>]*>(.*?)</source>", block)
+        if not title:
+            continue
+        headline = _strip_html(title.group(1)).strip()
+        if not headline:
+            continue
+        # Google appends " - Publisher" to every headline; the source element
+        # already carries it, so the suffix is noise read aloud.
+        where = _strip_html(source.group(1)).strip() if source else ""
+        if where and headline.endswith(f" - {where}"):
+            headline = headline[: -len(where) - 3].strip()
+        out.append(f"{headline}" + (f" ({where})" if where else ""))
+    return out
+
+
+def news(topic: str = "") -> str:
+    """Today's headlines, optionally about something in particular."""
+    items = _news(topic)
+    if not items:
+        return "I couldn't reach the news just now."
+    where = f" about {topic.strip()}" if topic.strip() else ""
+    header = (f"Today's headlines{where} (summarise these out loud in two or "
+              f"three spoken sentences, no URLs, no lists):")
+    return header + "\n" + "\n".join(f"- {i}" for i in items)
+
+
 def web_answer(query: str) -> str:
     """Search the web and return what was found, as text to summarise aloud.
 
@@ -356,6 +436,20 @@ def web_answer(query: str) -> str:
     query = query.strip()
     if not query:
         return "I need something to look up."
+
+    # "Brief me today's news" is not a search — it is a feed, and treating it as
+    # a search is how it came back describing a newspaper in Chennai.
+    if _NEWS_WORDS.search(query):
+        # The word boundaries in _NEWS_FILLER are load-bearing. Without them
+        # this stripped letters from the middle of words — "bangladesh" came
+        # through as "banglade h" — so the feed was asked for headlines about
+        # a topic that does not exist, found none, and fell back to the very
+        # search path this branch exists to avoid.
+        topic = _NEWS_FILLER.sub(" ", _NEWS_WORDS.sub(" ", query))
+        topic = " ".join(topic.split())
+        headlines = news(topic)
+        if "couldn't reach" not in headlines:
+            return headlines
 
     parts = []
     instant = _ddg_instant(query)
