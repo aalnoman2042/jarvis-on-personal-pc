@@ -178,7 +178,28 @@ try:
           httpx.get(f"{BASE}/devices", headers=auth_phone).status_code, 200)
 
 
-    print("\n=== 9. the lockout, last, because it shuts this address out ===")
+    print("\n=== 9. cross-origin, which the Android app depends on ===")
+    # The APK loads its page from inside itself, so every call to the core is
+    # cross-origin. Without a preflight answer the app just says "Failed to
+    # fetch" and there is nothing on screen to say why.
+    pre = httpx.request("OPTIONS", f"{BASE}/login", headers={
+        "Origin": "https://localhost",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    })
+    check("the preflight is answered", pre.status_code in (200, 204), True)
+    check("  and allows the app's origin",
+          pre.headers.get("access-control-allow-origin"), "https://localhost")
+    check("  and the Authorization header",
+          (pre.headers.get("access-control-allow-headers") or "").lower(), contains="authorization")
+
+    real = httpx.post(f"{BASE}/login", json={"pin": "2042", "name": "android"},
+                      headers={"Origin": "https://localhost"})
+    check("a real cross-origin login works", real.status_code, 200)
+    check("  and carries the origin header back",
+          real.headers.get("access-control-allow-origin"), "https://localhost")
+
+    print("\n=== 10. the lockout, last, because it shuts this address out ===")
     detail = ""
     for _ in range(6):
         detail = httpx.post(f"{BASE}/login", json={"pin": "0000", "name": "attacker"}).json()["detail"]
@@ -188,6 +209,7 @@ try:
           contains="too many")
     check("  but an already-issued token still works",
           httpx.get(f"{BASE}/devices", headers=auth_phone).status_code, 200)
+
 
 finally:
     server.should_exit = True

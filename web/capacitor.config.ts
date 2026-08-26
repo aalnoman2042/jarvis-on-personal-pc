@@ -13,9 +13,14 @@ const config: CapacitorConfig = {
   webDir: "dist",
 
   android: {
-    // Debug builds are what gets sideloaded; without this Android 9+ blocks the
-    // dev server over plain http and the whole screen is blank with no clue why.
     allowMixedContent: false,
+  },
+
+  server: {
+    // https://localhost rather than the http default. It makes the app a secure
+    // context — which the microphone needs in phase 06 — and it is one of the
+    // origins the cloud core allows, so cross-origin calls actually go through.
+    androidScheme: "https",
   },
 
   plugins: {

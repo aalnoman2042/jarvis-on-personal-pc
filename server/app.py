@@ -34,6 +34,7 @@ import time
 
 from fastapi import (Depends, FastAPI, Header, HTTPException, Request,
                      WebSocket, WebSocketDisconnect)
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -77,6 +78,39 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VONDO core", version="2.0.0-dev", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------------------
+# Cross-origin, for the Android app
+#
+# In a browser the HUD is served by this app, so everything is same-origin and
+# none of this is needed. The Android build changed that: the page is loaded out
+# of the APK, its origin is localhost, and every call here is cross-origin. A
+# JSON POST then triggers a preflight, which without this returns 405 and the
+# app shows "Failed to fetch" — a message that says nothing about what is wrong.
+#
+# Named origins rather than "*": these are the only ones that exist. Credentials
+# are off because auth is a Bearer header, not a cookie, so there is nothing for
+# a hostile page to replay even if one asked.
+# ---------------------------------------------------------------------------
+
+APP_ORIGINS = [
+    "https://localhost",      # Capacitor Android with androidScheme https
+    "http://localhost",       # Capacitor Android default scheme
+    "capacitor://localhost",  # Capacitor iOS
+    "ionic://localhost",
+    "http://localhost:5173",  # vite dev server
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=APP_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=86400,
+)
 
 
 # ---------------------------------------------------------------------------
