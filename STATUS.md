@@ -170,6 +170,13 @@ this PC is on; `.github/workflows/keepalive.yml` covers the rest by hitting
 lapses, the first message after a quiet evening waits about a minute. Roughly
 $2/month on Fly removes this entirely.
 
+**Installing a new APK may need the old one uninstalled first.** Debug builds
+were signed with a key regenerated on every CI run, and Android refuses to
+install over an app signed with a different key — so updates failed with "App
+not installed" and the phone kept the first APK it ever got. The key is cached
+now, so installs are real updates; but getting off any APK built before that fix
+needs one clean uninstall.
+
 **A native change still needs a new APK.** Screens update themselves; plugins,
 permissions, the icon and the app name do not. Nothing about that is automatic —
 if I add a plugin, I have to tell you to reinstall.
