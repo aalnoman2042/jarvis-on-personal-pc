@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { Brief } from "../hud/Brief";
-import { Gauge } from "../hud/Gauge";
+import { Dial } from "../hud/Dial";
 import { Reactor } from "../hud/Reactor";
 import { Vision } from "../hud/Vision";
 import { dropAgenda, me } from "../lib/api";
@@ -190,11 +190,13 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
                 {pc?.name || "Online"}
                 <span className="chip chip-good panel-badge">LINKED</span>
               </h3>
-              <Gauge label="CPU" value={cpu} />
-              <Gauge label="Memory" value={memory} />
-              {typeof battery === "number" && (
-                <Gauge label="Battery" value={battery} invert />
-              )}
+              <div className="dials">
+                <Dial label="CPU" value={cpu} />
+                <Dial label="Memory" value={memory} />
+                {typeof battery === "number" && (
+                  <Dial label="Battery" value={battery} invert />
+                )}
+              </div>
             </>
           ) : (
             <>

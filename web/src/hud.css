@@ -25,7 +25,7 @@
   font-size: 1.05rem;
   letter-spacing: 0.22em;
   color: var(--ink-strong);
-  text-shadow: 0 0 18px rgba(53, 214, 255, 0.35);
+  text-shadow: 0 0 18px rgb(var(--accent-2-rgb) / 0.4);
 }
 
 .conn {
@@ -115,7 +115,7 @@
   text-align: left;
   color: var(--ink-strong);
   border: 1px solid var(--accent);
-  background: rgba(53, 214, 255, 0.07);
+  background: rgb(var(--accent-rgb) / 0.08);
   animation: alert-in 0.3s ease;
 }
 .alert-text {
@@ -163,7 +163,7 @@
   font-size: clamp(1.8rem, 8vw, 2.6rem);
   line-height: 1.1;
   color: var(--ink-strong);
-  text-shadow: 0 0 22px rgba(53, 214, 255, 0.3);
+  text-shadow: 0 0 26px rgb(var(--accent-rgb) / 0.34);
 }
 .clock-date {
   color: var(--dim);
@@ -266,7 +266,81 @@
   color: var(--accent);
 }
 
-/* ---------- gauges ---------- */
+/* ---------- dials ----------
+   A ring with the figure inside it, the way an instrument prints a reading:
+   the whole number big enough to read across a desk, the decimal small and
+   raised so precision is available without competing for attention. */
+.dials {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(84px, 100%), 1fr));
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.dial-svg {
+  width: 100%;
+  max-width: 108px;
+  height: auto;
+  display: block;
+  transform: rotate(0deg);
+}
+.dial-track {
+  fill: none;
+  stroke: var(--line-soft);
+  stroke-linecap: round;
+}
+.dial-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  /* The only motion here: a reading sliding to its new value. */
+  transition: stroke-dasharray 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 6px rgb(var(--accent-rgb) / 0.5));
+}
+.dial-warn .dial-fill { stroke: var(--warn); filter: none; }
+.dial-bad .dial-fill  { stroke: var(--bad); filter: none; }
+
+/* The number sits in the middle of the ring, not under it. */
+.dial-read {
+  position: absolute;
+  top: 46%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 1px;
+  pointer-events: none;
+}
+.dial-number {
+  font-size: 1.5rem;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+.dial-none {
+  color: var(--idle);
+}
+.dial-frac {
+  font-size: 0.5em;
+  font-weight: 400;
+  color: var(--dim);
+  top: -0.15em;
+}
+.dial-unit {
+  font-size: 0.5rem;
+  color: var(--dim);
+}
+.dial-label {
+  margin-top: -14px;
+  font-size: 0.58rem;
+  color: var(--dim);
+}
+
+/* ---------- gauges (still used where a row reads better than a ring) ------ */
 .gauge {
   display: grid;
   grid-template-columns: 4.5em minmax(0, 1fr) 2.8em;
@@ -315,7 +389,7 @@
   color: var(--ground);
   background: var(--accent);
   border: none;
-  box-shadow: 0 0 26px rgba(53, 214, 255, 0.4);
+  box-shadow: 0 0 26px rgb(var(--accent-rgb) / 0.42);
 }
 .fab:hover {
   filter: brightness(1.1);
@@ -346,7 +420,8 @@
   border: 1px solid transparent;
 }
 .chip-hot {
-  background: var(--chip-hot);
+  color: var(--ground);
+  background: var(--accent);
 }
 .chip-quiet {
   color: var(--dim);
@@ -382,7 +457,7 @@
 }
 .strip b {
   font-weight: 600;
-  color: var(--ink-strong);
+  color: var(--accent);
 }
 .strip-end {
   margin-left: auto;
@@ -465,7 +540,7 @@
   color: var(--ground);
   background: var(--good);
   border-color: var(--good);
-  box-shadow: 0 0 26px rgba(64, 220, 160, 0.45);
+  box-shadow: 0 0 26px rgb(79 224 168 / 0.45);
 }
 .fab-mic-working {
   color: var(--warn);
@@ -722,7 +797,7 @@
   align-items: baseline;
 }
 .line + .line {
-  border-top: 1px solid rgba(22, 48, 63, 0.5);
+  border-top: 1px solid var(--line-soft);
 }
 
 .line-time {
@@ -789,7 +864,7 @@
 }
 .send:not(:disabled):hover {
   border-color: var(--accent);
-  background: rgba(53, 214, 255, 0.08);
+  background: rgb(var(--accent-2-rgb) / 0.09);
 }
 
 /* ---------- telemetry gutter ---------- */
@@ -1016,7 +1091,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .pin-key:active {
-  background: rgba(53, 214, 255, 0.14);
+  background: rgb(var(--accent-rgb) / 0.16);
   border-color: var(--accent);
 }
 .pin-key:disabled {
@@ -1048,12 +1123,12 @@
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--accent);
-  background: rgba(53, 214, 255, 0.07);
+  background: rgb(var(--accent-rgb) / 0.08);
   border: 1px solid var(--accent);
   touch-action: manipulation;
 }
 .install:active {
-  background: rgba(53, 214, 255, 0.18);
+  background: rgb(var(--accent-rgb) / 0.2);
 }
 .install-small {
   width: auto;
@@ -1237,6 +1312,25 @@
   gap: var(--s1);
   padding: var(--s3) var(--s4);
 }
+/* A banded header, the way the reference titles every pane: the label sits on
+   its own rule with an accent tick at the start. It costs one border and turns
+   a stack of boxes into a stack of *instruments*. */
+.panel > .label:first-of-type {
+  position: relative;
+  padding: 0 0 var(--s2) 10px;
+  margin-bottom: var(--s1);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--accent-2);
+}
+.panel > .label:first-of-type::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 3px;
+  height: 0.72em;
+  background: var(--accent);
+}
 .panel h3 {
   margin: 0;
   font-family: var(--f-display);
@@ -1322,7 +1416,7 @@
   height: 120px;
   pointer-events: none;
   z-index: 4;
-  background: linear-gradient(180deg, transparent, rgba(53, 214, 255, 0.045), transparent);
+  background: linear-gradient(180deg, transparent, rgb(var(--accent-2-rgb) / 0.05), transparent);
   animation: sweep 9s linear infinite;
 }
 @keyframes sweep {

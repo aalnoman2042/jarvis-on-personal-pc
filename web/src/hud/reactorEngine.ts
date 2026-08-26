@@ -29,13 +29,36 @@ export interface ReactorInput {
   level: number;
 }
 
-const COLOURS: Record<ReactorState, { core: string; ring: string }> = {
-  offline: { core: "#3a4657", ring: "#22303c" },
-  online: { core: "#35d6ff", ring: "#0d7fa3" },
-  listening: { core: "#4fe0a8", ring: "#1f9c74" },
-  thinking: { core: "#ffb340", ring: "#a3701f" },
-  speaking: { core: "#7cc4ff", ring: "#2b6ea8" },
-};
+/* A canvas cannot read a CSS variable, so the palette is fetched once from the
+ * computed style of the document and cached. Hardcoding it here is why the
+ * reactor stayed cyan through a whole theme change: everything else in the app
+ * follows theme.css and this one thing quietly did not. Falling back to the
+ * literals keeps it drawing if a token is ever missing. */
+type Pair = { core: string; ring: string };
+
+function token(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return value || fallback;
+}
+
+let palette: Record<ReactorState, Pair> | null = null;
+
+function colours(): Record<ReactorState, Pair> {
+  if (palette) return palette;
+  palette = {
+    offline: { core: token("--idle", "#4b6b85"), ring: token("--line-soft", "#1c4260") },
+    // Online is the second voice, not the first: a reactor that idles in the
+    // accent leaves the accent nothing to mean when something is happening.
+    online: { core: token("--accent-2", "#4ecdf5"), ring: token("--accent-2-deep", "#1a7fa8") },
+    listening: { core: token("--good", "#4fe0a8"), ring: "#1f9c74" },
+    // Thinking is the loud one, in the loud colour.
+    thinking: { core: token("--accent", "#ff9d2e"), ring: token("--accent-deep", "#b3610d") },
+    speaking: { core: token("--accent-2", "#4ecdf5"), ring: token("--accent-2-deep", "#1a7fa8") },
+  };
+  return palette;
+}
 
 /** How fast the whole assembly turns in each state. Idle is deliberately slow. */
 const SPIN: Record<ReactorState, number> = {
@@ -85,7 +108,7 @@ export function mountReactor(canvas: HTMLCanvasElement, input: ReactorInput) {
     last = now;
 
     const { state, level } = input;
-    const palette = COLOURS[state];
+    const shade = colours()[state];
     spun += dt * SPIN[state] * (still ? 0 : 1);
 
     // Ease towards the current loudness: fast to rise so speech feels immediate,
@@ -102,13 +125,13 @@ export function mountReactor(canvas: HTMLCanvasElement, input: ReactorInput) {
 
     // Outer broken ring — three arcs with gaps, the classic HUD dial.
     const outer = R * 0.92;
-    arc(cx, cy, outer, R * 0.015, spun, spun + 2.1, palette.ring, 0.9);
-    arc(cx, cy, outer, R * 0.015, spun + 2.5, spun + 4.5, palette.ring, 0.9);
-    arc(cx, cy, outer, R * 0.015, spun + 5.0, spun + 6.05, palette.core, 0.85);
+    arc(cx, cy, outer, R * 0.015, spun, spun + 2.1, shade.ring, 0.9);
+    arc(cx, cy, outer, R * 0.015, spun + 2.5, spun + 4.5, shade.ring, 0.9);
+    arc(cx, cy, outer, R * 0.015, spun + 5.0, spun + 6.05, shade.core, 0.85);
 
     // Tick marks, turning the other way so the assembly reads as mechanical.
     ctx!.globalAlpha = 0.45;
-    ctx!.strokeStyle = palette.ring;
+    ctx!.strokeStyle = shade.ring;
     ctx!.lineWidth = Math.max(1, R * 0.012);
     const ticks = 36;
     for (let i = 0; i < ticks; i++) {
@@ -123,13 +146,13 @@ export function mountReactor(canvas: HTMLCanvasElement, input: ReactorInput) {
 
     // Two counter-rotating inner arcs.
     const mid = R * 0.62;
-    arc(cx, cy, mid, R * 0.022, -spun * 1.7 + 0.3, -spun * 1.7 + 2.4, palette.core, 0.65);
-    arc(cx, cy, mid, R * 0.022, -spun * 1.7 + 3.5, -spun * 1.7 + 5.4, palette.core, 0.65);
+    arc(cx, cy, mid, R * 0.022, -spun * 1.7 + 0.3, -spun * 1.7 + 2.4, shade.core, 0.65);
+    arc(cx, cy, mid, R * 0.022, -spun * 1.7 + 3.5, -spun * 1.7 + 5.4, shade.core, 0.65);
 
     // The core itself. Breathing when idle, swelling with your voice when not.
     const breathe = still ? 0.5 : 0.5 + 0.5 * Math.sin(now / 1400);
     const size = R * (0.34 + 0.06 * breathe + 0.22 * glow);
-    const [r, g, b] = hexToRgb(palette.core);
+    const [r, g, b] = hexToRgb(shade.core);
     const gradient = ctx!.createRadialGradient(cx, cy, R * 0.02, cx, cy, size);
     gradient.addColorStop(0, "rgba(234,246,255,0.95)");
     gradient.addColorStop(0.3, `rgba(${r},${g},${b},${0.55 + 0.35 * glow})`);

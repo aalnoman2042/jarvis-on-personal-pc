@@ -12,32 +12,47 @@
 
 :root,
 :root[data-theme="jarvis"] {
-  /* The ground stays near-black; everything ON it was lifted well clear of it.
-     The old palette put #0a121b panels on a #05080d ground — five points of
-     lightness apart, which reads as one flat black field with hairlines drawn
-     on it. A command screen wants surfaces you can see the edges of, so panels
-     are now plainly lighter than what they sit on, and the chips lighter again.
-     Same dark room, more things in it. */
-  --ground: #060c14;
-  --panel: #0f1f2e;
-  --panel-2: #16293b;
+  /* A blue room, not a black one.
+     Near-black with a cyan accent is the safe HUD cliché and it reads flat: one
+     hue, so everything competes with everything. This is built the way the
+     reference is — a deep blue *field* with orange as the voice on top of it.
+     Two hues on opposite sides of the wheel, which is what lets a number be
+     loud without a glow doing the shouting: the accent has somewhere to be
+     loud *against*. Blue carries the furniture; orange carries meaning. */
+  --ground: #071523;
+  /* The field is a gradient, not a flat fill — light gathering low and centre,
+     the way the reference does. Painted on body; this is its far end. */
+  --ground-lift: #10314c;
+  --panel: #0d2437;
+  --panel-2: #15334c;
   /* Raised, filled blocks — the little steel-blue tiles that make a dense
      readout look built rather than printed. */
-  --chip: #1d3d57;
-  --chip-hot: #2f6b96;
-  --line: #24506e;
-  --line-soft: #1a3a52;
+  --chip: #1c4666;
+  --chip-hot: #2d7099;
+  --line: #2a5c85;
+  --line-soft: #1c4260;
 
-  --ink: #d5e9f5;
-  --ink-strong: #f2fbff;
-  --dim: #83a7c0;
+  --ink: #d8e9f6;
+  --ink-strong: #ffffff;
+  --dim: #86aecb;
 
-  --accent: #4ecdf5; /* the HUD's voice: rings, glow, active state */
-  --accent-deep: #1a7fa8;
-  --warn: #ffb340;
+  /* Orange is the voice: live values, active state, the ring that matters.
+     Cyan stays as the second voice for anything structural or informational, so
+     "this is a reading" and "this is a label" never look like the same thing. */
+  --accent: #ff9d2e;
+  --accent-deep: #b3610d;
+  --accent-2: #4ecdf5;
+  --accent-2-deep: #1a7fa8;
+  --warn: #ffc85c;
   --good: #4fe0a8;
   --bad: #ff6b7a;
-  --idle: #46586b;
+  --idle: #4b6b85;
+
+  /* The accents as bare channels, so a glow can be written rgb(var(--accent-rgb)
+     / 0.4) and follow the theme. Hardcoded rgba() was why every shadow in the
+     app stayed cyan no matter what the tokens said. */
+  --accent-rgb: 255 157 46;
+  --accent-2-rgb: 78 205 245;
 
   --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
@@ -86,10 +101,14 @@ body {
 body {
   margin: 0;
   background: var(--ground);
-  /* The faint scanline field. Cheap: a repeating gradient, not an animation. */
+  /* Light gathering low and centre, the way the reference lights its field —
+     which is what stops a dark UI reading as a black rectangle with widgets on
+     it. The scanlines stay: cheap, a repeating gradient rather than animation. */
   background-image:
-    radial-gradient(1100px 620px at 50% -12%, rgba(53, 214, 255, 0.09), transparent 66%),
-    repeating-linear-gradient(0deg, rgba(53, 214, 255, 0.028) 0 1px, transparent 1px 3px);
+    radial-gradient(1400px 900px at 50% 118%, var(--ground-lift), transparent 70%),
+    radial-gradient(900px 520px at 50% -10%, rgb(var(--accent-2-rgb) / 0.07), transparent 68%),
+    repeating-linear-gradient(0deg, rgb(var(--accent-2-rgb) / 0.022) 0 1px, transparent 1px 3px);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--f-body);
   font-weight: 350;
@@ -108,7 +127,7 @@ body {
      surfaces instead of coloured rectangles. */
   background: linear-gradient(180deg, var(--panel-2), var(--panel) 46%);
   border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 rgba(120, 200, 240, 0.09);
+  box-shadow: inset 0 1px 0 rgb(var(--accent-2-rgb) / 0.1);
 }
 .bracket::before,
 .bracket::after {
