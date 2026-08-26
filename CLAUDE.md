@@ -158,10 +158,73 @@ opens, edits and occasionally screenshots. A long-lived credential does not
 belong in the middle of that. Gitignored; `VONDO_AGENT_TOKEN_FILE` overrides it
 for tests.
 
+## The diary (phase 05)
+
+`core/clock.py` reads a date out of a phrase, `core/memory/agenda.py` stores it,
+`core/reminders.py` announces it on the desktop, `server/nudges.py` delivers it
+in the cloud, `web/src/lib/notify.ts` mirrors it onto the phone.
+
+```
+python tests/test_reminders.py    # 45 checks, real server, real socket, temp DB
+```
+
+**Parsing happens in Python, not in the model.** Asking a brain for an ISO
+timestamp is tempting and unreliable — it invents the year, forgets the
+timezone, and the rule-based brain cannot do it at all. The `remind` tool takes
+the phrase Rohan actually said and `clock.parse_when` turns it into an epoch, so
+every brain gets the same dates for free.
+
+**Dates are built in Rohan's timezone and stored as epochs.** The core runs in
+UTC in Singapore; "18 September" means the 18th in Dhaka. `VONDO_TZ` names the
+zone, `VONDO_UTC_OFFSET` is the fallback for platforms with no tz database
+(Windows). Getting this wrong shifts every reminder by six hours.
+
+**`due` and `remind_at` are different columns on purpose.** An exam warning
+delivered as the invigilator hands out papers is not a warning. `all_day` is a
+third: "18 September" names no hour, and inventing nine in the morning and
+reading it back confidently is how you stop trusting the thing.
+
+**A reminder is marked delivered only if somebody was actually told.** The
+sweeper broadcasts to open sockets and marks `fired` per successful send. A free
+tier waking at some arbitrary moment with nobody connected must not consume the
+exam warning and go back to sleep — it waits, and arrives when the app opens.
+`test_reminders.py` section 8 is exactly this regression. The desktop's
+`sweep()` still marks immediately, because speaking out loud *is* delivery.
+
+**Phones schedule their own alarms.** `notify.ts` mirrors the diary into
+Capacitor local notifications, so the OS fires them with the app closed, the
+phone offline and the server asleep. Push was the obvious answer and the wrong
+one: the APK is a WebView, where the Web Push API does not exist, and the native
+route is Firebase — an account, a project, and a Google dependency in something
+that deliberately has none. The cloud stays the source of truth; the phone keeps
+a cache with a clock.
+
+**`/tick` is unauthenticated and must stay harmless.** No arguments, no output
+but counts, and it does exactly what the server does by itself every thirty
+seconds. It exists because a sleeping instance has no timers.
+
+**Adding a column to `reminders` needs `_LATER_COLUMNS` in `store.py`.**
+`CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so the
+schema string and a live database drift apart silently — and the drift only
+shows up on the deployed copy.
+
 ## The HUD (phase 04)
 
 `web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud
 core at `/`. One origin, so no CORS and the token never crosses an origin.
+
+**Home is the board, not the conversation.** `screens/Dashboard.tsx` — what is
+coming up, the PC's gauges, what is remembered, which brain is answering.
+Chat is `hud/ChatSheet.tsx`, a full-screen drawer behind the floating button;
+settings is a second drawer behind the gear. The socket is held by `App.tsx`
+above all three, so opening or closing a drawer never drops the connection or
+loses the log.
+
+**Nothing on the board is estimated.** A reading that has not arrived draws as a
+dash, never as zero — zero is a reading and nothing is not, and an invented
+figure rendered as a precise gauge makes the true numbers beside it
+untrustworthy. If a panel would need data nothing collects, the panel does not
+exist yet.
 
 ```
 cd web && npm run build          # then the core serves it at /
@@ -187,6 +250,21 @@ what makes the KAREN palette a second `[data-theme]` block rather than a rewrite
 **`reactorEngine.ts`, not `reactor.ts`.** It sat beside `Reactor.tsx` and the two
 differed only in casing, which Windows resolves ambiguously and Linux resolves
 differently — a bug that would only have appeared on Fly.
+
+**The shell is sized from `visualViewport`, not `100%` or `100vh`.** Both of
+those measure the *window*, and on Android the window does not shrink when the
+keyboard opens — it is drawn over the top. `lib/viewport.ts` puts the real
+height in `--app-height` and a `keyboard-up` class on `<html>`. Without it the
+composer sits behind the keyboard: you tap the box and it disappears. Any
+full-height layout added later must use the variable.
+
+Keyboard detection compares against the tallest viewport ever seen, not against
+`window.innerHeight`: the manifest asks for `adjustResize`, so the window
+shrinks along with the viewport and the difference between them is always zero.
+
+**Grid rows on a phone must be explicit.** Left on `auto`, a log grows with
+every message until it pushes whatever is below it off the bottom of the screen.
+`1fr auto` in `.chat-sheet` is what pins the composer.
 
 **Watch the mount order in `app.py`.** `StaticFiles` is mounted at `/` and must
 stay last; anywhere earlier it swallows `/chat` and `/health`. `test_hud.py`

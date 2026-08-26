@@ -82,10 +82,12 @@ Built weight: 157 kB JS, 8 kB CSS, 155 kB of self-hosted fonts.
 |---|---|---|
 | 00 · Restructure | done | `core/` deploys, `legacy/` is v1 and still runs |
 | 01 · Memory | done | SQLite + full-text search; 62 exchanges carried over, old files frozen |
-| 02 · Cloud API | done | Pairing, chat, websockets, rate limits — 34 checks |
-| 03 · PC agent | done | Outbound link, allow-list, local confirm dialog, telemetry — 17 checks |
+| 02 · Cloud API | done | PIN login, chat, websockets, rate limits — 39 checks |
+| 03 · PC agent | done | Outbound link, allow-list, local confirm dialog, telemetry — 16 checks |
 | 04 · HUD | done | Canvas arc reactor, telemetry gutter, conversation log — 15 checks |
-| 05 · Installable | **most of it** | Home-screen install, offline open, offline queue, own fonts. **Push not sending yet.** |
+| 05 · Installable | done | Home-screen install, offline open, offline queue, own fonts |
+| 05b · Diary | done | Dates parsed from speech, stored, delivered — on the phone even with the app shut. 45 checks |
+| 10 · The board | done | Dashboard home, chat behind a floating button, live gauges |
 | 08 · Android app | done | Capacitor APK built in CI. Real app, real icon, no SDK on this PC. |
 | 09 · Settings | done | Brain, memory, facts, PC, devices — all behind a gear, off the main screen. |
 | 06 · Voice | next | Chrome/Android does speech natively; `whisper-large-v3-turbo` is on the Groq key as fallback |
@@ -107,9 +109,10 @@ cd web && npm run dev               :: HUD with hot reload, proxies to :8000
 cd web && npm run build             :: build it; the core serves it at /
 
 :: tests — all passing
-python tests/test_server.py         :: 34 checks, real server, real sockets
-python tests/test_agent.py          :: 17 checks, real agent, real PC action
+python tests/test_server.py         :: 39 checks, real server, real sockets
+python tests/test_agent.py          :: 16 checks, real agent, real PC action
 python tests/test_hud.py            :: 15 checks, built, served, assets resolve
+python tests/test_reminders.py      :: 45 checks, dates, storage, delivery
 
 :: deploying
 git push                            :: that is the whole deploy
@@ -127,6 +130,25 @@ fact and recalled in later conversations, on any device. Verified live.
 **It knows you.** 82 exchanges and every fact carry across the phone, the browser
 and the app, because they all talk to the same cloud brain.
 
+**It keeps a diary.** *"I have a physics exam on the 18th, warn me the day
+before"* is stored with a real date, read straight back to you as Jarvis
+understood it, and shown on the board under **Up next**. Verified live.
+
+Reminders reach you three ways, and the phone one is the one that matters:
+
+| Where | How | Works when |
+|---|---|---|
+| The app, open | pushed down the websocket | you are looking at it |
+| The phone, shut | the phone's own alarm clock | app closed, phone offline, server asleep |
+| This PC | spoken aloud by the v1 desktop app | it is running |
+
+A reminder that comes due with nothing listening is **not** thrown away — it
+waits and arrives the moment you open the app.
+
+**The board is the home screen.** Opening the app shows what is coming up, your
+PC's CPU and memory, how much is remembered and which brain is answering.
+Talking to it is the button in the corner.
+
 **Settings** (the gear) shows which brain answered, what it remembers about you
 with a way to forget any of it, your PC's CPU, recent actions and signed-in
 devices.
@@ -135,17 +157,20 @@ devices.
 
 ## Known gaps
 
-**Reminders do not fire in the cloud.** Ask for one and nothing happens,
-silently. `reminders.start()` needs a speak-callback that only the desktop
-provides, so on the server the loop never runs and the reminder vanishes on
-restart. Fixed by finishing phase 05 — persist to the `reminders` table and
-deliver by web push. **Until then, do not trust a reminder.**
-
 **It sleeps unless pinged.** Free Render spins down after 15 minutes without
 traffic. The PC agent's telemetry counts as traffic, so it stays awake while
-this PC is on; `.github/workflows/keepalive.yml` covers the rest. If that ping
+this PC is on; `.github/workflows/keepalive.yml` covers the rest by hitting
+`/tick`, which wakes it and sweeps the diary in one call. If that ping
 lapses, the first message after a quiet evening waits about a minute. Roughly
 $2/month on Fly removes this entirely.
+
+**The phone only knows about a reminder it has seen.** Alarms are scheduled on
+the device, which means the app has to have been opened at least once between
+setting the reminder and it coming due — and notifications have to be allowed.
+Set something from the browser on this PC and never open the phone before the
+day, and the phone stays quiet; the reminder is still safe in the cloud and
+appears the moment you do open it. Closing that properly is real push, which
+means Firebase.
 
 **It cannot watch your phone screen.** A web app has no way to do that on
 Android — `getDisplayMedia` is desktop-only and Chrome hides it on mobile. The
@@ -188,3 +213,18 @@ asleep. `request_stop()` closes it properly.
 
 **`core.memory.facts` is a function, not the submodule** — the package
 re-export shadows it. Reach the module with `importlib.import_module`.
+
+**`height: 100%` and `100vh` do not shrink for a keyboard.** On Android the
+keyboard is drawn over the window rather than resizing it, so a full-height
+layout keeps believing it has a whole screen and the composer ends up behind the
+keyboard — you tap the box and it disappears. `web/src/lib/viewport.ts` reads
+`visualViewport` into `--app-height`. Anything full-height added later uses that
+variable, not the units.
+
+**A phone grid with `auto` rows pushes its own footer off-screen.** The log grows
+with every message; `1fr auto` is what pins whatever sits under it.
+
+**Adding a column to an existing table needs `_LATER_COLUMNS` in `store.py`.**
+`CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so the
+schema string and the live database drift apart — and only the deployed copy
+finds out.

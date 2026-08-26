@@ -9,6 +9,12 @@
 # defeats it. It stays inside the 750 free instance-hours a month (24/7 is 744),
 # but it is a workaround, not an entitlement. On a paid instance, delete it.
 #
+# It pings /tick rather than /health, which wakes the instance AND has it look
+# at the diary while it is up. A sleeping server has no timers, so without this
+# nothing on the server ever notices a reminder has come due. (Reminders on the
+# phone do not depend on it: those are scheduled on the phone itself, by the OS
+# — see web/src/lib/notify.ts.)
+#
 # GitHub disables scheduled workflows after 60 days without repo activity, and
 # cron here is best-effort rather than punctual. Neither matters much: a missed
 # ping costs one slow first message.
@@ -24,7 +30,7 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping /health
+      - name: Wake the core and sweep the diary
         env:
           URL: ${{ secrets.VONDO_URL }}
         run: |
@@ -32,8 +38,8 @@ jobs:
             echo "VONDO_URL secret is not set — nothing to ping."
             exit 0
           fi
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL/health")
-          echo "GET $URL/health -> $code"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 -X POST "$URL/tick")
+          echo "POST $URL/tick -> $code"
           # A wake-up can take a minute and may answer 502 on the way up. That is
           # the ping doing its job, not a failure worth a red cross in the inbox.
           if [ "$code" = "200" ]; then echo "awake"; else echo "woke it (or it is starting)"; fi
