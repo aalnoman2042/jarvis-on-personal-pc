@@ -428,7 +428,12 @@ async def read_mail(days: int = 2, device: dict = Depends(caller)):
     read. No body is stored anywhere — this reads, ranks, and forgets.
     """
     if not mail.configured():
-        return {"configured": False, "messages": [], "said": "", "count": 0}
+        # Says WHY, in counts and shapes only — never a value or part of one.
+        # Without this, "not configured" covers a missing variable, a misspelt
+        # name and an unparseable value alike, and telling them apart from
+        # outside the server takes a round trip each.
+        return {"configured": False, "messages": [], "said": "", "count": 0,
+                "diagnosis": await run_in_threadpool(mail.diagnose)}
     window = max(1, min(30, days))
     messages = await run_in_threadpool(mail.inbox, window, False, 12)
     said = await run_in_threadpool(mail.summary, window)

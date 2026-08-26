@@ -221,6 +221,38 @@ def configured() -> bool:
     return bool(accounts())
 
 
+def diagnose() -> dict:
+    """Why there are no mailboxes, without revealing what is in them.
+
+    "configured: false" is the same answer whether the variable was never set,
+    was named something else, or was set and could not be parsed — and from
+    outside the server those are indistinguishable, which cost a round of
+    guessing each. This reports counts and shapes only: how many VONDO_MAIL_*
+    names exist, how many produced an account, and for the ones that did not,
+    what was missing. No value, no fragment of a value, ever.
+    """
+    names = sorted(k for k in os.environ if k.startswith("VONDO_MAIL"))
+    detail: list[dict] = []
+    for name in names:
+        raw = os.environ.get(name, "").strip()
+        numbered = bool(re.fullmatch(r"VONDO_MAIL_[1-9]", name))
+        cleaned = re.sub(r"^\s*VONDO_MAIL_\d+\s*=\s*", "", raw, flags=re.I)
+        cleaned = cleaned.strip().strip('"').strip("'")
+        parts = [p.strip() for p in re.split(r"[|;,]", cleaned) if p.strip()]
+        detail.append({
+            "name": name,
+            "read_by_vondo": numbered,   # VONDO_MAIL or VONDO_MAIL_10 are not
+            "empty": not raw,
+            "fields": len(parts),
+            "has_address": any("@" in p and "." in p for p in parts),
+        })
+    return {
+        "names_found": names,
+        "accounts_parsed": len(accounts()),
+        "detail": detail,
+    }
+
+
 # ---------------------------------------------------------------------------
 # What matters
 # ---------------------------------------------------------------------------
