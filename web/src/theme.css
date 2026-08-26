@@ -12,22 +12,32 @@
 
 :root,
 :root[data-theme="jarvis"] {
-  --ground: #05080d;
-  --panel: #0a121b;
-  --panel-2: #0c1721;
-  --line: #16303f;
-  --line-soft: #102430;
+  /* The ground stays near-black; everything ON it was lifted well clear of it.
+     The old palette put #0a121b panels on a #05080d ground — five points of
+     lightness apart, which reads as one flat black field with hairlines drawn
+     on it. A command screen wants surfaces you can see the edges of, so panels
+     are now plainly lighter than what they sit on, and the chips lighter again.
+     Same dark room, more things in it. */
+  --ground: #060c14;
+  --panel: #0f1f2e;
+  --panel-2: #16293b;
+  /* Raised, filled blocks — the little steel-blue tiles that make a dense
+     readout look built rather than printed. */
+  --chip: #1d3d57;
+  --chip-hot: #2f6b96;
+  --line: #24506e;
+  --line-soft: #1a3a52;
 
-  --ink: #cfe6f2;
-  --ink-strong: #eaf6ff;
-  --dim: #6b8ba0;
+  --ink: #d5e9f5;
+  --ink-strong: #f2fbff;
+  --dim: #83a7c0;
 
-  --accent: #35d6ff; /* the HUD's voice: rings, glow, active state */
-  --accent-deep: #0d7fa3;
+  --accent: #4ecdf5; /* the HUD's voice: rings, glow, active state */
+  --accent-deep: #1a7fa8;
   --warn: #ffb340;
   --good: #4fe0a8;
   --bad: #ff6b7a;
-  --idle: #3a4657;
+  --idle: #46586b;
 
   --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
@@ -82,8 +92,12 @@ body {
    Two pseudo-elements, four borders, no images. */
 .bracket {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
+  /* A hint of a gradient rather than a flat fill: the reference's panels catch
+     light at the top edge, which is most of what makes them read as raised
+     surfaces instead of coloured rectangles. */
+  background: linear-gradient(180deg, var(--panel-2), var(--panel) 46%);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(120, 200, 240, 0.09);
 }
 .bracket::before,
 .bracket::after {

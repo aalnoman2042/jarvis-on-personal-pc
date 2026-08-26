@@ -182,7 +182,10 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
           <span className="label">Your PC</span>
           {jarvis.pcOnline ? (
             <>
-              <h3 className="panel-head">{pc?.name || "Online"}</h3>
+              <h3 className="panel-head">
+                {pc?.name || "Online"}
+                <span className="chip chip-good panel-badge">LINKED</span>
+              </h3>
               <Gauge label="CPU" value={cpu} />
               <Gauge label="Memory" value={memory} />
               {typeof battery === "number" && (
@@ -204,6 +207,11 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
           <span className="label">Memory</span>
           <h3 className="panel-head">{info?.remembered ?? "—"}</h3>
           <p className="muted small">exchanges, kept for good</p>
+          <div className="chip-row">
+            <span className="chip">SQLITE</span>
+            <span className="chip">FTS5</span>
+            <span className="chip chip-quiet">FOREVER</span>
+          </div>
           <div className="stat-row">
             <span className="mono">{info?.facts?.length ?? 0}</span>
             <span className="muted small">things it knows about you</span>
@@ -251,6 +259,20 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
 
       {/* The way in to a conversation. Fixed to the corner so it is reachable
           with a thumb and never scrolls away. */}
+      {/* The vitals, along the bottom, the way a command screen carries them:
+          always there, never in the way. Every figure is read from the running
+          system — there is nothing here for decoration. */}
+      <div className="strip">
+        <span>CORE <b>{jarvis.conn === "online" ? "LINKED" : "SYNC"}</b></span>
+        <span>BRAIN <b>{(jarvis.brain || info?.brain || "—").split("+")[0].toUpperCase()}</b></span>
+        <span>MEM <b>{info?.remembered ?? "—"}</b></span>
+        <span>DIARY <b>{upcoming.length}</b></span>
+        <span>NODES <b>{info?.devices?.filter((d) => !d.revoked).length ?? "—"}</b></span>
+        <span className="strip-end">
+          PC <b>{jarvis.pcOnline ? `${Math.round(cpu ?? 0)}% CPU` : "OFFLINE"}</b>
+        </span>
+      </div>
+
       {/* Two ways in, side by side: type, or just talk. The microphone works
           from the board itself — needing to open the conversation first would
           make the quick thing the slow one. */}

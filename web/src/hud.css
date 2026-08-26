@@ -181,11 +181,17 @@
   grid-column: 1 / -1;
 }
 .panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   margin: 2px 0 0;
   font-family: var(--f-display);
   font-size: 1.35rem;
   font-weight: 600;
   color: var(--ink-strong);
+}
+.panel-badge {
+  font-size: 0.58rem;
 }
 .panel-off {
   color: var(--idle);
@@ -298,6 +304,66 @@
 }
 .fab-word {
   color: var(--ground);
+}
+
+/* ---------- chips ----------
+   The small filled tiles that give a dense readout its built-in look. Used for
+   anything that is a discrete value rather than prose: a count, a state, a tag.
+   Filled rather than outlined on purpose — outlines at this size disappear. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  font-family: var(--f-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-strong);
+  background: var(--chip);
+  border: 1px solid transparent;
+}
+.chip-hot {
+  background: var(--chip-hot);
+}
+.chip-quiet {
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--line);
+}
+.chip-good { background: transparent; border-color: var(--good); color: var(--good); }
+.chip-warn { background: transparent; border-color: var(--warn); color: var(--warn); }
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-top: var(--s2);
+}
+
+/* ---------- the status strip ----------
+   Along the bottom of the board, the way a command screen carries its vitals:
+   always there, never in the way, and every figure on it is real. */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding: var(--s2) var(--s3);
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  font-family: var(--f-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.strip b {
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+.strip-end {
+  margin-left: auto;
 }
 
 /* ---------- the microphone ----------
