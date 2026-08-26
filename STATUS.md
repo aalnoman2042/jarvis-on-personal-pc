@@ -17,7 +17,21 @@ Architecture and the rules that are easy to break: **[CLAUDE.md](CLAUDE.md)**.
 | **Health** | https://vondo-core.onrender.com/health |
 | **Repo branch** | `v2/phase-00-core-split` — Render redeploys on every push |
 
-### Getting a device in
+### The Android app
+
+Built by GitHub Actions on every push — nothing to install on this PC.
+
+1. **github.com/aalnoman2042/jarvis-on-personal-pc/actions** → newest
+   *android apk* run → **Artifacts** → `jarvis-apk`
+2. Unzip, open the `.apk` on the phone, allow installing from this source
+3. Sign in with the PIN
+
+It is the same HUD wrapped by Capacitor: real launcher icon, own splash, no
+browser chrome, and it talks to the same cloud core — so memory, facts and the
+PC link are identical whichever way you open Jarvis. `lib/endpoint.ts` is what
+points it at the cloud instead of at itself.
+
+### Or in a browser
 
 1. Open the URL in Chrome.
 2. Type your 4-digit PIN on the keypad. It already knows you and your 62
@@ -72,6 +86,8 @@ Built weight: 157 kB JS, 8 kB CSS, 155 kB of self-hosted fonts.
 | 03 · PC agent | done | Outbound link, allow-list, local confirm dialog, telemetry — 17 checks |
 | 04 · HUD | done | Canvas arc reactor, telemetry gutter, conversation log — 15 checks |
 | 05 · Installable | **most of it** | Home-screen install, offline open, offline queue, own fonts. **Push not sending yet.** |
+| 08 · Android app | done | Capacitor APK built in CI. Real app, real icon, no SDK on this PC. |
+| 09 · Settings | done | Brain, memory, facts, PC, devices — all behind a gear, off the main screen. |
 | 06 · Voice | next | Chrome/Android does speech natively; `whisper-large-v3-turbo` is on the Groq key as fallback |
 | 07 · Deploy | **live** | Brought forward — phases 05 and 06 cannot be tested on a phone without HTTPS |
 
@@ -101,6 +117,22 @@ git push                            :: that is the whole deploy
 
 ---
 
+## What works today
+
+Ask it anything — it is a chatbot with your whole history behind it.
+
+**It remembers.** *"remember today my dad told me to go shopping"* is stored as a
+fact and recalled in later conversations, on any device. Verified live.
+
+**It knows you.** 82 exchanges and every fact carry across the phone, the browser
+and the app, because they all talk to the same cloud brain.
+
+**Settings** (the gear) shows which brain answered, what it remembers about you
+with a way to forget any of it, your PC's CPU, recent actions and signed-in
+devices.
+
+---
+
 ## Known gaps
 
 **Reminders do not fire in the cloud.** Ask for one and nothing happens,
@@ -114,6 +146,11 @@ traffic. The PC agent's telemetry counts as traffic, so it stays awake while
 this PC is on; `.github/workflows/keepalive.yml` covers the rest. If that ping
 lapses, the first message after a quiet evening waits about a minute. Roughly
 $2/month on Fly removes this entirely.
+
+**It cannot watch your phone screen.** A web app has no way to do that on
+Android — `getDisplayMedia` is desktop-only and Chrome hides it on mobile. The
+working version is handing it a picture: share a screenshot to Jarvis, or use a
+camera button. Gemini reads screenshots well (tested). Not built yet.
 
 **Gemini's tool calls are unlogged.** The action log wraps the dispatch table,
 which covers Groq, Ollama and Claude. Gemini hands its callables to a schema
