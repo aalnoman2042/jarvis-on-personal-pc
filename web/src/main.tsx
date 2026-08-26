@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { isApp } from "./lib/endpoint";
 import "./fonts.css";
 import "./theme.css";
 import "./hud.css";
@@ -16,7 +17,9 @@ createRoot(document.getElementById("root")!).render(
 // push notifications. Registered after paint so it never delays first render,
 // and only on a secure origin — browsers refuse it over plain http anyway, and
 // the console error looks like a bug rather than the rule it is.
-if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+// Skipped inside the Android app: the assets are already in the APK, and a
+// worker caching a localhost origin would shadow them on the next launch.
+if (!isApp && "serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((err) => {
       console.warn("[vondo] service worker did not register:", err);

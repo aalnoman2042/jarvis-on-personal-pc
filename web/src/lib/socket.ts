@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { socketBase } from "./endpoint";
 import * as outbox from "./outbox";
 import type { ConnState, LogLine, ServerFrame, Telemetry } from "./types";
 import type { ReactorState } from "../hud/reactorEngine";
@@ -60,8 +61,7 @@ export function useVondo(token: string): Vondo {
 
   const connect = useCallback(() => {
     if (!token || dead.current) return;
-    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${scheme}//${location.host}/ws/client?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`${socketBase()}/ws/client?token=${encodeURIComponent(token)}`);
     socket.current = ws;
     setConn("connecting");
 

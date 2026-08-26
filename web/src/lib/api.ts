@@ -3,8 +3,10 @@
  * Vite in development, so these are all relative URLs.
  */
 
+import { apiBase } from "./endpoint";
+
 async function post(path: string, body: unknown, token?: string) {
-  const res = await fetch(path, {
+  const res = await fetch(apiBase() + path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -29,6 +31,6 @@ export function login(pin: string, name: string) {
 }
 
 export async function health() {
-  const res = await fetch("/health");
+  const res = await fetch(apiBase() + "/health");
   return res.json();
 }

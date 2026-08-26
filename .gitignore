@@ -45,3 +45,15 @@ web/.vite/
 # Local notes holding credentials. Never commit.
 SECRETS.local.md
 *.local.md
+
+# --- Android app: build output only. The project itself is committed, because
+#     GitHub Actions builds the APK from it. ---
+web/android/.gradle/
+web/android/build/
+web/android/app/build/
+web/android/local.properties
+web/android/.idea/
+web/android/app/src/main/assets/public/
+*.apk
+*.aab
+*.keystore

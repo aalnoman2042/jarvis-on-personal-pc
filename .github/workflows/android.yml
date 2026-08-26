@@ -1,0 +1,84 @@
+# Build the Jarvis Android app.
+#
+# The whole point of building here rather than on Rohan's PC: GitHub's runners
+# already have Java and the Android SDK, so the two to four gigabytes of build
+# tooling never lands on his machine. He pushes; an APK comes out.
+#
+# The result is attached to the run as an artifact, and tagged pushes also get a
+# Release, so there is a stable link to download from the phone.
+
+name: android apk
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "web/**"
+      - ".github/workflows/android.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build the HUD
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy it into the Android project
+        working-directory: web
+        # `cap sync` also refreshes native plugin wiring, which `cap copy` alone
+        # does not — a plugin added since the last build would silently be absent.
+        run: npx cap sync android
+
+      - name: Assemble the APK
+        working-directory: web/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Name it something recognisable
+        run: |
+          mkdir -p out
+          cp web/android/app/build/outputs/apk/debug/app-debug.apk \
+             "out/jarvis-${GITHUB_SHA::7}.apk"
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-apk
+          path: out/*.apk
+          retention-days: 30
+
+      - name: Publish a release for tagged builds
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          body: |
+            Install on Android: download the .apk, open it, and allow
+            installing from this source when asked.
+
+            Sign in with your PIN. Everything else — memory, the PC link —
+            is the same account you already use.
