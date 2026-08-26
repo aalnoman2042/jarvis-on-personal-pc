@@ -90,12 +90,29 @@ def transcribe(data: bytes, filename: str = "clip.webm") -> str:
     # the SDK has changed this before.
     text = result if isinstance(result, str) else getattr(result, "text", "")
     words = " ".join(str(text).split())
+    return "" if _is_hallucination(words) else words
 
-    # Whisper answers silence with punctuation — a lone "." or "..." — rather
-    # than with nothing. Passed on, that becomes a question Jarvis dutifully
-    # tries to answer, so an accidental tap on the microphone produces a reply
-    # to a full stop. Anything with no letters or digits in it did not contain
-    # speech.
-    if not any(ch.isalnum() for ch in words):
-        return ""
-    return words
+
+# Whisper does not answer silence with silence. Trained on a lot of subtitled
+# video, it fills a quiet clip with the things that pad the end of a subtitle
+# file — a full stop, "Thank you", "The End", a credit line. Passed through,
+# these become questions Jarvis earnestly answers, so an accidental tap produces
+# a reply to "thanks for watching". Anything that is ONLY one of these, with no
+# other words around it, did not contain speech.
+_GHOSTS = {
+    "", ".", "..", "...", "you", "thank you", "thank you.", "thanks",
+    "thanks for watching", "thanks for watching.", "thank you for watching",
+    "thank you for watching.", "the end", "the end.", "bye", "bye.",
+    "please subscribe", "subscribe", "uh", "um",
+    # Deliberately NOT here: "ok", "so", "yes", "no" — these are common Whisper
+    # ghosts on silence, but they are also real one-word answers to "say yes to
+    # confirm", and eating a real answer feels more broken than answering a
+    # stray "ok".
+}
+
+
+def _is_hallucination(words: str) -> bool:
+    clean = words.strip().lower()
+    if not any(ch.isalnum() for ch in clean):
+        return True  # punctuation only
+    return clean in _GHOSTS
