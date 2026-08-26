@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="jarvis">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>Jarvis — no link</title>
+    <!--
+      Shown by Capacitor (server.errorPath) when the app cannot reach the cloud
+      core at all — no signal on a cold start, or the core genuinely down. It
+      only appears before the service worker has a cached copy of the HUD; after
+      the first successful launch the real thing opens offline instead.
+
+      Deliberately self-contained: no fonts, no scripts beyond the retry, no
+      imports. Anything it asked for would be the same request that has already
+      failed.
+    -->
+    <style>
+      :root {
+        --ground: #05080d;
+        --ink: #c8d6e5;
+        --dim: #6b8299;
+        --accent: #35d6ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        line-height: 1.6;
+        text-align: center;
+      }
+      .card {
+        max-width: 22rem;
+        border: 1px solid rgba(53, 214, 255, 0.25);
+        padding: 32px 24px;
+      }
+      .mark {
+        font-size: 0.7rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      h1 { margin: 12px 0 8px; font-size: 1.25rem; font-weight: 600; }
+      p { margin: 0 0 20px; color: var(--dim); font-size: 0.92rem; }
+      button {
+        padding: 10px 22px;
+        color: var(--ground);
+        background: var(--accent);
+        border: none;
+        font: inherit;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+      }
+      .ring {
+        width: 54px; height: 54px;
+        margin: 0 auto 4px;
+        border: 1px solid rgba(53, 214, 255, 0.35);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 2.6s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="ring" aria-hidden="true"></div>
+      <div class="mark">Vondo</div>
+      <h1>No link to the core</h1>
+      <p>
+        Jarvis lives in the cloud, and this device cannot reach it. Check your
+        signal and try again — nothing has been lost.
+      </p>
+      <button onclick="location.replace('https://vondo-core.onrender.com/')">
+        Try again
+      </button>
+    </div>
+  </body>
+</html>

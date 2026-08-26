@@ -270,6 +270,31 @@ every message until it pushes whatever is below it off the bottom of the screen.
 stay last; anywhere earlier it swallows `/chat` and `/health`. `test_hud.py`
 checks exactly that.
 
+**The Android app loads the HUD from the cloud, not from inside the APK.**
+`capacitor.config.ts` sets `server.url`. A sideloaded APK has no update channel,
+so a bundled copy of the HUD would freeze at build time and every screen change
+would mean downloading and installing by hand. This makes `git push` the whole
+release for the app as well as the server.
+
+Consequences to keep in mind:
+- the page's origin is the core, so **relative URLs are correct** and there is no
+  CORS at all. `endpoint.ts` asks "did this page come out of the APK", not "is
+  this the app" — the two stopped being the same question here.
+- the origin is a real HTTPS one, so **the service worker runs in the app now**,
+  which is what keeps it opening offline. It used to be skipped there.
+- the bundled `dist` is still built and shipped: it is what `server.errorPath`
+  shows (`offline.html`) when the cloud cannot be reached on a cold start.
+- the splash is held until React mounts, because a launch now includes a network
+  request. `launchAutoHide` stays **true** as the ceiling — with it off, a build
+  whose JS failed to load would sit on the splash for ever.
+
+**The service worker caches by allow-list, not by exceptions.** It was the other
+way round and that was a latent bug: a list of API paths to skip silently caches
+every endpoint added later. `/me` and `/agenda` arrived after it was written and
+would have been served from cache for ever, so the board would show yesterday's
+diary with no way to tell. Static names carry a build hash; everything else is
+live data by default.
+
 **Fonts come from Google Fonts today**, with real fallback stacks. Phase 05 must
 self-host them, or an installed app with no signal loses its typography.
 

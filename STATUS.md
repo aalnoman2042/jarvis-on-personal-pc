@@ -26,10 +26,16 @@ Built by GitHub Actions on every push — nothing to install on this PC.
 2. Unzip, open the `.apk` on the phone, allow installing from this source
 3. Sign in with the PIN
 
-It is the same HUD wrapped by Capacitor: real launcher icon, own splash, no
-browser chrome, and it talks to the same cloud core — so memory, facts and the
-PC link are identical whichever way you open Jarvis. `lib/endpoint.ts` is what
-points it at the cloud instead of at itself.
+**You should only ever need to do that once.** The app loads its screens from
+the cloud core rather than carrying its own copy, so `git push` updates the app
+as well as the server — reopen it and the change is there. A new APK is only
+needed when something *native* changes: a new Capacitor plugin, the icon, the
+app name, or permissions.
+
+It still opens with no signal. The first launch needs a connection; after that
+the service worker has the shell cached. If the cloud is unreachable on a cold
+start you get Jarvis's own "no link to the core" screen rather than the
+WebView's browser error.
 
 ### Or in a browser
 
@@ -69,7 +75,7 @@ opening apps, volume, screenshots, CPU, power.
 | Cloud core | Render, Singapore | Free. Sleeps after 15 min idle, ~1 min to wake. A GitHub Actions ping every 10 min keeps it up. |
 | Database | Turso, Mumbai | SQLite over HTTPS, ~59 ms. Free: 5 GB, 500M reads/month. Conversation, facts, devices, action log. |
 | Brain | Groq · `openai/gpt-oss-120b` | Free tier. Gemini backs it up; the rule-based brain is the last resort. |
-| HUD | Served by the core | One origin — no CORS, and the token never crosses a boundary. |
+| HUD | Served by the core | One origin — no CORS, and the token never crosses a boundary. The Android app loads from here too, so pushing updates it. |
 | This PC | The agent only | Four dependencies. No AI, no models, no speech, no window. |
 
 Built weight: 157 kB JS, 8 kB CSS, 155 kB of self-hosted fonts.
@@ -163,6 +169,10 @@ this PC is on; `.github/workflows/keepalive.yml` covers the rest by hitting
 `/tick`, which wakes it and sweeps the diary in one call. If that ping
 lapses, the first message after a quiet evening waits about a minute. Roughly
 $2/month on Fly removes this entirely.
+
+**A native change still needs a new APK.** Screens update themselves; plugins,
+permissions, the icon and the app name do not. Nothing about that is automatic —
+if I add a plugin, I have to tell you to reinstall.
 
 **The phone only knows about a reminder it has seen.** Alarms are scheduled on
 the device, which means the app has to have been opened at least once between

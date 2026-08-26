@@ -11,7 +11,7 @@
  * Bump CACHE when anything about the caching rules changes. The old cache is
  * deleted on activate, so a bad deploy is one version bump away from gone.
  */
-const CACHE = "vondo-v1";
+const CACHE = "vondo-v2";
 
 // The shell: enough to render something the moment the app opens offline.
 // Hashed asset filenames are NOT listed — they change every build, so they are
@@ -23,9 +23,22 @@ const SHELL = [
   "/icon-512.png",
 ];
 
-// Anything under these paths is live data. Caching a reply would mean Jarvis
-// answering a new question with an old answer, which is worse than an error.
-const NEVER_CACHE = ["/chat", "/ws", "/login", "/health", "/status", "/devices", "/push"];
+/* What may be cached — an allow-list, not a list of exceptions.
+ *
+ * It was the other way round, and that was a bug: a list of API paths to skip
+ * silently caches every endpoint added afterwards. `/me` and `/agenda` arrived
+ * later and would have been served from cache forever, so the board would have
+ * shown yesterday's diary and yesterday's numbers with no way to tell.
+ *
+ * Static files are safe because their names contain a build hash, so a new
+ * build is a new name. Anything else is live data by default, and being wrong
+ * in that direction costs a network request rather than a wrong answer.
+ */
+function cacheable(url) {
+  if (url.pathname.startsWith("/assets/")) return true;
+  if (url.pathname.startsWith("/fonts/")) return true;
+  return /\.(?:js|css|woff2?|png|svg|ico|webmanifest|html)$/.test(url.pathname);
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,7 +66,6 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (NEVER_CACHE.some((path) => url.pathname.startsWith(path))) return;
 
   // Navigations: try the network so a deploy is picked up, fall back to the
   // cached shell so opening the app in a tunnel still works.
@@ -70,8 +82,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else — hashed assets, fonts, icons — is immutable by name, so
-  // the cache is always right and the network is only for the first time.
+  // Live data — /me, /agenda, and anything added later — is left entirely
+  // alone. No cache read, no cache write; the request goes to the network as if
+  // this worker did not exist.
+  if (!cacheable(url)) return;
+
+  // Hashed assets, fonts and icons are immutable by name, so the cache is
+  // always right and the network is only for the first time.
   event.respondWith(
     caches.match(request).then((hit) => {
       if (hit) return hit;
