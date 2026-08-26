@@ -244,6 +244,30 @@ def _date_part(text: str, base: dt.datetime) -> dt.date | None:
                 return None
         return _with_year(day, month, base)
 
+    # A bare day of the month: "the 20th", "on the 3rd", "move it to the 25th".
+    # This is how a date already under discussion gets changed, and without it
+    # "move my exam to the 20th" had no time in it at all.
+    #
+    # The ordinal suffix is required. A bare "20" is far too ambiguous — it is
+    # a time, a count, a quantity — and guessing it as a date would turn "in 20
+    # minutes" into the twentieth of the month. Checked after the month
+    # patterns above, so "18th September" keeps its September.
+    match = re.search(r"\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b", words)
+    if match:
+        day = int(match.group(1))
+        if 1 <= day <= 31:
+            # This month if it is still ahead, otherwise next — the same
+            # roll-forward rule a month with no year gets.
+            for months_on in (0, 1):
+                year = base.year + (base.month + months_on - 1) // 12
+                month = (base.month + months_on - 1) % 12 + 1
+                try:
+                    candidate = dt.date(year, month, day)
+                except ValueError:
+                    continue
+                if candidate >= base.date():
+                    return candidate
+
     for name in sorted(WEEKDAYS, key=len, reverse=True):
         if re.search(r"\b" + name + r"\b", words):
             ahead = (WEEKDAYS[name] - base.weekday()) % 7

@@ -182,6 +182,53 @@ def upcoming_text(limit: int = 8) -> str:
     return "; ".join(agenda.describe(item) for item in items) + "."
 
 
+def change(fragment: str, new_when: str = "", new_message: str = "") -> str:
+    """Move or rename something already in the diary.
+
+    There was no way to do this at all, so "move my exam to the 20th" had only
+    two tools available — make another one, or delete this one — and the model
+    did what anyone would with the wrong tools: something confusing. Editing is
+    the third of the three things anybody does with a diary and it was missing.
+
+    Ambiguity is answered with the choices rather than a guess. Silently moving
+    the wrong exam is far worse than asking which.
+    """
+    found = agenda.match(fragment)
+    if not found:
+        return f"I can't find anything upcoming matching '{fragment}'."
+    if len(found) > 1:
+        names = "; ".join(f"{i['message']} ({clock.say(i['due'], bool(i['all_day']))})"
+                          for i in found[:4])
+        return f"I have more than one of those — {names}. Which do you mean?"
+
+    item = found[0]
+    said = []
+
+    if new_when.strip():
+        due, all_day = clock.parse_when(new_when)
+        if due is None:
+            return "I need a time for that — say when, and I'll move it."
+        if due < clock.now() - 60:
+            return f"That's already passed ({clock.say(due, all_day)}). Say when again?"
+        if not agenda.move(item["id"], due, all_day):
+            return "I couldn't move it just now."
+        said.append(f"moved {clock.say(due, all_day)}")
+        # The old check-in was placed against the old date and has been dropped;
+        # a new one is only worth having if there is still room for it.
+        asked = plan_checkin(item["id"], due, new_message or item["message"])
+        if asked:
+            said.append(f"I'll check in {clock.say(asked)}")
+
+    if new_message.strip():
+        if not agenda.rename(item["id"], new_message):
+            return "I couldn't rename it just now."
+        said.append(f"now called '{new_message.strip()}'")
+
+    if not said:
+        return f"{item['message']} is {clock.say(item['due'], bool(item['all_day']))}. What should change?"
+    return f"{item['message']}: " + ", and ".join(said) + "."
+
+
 def cancel(fragment: str) -> int:
     """Drop upcoming items matching a word or phrase. Returns how many went."""
     return agenda.cancel(fragment)

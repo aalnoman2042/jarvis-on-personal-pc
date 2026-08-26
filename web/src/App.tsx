@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatSheet } from "./hud/ChatSheet";
+import { Whisper } from "./hud/Whisper";
 import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
 import * as speech from "./lib/speak";
@@ -36,7 +37,14 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   // render's `say` for ever.
   const say = useRef(jarvis.say);
   say.current = jarvis.say;
-  const heard = useCallback((text: string) => say.current(text), []);
+  // Whether the last thing said was spoken rather than typed. If you talked to
+  // it, it talks back — the mute toggle is about unsolicited noise, not about
+  // being ignored when you asked out loud with the screen at arm's length.
+  const spokeToIt = useRef(false);
+  const heard = useCallback((text: string) => {
+    spokeToIt.current = true;
+    say.current(text);
+  }, []);
   const voice = useVoice(token, heard);
 
   // Read the newest reply aloud, once. Counting replies rather than watching the
@@ -49,7 +57,10 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
       return;
     }
     spokenTo.current = replies.length;
-    if (talkback) speech.speak(replies[replies.length - 1].text);
+    if (talkback || spokeToIt.current) {
+      speech.speak(replies[replies.length - 1].text);
+    }
+    spokeToIt.current = false;
   }, [jarvis.log, talkback]);
 
   // Talking over yourself is the one thing a voice interface must never do.
@@ -132,6 +143,17 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
           onSettings={() => setOpen("settings")}
         />
       </main>
+
+      {/* The answer where the question was asked. Never while the conversation
+          is open — the log is already doing this job there, and two copies of
+          the same sentence is worse than one. */}
+      {open !== "chat" && (
+        <Whisper
+          log={jarvis.log}
+          thinking={jarvis.state === "thinking"}
+          onOpen={() => setOpen("chat")}
+        />
+      )}
 
       {open === "chat" && (
         <ChatSheet jarvis={jarvis} voice={voice} token={token} onClose={() => setOpen("none")} />

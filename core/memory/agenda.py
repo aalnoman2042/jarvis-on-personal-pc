@@ -172,6 +172,76 @@ def cancel(fragment: str) -> int:
         return 0
 
 
+def match(fragment: str, limit: int = 5) -> list[dict]:
+    """Upcoming items whose text contains `fragment`. Check-ins excluded.
+
+    A check-in is a question *about* something, so "move the exam" must find the
+    exam and not "How's it going with the exam?" — which contains the word and
+    is not the thing anyone means.
+    """
+    conn = store.connect()
+    fragment = " ".join((fragment or "").split()).lower()
+    if conn is None or not fragment:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT id, due, remind_at, message, all_day, kind, repeat_rule, "
+            "repeat_days FROM reminders "
+            "WHERE due >= ? AND kind != 'checkin' AND lower(message) LIKE ? "
+            "ORDER BY due ASC LIMIT ?",
+            (clock.now() - 60, f"%{fragment}%", limit),
+        ).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
+
+
+def move(item_id: int, due: float, all_day: bool | None = None) -> bool:
+    """Change when something happens, keeping how far ahead it warns.
+
+    The lead time is a preference about the thing, not a property of the date:
+    "warn me the day before" should survive the exam moving. Recomputing it from
+    scratch would quietly turn every moved reminder into one with no warning.
+    """
+    conn = store.connect()
+    if conn is None or not due:
+        return False
+    try:
+        row = conn.execute(
+            "SELECT due, remind_at, all_day FROM reminders WHERE id = ?",
+            (int(item_id),)).fetchone()
+        if row is None:
+            return False
+        lead = max(0.0, (row["due"] or 0) - (row["remind_at"] or 0))
+        keep = row["all_day"] if all_day is None else (1 if all_day else 0)
+        conn.execute(
+            "UPDATE reminders SET due = ?, remind_at = ?, all_day = ?, fired = 0 "
+            "WHERE id = ?",
+            (float(due), float(due) - lead, keep, int(item_id)))
+        # Its check-in was placed relative to the old date and is now nonsense —
+        # possibly in the past, possibly after the thing it asks about.
+        conn.execute("DELETE FROM reminders WHERE parent = ?", (int(item_id),))
+        conn.commit()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def rename(item_id: int, message: str) -> bool:
+    """Change what something is called, leaving its time alone."""
+    conn = store.connect()
+    message = _clean(message)
+    if conn is None or not message:
+        return False
+    try:
+        conn.execute("UPDATE reminders SET message = ? WHERE id = ?",
+                     (message, int(item_id)))
+        conn.commit()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def cancel_id(item_id: int) -> bool:
     """Drop one item by id — what a delete button on the dashboard does."""
     conn = store.connect()

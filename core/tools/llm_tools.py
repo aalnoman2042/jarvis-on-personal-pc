@@ -210,6 +210,19 @@ def check_agenda() -> str:
     return reminders.upcoming_text()
 
 
+def change_reminder(fragment: str, new_when: str = "", new_message: str = "") -> str:
+    """Move or rename something already in the diary. Use this to EDIT.
+
+    'fragment' is a word or two identifying the existing item ("physics exam").
+    'new_when' is the new time in the user's words ("the 20th", "an hour later").
+    'new_message' renames it.
+
+    Use this — never cancel and re-create — when the user says a thing already
+    in the diary has changed: moved, postponed, brought forward, renamed.
+    """
+    return reminders.change(fragment, new_when, new_message)
+
+
 def cancel_reminder(fragment: str) -> str:
     """Drop upcoming reminders matching a word or phrase ('all' clears them)."""
     dropped = reminders.cancel(fragment)
@@ -281,7 +294,7 @@ def set_autostart(action: str) -> str:
 TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
-    remind, check_agenda, cancel_reminder, check_mail,
+    remind, check_agenda, cancel_reminder, change_reminder, check_mail,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
@@ -409,6 +422,14 @@ OPENAI_TOOLS = [
     _tool("check_agenda",
           "See what is coming up. Use for 'what's coming up', 'what do I have "
           "tomorrow', 'when is my exam'."),
+    _tool("change_reminder",
+          "EDIT something already in the diary: move it to a new time or rename "
+          "it. Use this rather than cancelling and re-creating when a thing has "
+          "moved, been postponed, brought forward or renamed.",
+          {"fragment": _STR("A word or two identifying the existing item"),
+           "new_when": _STR("The new time in their words, if it moved"),
+           "new_message": _STR("A new name, if it was renamed")},
+          ["fragment"]),
     _tool("cancel_reminder", "Drop upcoming reminders matching a word ('all' clears them).",
           {"fragment": _STR("Word or phrase to cancel")}, ["fragment"]),
     _tool("get_time", "Get the current local time."),

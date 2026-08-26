@@ -889,6 +889,48 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   display: none;
 }
 
+/* ---------- what was just said, over the board ----------
+   Sits above the floating buttons and below the drawers. Wide enough to read a
+   sentence, capped so a long answer scrolls inside itself rather than covering
+   the board it is floating over. */
+.whisper {
+  position: fixed;
+  left: max(var(--s3), env(safe-area-inset-left));
+  right: max(var(--s3), env(safe-area-inset-right));
+  bottom: calc(var(--s3) + 62px + env(safe-area-inset-bottom));
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: var(--s3);
+  text-align: left;
+  animation: whisper-in 0.22s ease;
+}
+@keyframes whisper-in {
+  from { transform: translateY(10px); opacity: 0; }
+}
+.whisper-you {
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+.whisper-said {
+  color: var(--ink-strong);
+  font-size: 0.98rem;
+  line-height: 1.45;
+  max-height: 7.5em;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.whisper-thinking {
+  color: var(--warn);
+}
+.whisper-more {
+  color: var(--idle);
+  font-size: 0.54rem;
+}
+
 /* ---------- the machine, idling ----------
    Something behind the conversation that reads as switched-on. Three cheap
    layers, and every one of them animates transform or opacity only — so it is
