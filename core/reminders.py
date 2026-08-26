@@ -56,6 +56,7 @@ def schedule(when_text: str, message: str, warn: str = "") -> str:
     understood it. Reading it back is the whole safety net: it is how a
     misheard Thursday gets caught now rather than the morning after the exam.
     """
+    rule, days = clock.parse_repeat(when_text)
     due, all_day = clock.parse_when(when_text)
     if due is None:
         return "I need a time for that — say when, and I'll put it down."
@@ -71,9 +72,20 @@ def schedule(when_text: str, message: str, warn: str = "") -> str:
         remind_at = clock.now()
 
     kind = "event" if (all_day or lead) else "reminder"
-    new_id = agenda.add(due, message, remind_at=remind_at, all_day=all_day, kind=kind)
+    new_id = agenda.add(due, message, remind_at=remind_at, all_day=all_day, kind=kind,
+                        repeat_rule=rule, repeat_days=days)
     if new_id is None:
         return "I couldn't write that down just now."
+
+    if rule:
+        # A repeating thing is said back as the pattern, not as its first
+        # occurrence: "every Monday and Wednesday" is what was agreed, and
+        # hearing only "on Monday" back is how you fail to notice that the
+        # Wednesday never registered.
+        said = (f"Noted: {message}, {clock.repeat_words(rule, days)}"
+                f"{'' if all_day else ' at ' + clock._clock_words(clock.local(due))}. "
+                f"First one {clock.say(due, all_day)}.")
+        return said
 
     said = f"Noted: {message} {clock.say(due, all_day)}."
     if lead and abs(remind_at - due) > 60:

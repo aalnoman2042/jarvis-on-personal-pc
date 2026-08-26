@@ -25,6 +25,8 @@ export interface AgendaItem {
   all_day: number;
   kind: string;
   fired?: number;
+  /** "weekly", "daily", ... or "" for a one-off. */
+  repeat_rule?: string;
   /** The same line Jarvis would speak, built on the server so the screen and
       the spoken answer can never disagree about what is in the diary. */
   said: string;

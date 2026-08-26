@@ -172,6 +172,10 @@ def remind(when: str, message: str, warn: str = "") -> str:
     'when' is when it happens, in the user's own words — "in 20 minutes",
     "tomorrow at 5pm", "18 September", "next Thursday". Pass the phrase through;
     do NOT convert it to a date yourself.
+
+    REPEATING things work too, and the phrase carries them: "every Monday and
+    Wednesday at 4pm", "every day at 8am", "weekdays at 9", "every month".
+    Pass those through whole — a class timetable is said once, not once a week.
     'message' is what it is, in a few words.
     'warn' is optional and only for things worth knowing about in advance:
     "the day before", "an hour before".
@@ -377,7 +381,9 @@ OPENAI_TOOLS = [
           "Put something in the diary: an appointment, deadline, task or event. "
           "Use whenever the user mentions a thing happening at a time.",
           {"when": _STR("When it happens, in their words: 'in 20 minutes', "
-                        "'tomorrow at 5pm', '18 September'. Do not convert it."),
+                        "'tomorrow at 5pm', '18 September', or a repeating "
+                        "pattern like 'every Monday and Wednesday at 4pm'. "
+                        "Pass it through whole; do not convert it."),
            "message": _STR("What it is, in a few words"),
            "warn": _STR("Optional, to be told in advance: 'the day before'")},
           ["when", "message"]),

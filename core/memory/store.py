@@ -173,6 +173,11 @@ _LATER_COLUMNS = (
     # A check-in belongs to the thing it asks about, so cancelling the exam
     # takes its "how is the prep going?" with it.
     ("reminders", "parent INTEGER NOT NULL DEFAULT 0"),
+    # A repeating thing is ONE row that moves forward, not one row per
+    # occurrence. A term of weekly classes is otherwise fifty rows that all have
+    # to be rewritten the moment the timetable changes.
+    ("reminders", "repeat_rule TEXT NOT NULL DEFAULT ''"),
+    ("reminders", "repeat_days TEXT NOT NULL DEFAULT ''"),
 )
 
 has_search = True  # flipped off below if this SQLite build lacks FTS5

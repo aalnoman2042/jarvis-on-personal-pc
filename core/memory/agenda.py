@@ -35,7 +35,7 @@ def _clean(text: str) -> str:
 
 def add(due: float, message: str, remind_at: float | None = None,
         all_day: bool = False, kind: str = "reminder", device: str = "",
-        parent: int = 0) -> int | None:
+        parent: int = 0, repeat_rule: str = "", repeat_days: list | None = None) -> int | None:
     """Put something in the diary. Returns its id, or None if nothing was stored."""
     conn = store.connect()
     message = _clean(message)
@@ -44,10 +44,13 @@ def add(due: float, message: str, remind_at: float | None = None,
     try:
         cursor = conn.execute(
             "INSERT INTO reminders(due, remind_at, message, created, fired, "
-            "all_day, kind, device, parent) VALUES (?,?,?,?,0,?,?,?,?)",
+            "all_day, kind, device, parent, repeat_rule, repeat_days) "
+            "VALUES (?,?,?,?,0,?,?,?,?,?,?)",
             (float(due), float(remind_at if remind_at is not None else due), message,
              round(clock.now(), 1), 1 if all_day else 0,
-             kind if kind in KINDS else "reminder", device or "", int(parent)),
+             kind if kind in KINDS else "reminder", device or "", int(parent),
+             repeat_rule or "",
+             ",".join(str(d) for d in (repeat_days or []))),
         )
         conn.commit()
         return cursor.lastrowid
@@ -69,7 +72,8 @@ def upcoming(limit: int = 20, within: float | None = None) -> list[dict]:
     ceiling = now + within if within else float("inf")
     try:
         rows = conn.execute(
-            "SELECT id, due, remind_at, message, created, fired, all_day, kind "
+            "SELECT id, due, remind_at, message, created, fired, all_day, kind, "
+            "repeat_rule, repeat_days "
             "FROM reminders WHERE due >= ? AND due <= ? ORDER BY due ASC LIMIT ?",
             (now - 60, ceiling if ceiling != float("inf") else 1e12, limit),
         ).fetchall()
@@ -91,7 +95,8 @@ def ready(now: float | None = None) -> list[dict]:
         return []
     try:
         rows = conn.execute(
-            "SELECT id, due, remind_at, message, all_day, kind FROM reminders "
+            "SELECT id, due, remind_at, message, all_day, kind, "
+            "repeat_rule, repeat_days FROM reminders "
             "WHERE fired = 0 AND remind_at <= ? ORDER BY remind_at ASC",
             (clock.now() if now is None else now,),
         ).fetchall()
@@ -101,11 +106,34 @@ def ready(now: float | None = None) -> list[dict]:
 
 
 def mark_fired(reminder_id: int) -> None:
-    """Record that this one has been delivered, so it is not delivered again."""
+    """This one has been delivered.
+
+    For a one-off that means finished. For a repeating thing it means **move to
+    the next occurrence** — the row is the class, not one instance of it, so
+    Monday's lecture becoming next Monday's is an update rather than a new row
+    and a dead one. Fifty rows for a term of classes would all have to be
+    rewritten the moment the timetable changed.
+    """
     conn = store.connect()
     if conn is None:
         return
     try:
+        row = conn.execute(
+            "SELECT due, remind_at, repeat_rule, repeat_days FROM reminders "
+            "WHERE id = ?", (int(reminder_id),)).fetchone()
+        rule = (row["repeat_rule"] if row else "") or ""
+        if rule:
+            days = [int(d) for d in (row["repeat_days"] or "").split(",") if d.strip()]
+            nxt = clock.next_occurrence(row["due"], rule, days)
+            if nxt:
+                # The warning keeps its distance from the thing it warns about.
+                lead = row["due"] - row["remind_at"]
+                conn.execute(
+                    "UPDATE reminders SET due = ?, remind_at = ?, fired = 0 "
+                    "WHERE id = ?",
+                    (nxt, nxt - lead, int(reminder_id)))
+                conn.commit()
+                return
         conn.execute("UPDATE reminders SET fired = 1 WHERE id = ?", (int(reminder_id),))
         conn.commit()
     except Exception:  # noqa: BLE001

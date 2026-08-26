@@ -182,7 +182,14 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
             <ul className="agenda">
               {upcoming.map((item) => (
                 <li key={item.id} className={`agenda-${item.kind}`}>
-                  <span className="agenda-what">{item.message}</span>
+                  <span className="agenda-what">
+                    {item.message}
+                    {/* A repeating thing needs saying so on the row. Without it
+                        the board shows one Monday and reads as a single class. */}
+                    {item.repeat_rule ? (
+                      <span className="agenda-repeat label" title="repeats">↻</span>
+                    ) : null}
+                  </span>
                   <span className="agenda-when mono">
                     {item.said.replace(`${item.message} — `, "")}
                   </span>

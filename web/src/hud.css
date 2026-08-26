@@ -276,6 +276,11 @@
 /* A question Jarvis is going to ask, rather than a thing that happens. Set
    apart so the diary does not read as though "How's it going with the exam?"
    is an appointment. */
+.agenda-repeat {
+  margin-left: 6px;
+  color: var(--accent);
+  font-size: 0.8em;
+}
 .agenda-checkin .agenda-what {
   color: var(--good);
   font-style: italic;

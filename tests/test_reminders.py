@@ -111,6 +111,42 @@ check("a time already past is refused rather than stored",
 check("  and a phrase with no time in it asks",
       reminders.schedule("sometime", "vague thing"), contains="need a time")
 
+print("")
+print("=== 3c. a timetable said once ===")
+#
+# A repeating thing is ONE row that moves forward, not one row per occurrence.
+# A term of weekly classes stored as fifty rows would all need rewriting the
+# moment the timetable changed, and the fiftieth would arrive after the term.
+agenda.cancel("all")
+said = reminders.schedule("every monday and wednesday at 4pm", "EEE class")
+print(f"         -> {said!r}")
+check("said back as the pattern, not just the first one", said,
+      contains="every monday and wednesday")
+check("  stored as a repeat", agenda.upcoming(10)[0]["repeat_rule"], "weekly")
+
+# The part that matters: delivering it must ADVANCE it, not finish it.
+agenda.cancel("all")
+rid = agenda.add(clock.now() - 5, "EEE class", remind_at=clock.now() - 5,
+                 repeat_rule="weekly", repeat_days=[0, 2])
+first = [i for i in agenda.upcoming(10) if i["id"] == rid][0]["due"]
+agenda.mark_fired(rid)
+after = [i for i in agenda.upcoming(10) if i["id"] == rid]
+check("delivering it moves it on rather than ending it", len(after), 1)
+check("  to a later date", after[0]["due"] > first, True)
+check("  and it is pending again, not finished", after[0]["fired"], 0)
+check("  landing on a day that was asked for",
+      clock.local(after[0]["due"]).weekday() in (0, 2), True)
+
+agenda.cancel("all")
+gone = agenda.add(clock.now() - 5, "one off thing", remind_at=clock.now() - 5)
+agenda.mark_fired(gone)
+check("a one-off still finishes for good", agenda.ready(), [])
+# By id, not cancel("all"): cancel deliberately only touches things still ahead,
+# and both fixtures here are deliberately in the past. A fired row still counts
+# as upcoming for a minute after its time, and the sections below count rows.
+agenda.cancel_id(gone)
+agenda.cancel_id(rid)
+
 print("\n=== 4. the tools a brain reaches for ===")
 agenda.cancel("all")
 check("remind", llm_tools.DISPATCH["remind"]("in 20 minutes", "call dad"),

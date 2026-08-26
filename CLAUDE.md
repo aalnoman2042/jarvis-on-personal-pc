@@ -224,6 +224,13 @@ delivered as the invigilator hands out papers is not a warning. `all_day` is a
 third: "18 September" names no hour, and inventing nine in the morning and
 reading it back confidently is how you stop trusting the thing.
 
+**A repeating thing is ONE row that moves forward**, never one row per
+occurrence. `mark_fired` advances `due` to the next occurrence and clears
+`fired` instead of ending it; only a one-off finishes. A term of weekly classes
+as fifty rows would all need rewriting the moment the timetable changed, and the
+fiftieth would arrive after the term. The lead time is preserved across the
+move, so "warn me an hour before" keeps its hour.
+
 **A reminder is marked delivered only if somebody was actually told.** The
 sweeper broadcasts to open sockets and marks `fired` per successful send. A free
 tier waking at some arbitrary moment with nobody connected must not consume the
