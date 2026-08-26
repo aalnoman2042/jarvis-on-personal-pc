@@ -22,6 +22,7 @@ remembering.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from core import clock
 from core.memory import store
@@ -57,6 +58,18 @@ MAX_CHARS = 1200
 SNIP = 260
 
 
+def _fold(text: str) -> str:
+    """Lowercase and strip accents, the way FTS5's unicode61 tokenizer does.
+
+    The index and anything that second-guesses the index have to agree about
+    what a word is. They did not: "résumé" is indexed as "resume", so a search
+    for "resume" found the row and the relevance check — a plain substring test
+    on the raw text — then discarded it.
+    """
+    flat = unicodedata.normalize("NFKD", text or "").lower()
+    return "".join(ch for ch in flat if not unicodedata.combining(ch))
+
+
 def terms(text: str) -> list[str]:
     """The words worth searching for, in the order they were said.
 
@@ -64,7 +77,7 @@ def terms(text: str) -> list[str]:
     is left cannot contain a quote, a hyphen, or an operator like NEAR, so the
     query cannot be malformed by punctuation the way the raw sentence could.
     """
-    words = re.findall(r"[a-z0-9]+", (text or "").lower())
+    words = re.findall(r"[a-z0-9]+", _fold(text))
     picked: list[str] = []
     for word in words:
         if len(word) < MIN_WORD or word in STOPWORDS or word in picked:
@@ -150,7 +163,12 @@ def _relevant(hit: dict, wanted: list[str]) -> bool:
     """
     if not wanted:
         return False
-    haystack = f"{hit.get('user','')} {hit.get('assistant','')}".lower()
+    # Folded, not merely lowercased. FTS5's unicode61 tokenizer strips accents,
+    # so a search for "resume" genuinely matches "résumé" — and this filter,
+    # doing a plain substring test, then threw the row away. The index was
+    # right and the guard overruled it, which is the worst shape of bug: the
+    # data was found and then discarded, so it looked like nothing was there.
+    haystack = _fold(f"{hit.get('user', '')} {hit.get('assistant', '')}")
     matched = sum(1 for term in wanted if term in haystack)
     # One word is enough to go on when that word was most of the question.
     # Past that, a single incidental match is not evidence of anything.
