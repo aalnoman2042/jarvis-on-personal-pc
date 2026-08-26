@@ -53,6 +53,9 @@ export interface NotifyState {
   /** Android 12+ can withhold exact timing separately from notifications.
       null when the platform does not have the concept. */
   exact: boolean | null;
+  /** Whether the high-importance channel exists. A notification posted to a
+      channel that does not exist is dropped by Android without any error. */
+  channel: boolean | null;
   /** Plain-English reason it will not work, or "" when it will. */
   problem: string;
 }
@@ -74,21 +77,49 @@ async function plugin(): Promise<Plugin | null> {
   }
 }
 
-/** Create the channel once. Safe to call repeatedly; Android ignores repeats. */
-async function ensureChannel(api: Plugin): Promise<void> {
+/* Whether the channel actually exists.
+ *
+ * This is load-bearing and was a bug. On Android 8 and later, a notification
+ * posted to a channel id that does not exist is DROPPED — no error, no entry in
+ * the tray, nothing to see. The old code created the channel inside a try that
+ * swallowed failures and then set `channelId` on every notification regardless,
+ * so any platform or plugin version where createChannel did not work produced
+ * exactly the symptom Rohan had: permission granted, alarm scheduled, nothing
+ * on the lock screen.
+ *
+ * So the id is only ever attached when the channel is known to be there. */
+let channelReady: boolean | null = null;
+
+async function ensureChannel(api: Plugin): Promise<boolean> {
+  if (channelReady !== null) return channelReady;
   try {
-    await api.createChannel?.({
+    if (!api.createChannel) {
+      channelReady = false;      // iOS, or a plugin without channels
+      return channelReady;
+    }
+    await api.createChannel({
       id: CHANNEL,
       name: "Reminders",
       description: "Things Jarvis is keeping for you",
       importance: 5,        // max: heads-up, makes a sound
       visibility: 1,        // shows on the lock screen
       vibration: true,
-      sound: undefined,     // the system default, which people recognise
     });
+    // Trust the listing, not the call: createChannel resolving does not by
+    // itself prove the channel is registered.
+    const listed = await api.listChannels?.();
+    channelReady = listed
+      ? listed.channels.some((c) => c.id === CHANNEL)
+      : true;
   } catch {
-    /* older plugin, or iOS — the default channel still delivers */
+    channelReady = false;
   }
+  return channelReady;
+}
+
+/** The channel id to post with, or undefined to let Android use its default. */
+async function channelFor(api: Plugin): Promise<string | undefined> {
+  return (await ensureChannel(api)) ? CHANNEL : undefined;
 }
 
 /**
@@ -146,6 +177,7 @@ export async function state(): Promise<NotifyState> {
         permission: browser,
         scheduled: 0,
         exact: null,
+        channel: null,
         problem:
           "This app build has no alarm support, so reminders can only appear "
           + "while it is open. Uninstall Jarvis and install the newest APK — "
@@ -158,6 +190,7 @@ export async function state(): Promise<NotifyState> {
       permission: browser,
       scheduled: 0,
       exact: null,
+      channel: null,
       problem:
         browser === "granted"
           ? "In a browser these only arrive while this tab is open. Install the app for reminders that arrive with it closed."
@@ -170,6 +203,7 @@ export async function state(): Promise<NotifyState> {
   let permission: Permission = "prompt";
   let scheduled = 0;
   let exact: boolean | null = null;
+  const channel = await ensureChannel(api);
   try {
     permission = (await api.checkPermissions()).display as Permission;
   } catch {
@@ -199,11 +233,15 @@ export async function state(): Promise<NotifyState> {
     problem = "Notifications are switched off for Jarvis in Android settings.";
   } else if (permission !== "granted") {
     problem = "Notifications have not been allowed yet.";
+  } else if (channel === false) {
+    problem = "Allowed, but the reminder channel is missing — Android drops "
+      + "notifications posted to a channel that does not exist. Falling back to "
+      + "the default channel.";
   } else if (exact === false) {
     problem = "Allowed, but Android may delay them — exact alarms are off for Jarvis.";
   }
 
-  return { native, permission, scheduled, exact, problem };
+  return { native, permission, scheduled, exact, channel, problem };
 }
 
 /** Open the Android page where exact alarms can be switched on. */
@@ -245,16 +283,25 @@ export async function test(): Promise<string> {
   }
 
   try {
-    await ensureChannel(api);
+    const channelId = await channelFor(api);
     await api.schedule({
       notifications: [{
         id: TEST_ID,
         title: "Jarvis",
         body: "Test reminder — this is what they will look like.",
-        channelId: CHANNEL,
+        ...(channelId ? { channelId } : {}),
         schedule: { at: new Date(Date.now() + TEST_DELAY_MS), allowWhileIdle: true },
       }],
     });
+    // Read it back. schedule() resolving means the call was accepted, not that
+    // the OS is holding an alarm — and the difference between those two is
+    // precisely the failure that is impossible to see from the outside.
+    const held = await api.getPending();
+    const landed = held.notifications.some((n) => n.id === TEST_ID);
+    if (!landed) {
+      return "Android accepted it but is not holding it — check battery "
+        + "optimisation for Jarvis, which can drop scheduled alarms.";
+    }
     return "On its way. Lock your phone — it should arrive in about eight seconds.";
   } catch (err) {
     return `Could not schedule it: ${err instanceof Error ? err.message : "unknown"}`;
@@ -294,7 +341,7 @@ export async function syncAlarms(items: AgendaItem[], force = false): Promise<nu
   if (!force && sig === lastSignature) return wanted.length;
 
   try {
-    await ensureChannel(api);
+    const channelId = await channelFor(api);
     const held = await api.getPending();
     // The test alarm is ours too but is not part of the diary, so it is left
     // alone — cancelling it here would make "send a test" and "open the board"
@@ -308,7 +355,7 @@ export async function syncAlarms(items: AgendaItem[], force = false): Promise<nu
           id: ID_BASE + (item.id % 100000),
           title: item.kind === "event" ? "Coming up" : "Jarvis",
           body: item.said || item.message,
-          channelId: CHANNEL,
+          ...(channelId ? { channelId } : {}),
           schedule: { at: new Date(at), allowWhileIdle: true },
           extra: { agendaId: item.id },
         })),

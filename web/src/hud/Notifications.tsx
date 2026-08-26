@@ -76,6 +76,24 @@ export function Notifications() {
         <span className="muted small">scheduled on this device</span>
       </div>
 
+      {/* Each link named separately. They all fail as silence, so the only way
+          to tell them apart is to report them one at a time. */}
+      <div className="chip-row">
+        <span className={`chip ${info.permission === "granted" ? "chip-good" : "chip-warn"}`}>
+          PERMISSION {info.permission === "granted" ? "OK" : info.permission.toUpperCase()}
+        </span>
+        {info.channel !== null && (
+          <span className={`chip ${info.channel ? "chip-good" : "chip-warn"}`}>
+            CHANNEL {info.channel ? "OK" : "MISSING"}
+          </span>
+        )}
+        {info.exact !== null && (
+          <span className={`chip ${info.exact ? "chip-good" : "chip-warn"}`}>
+            EXACT {info.exact ? "OK" : "OFF"}
+          </span>
+        )}
+      </div>
+
       <div className="chip-row">
         {info.permission !== "granted" && (
           <button className="chip chip-hot" onClick={allow} disabled={busy}>
