@@ -587,6 +587,32 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   opacity: 0.45;
 }
 
+/* A picture shown in the conversation. Object-URL only: it lives in this tab
+   and never reaches the database — only what Jarvis saw in it is remembered. */
+.line-shot {
+  display: block;
+  max-width: min(260px, 100%);
+  max-height: 200px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+/* Show Jarvis something, from the composer, without leaving the conversation. */
+.attach {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 1.05rem;
+}
+.attach:hover:not(:disabled) { border-color: var(--accent); }
+.attach:disabled { color: var(--idle); cursor: default; }
+
 /* ---------- the recall readout ----------
    Folded away until asked for. An answer can be wrong two ways — bad reasoning
    or bad memories — and this is the only thing that separates them. */

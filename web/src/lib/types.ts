@@ -74,6 +74,10 @@ export interface LogLine {
   brain?: string;
   /** Past exchanges the index surfaced for this answer, if any. */
   recalled?: { when: number; said: string }[];
+  /** A picture shown in the conversation. An object URL, so it lives only in
+      this tab — the image itself never goes to the database, only what Jarvis
+      saw in it. */
+  image?: string;
 }
 
 /** What the settings screen loads from /me, in one call. */

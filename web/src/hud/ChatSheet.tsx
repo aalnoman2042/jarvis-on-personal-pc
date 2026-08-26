@@ -17,9 +17,10 @@ import { Log } from "./Log";
 import type { Vondo } from "../lib/socket";
 import type { Voice } from "../lib/voice";
 
-export function ChatSheet({ jarvis, voice, onClose }: {
+export function ChatSheet({ jarvis, voice, token, onClose }: {
   jarvis: Vondo;
   voice: Voice;
+  token: string;
   onClose: () => void;
 }) {
   // Escape closes it on a desktop. On a phone the back gesture is the way out,
@@ -56,7 +57,13 @@ export function ChatSheet({ jarvis, voice, onClose }: {
 
       {voice.error && <p className="mic-error label">{voice.error}</p>}
       <Log lines={jarvis.log} />
-      <Composer onSay={jarvis.say} busy={jarvis.state === "thinking"} voice={voice} />
+      <Composer
+        onSay={jarvis.say}
+        busy={jarvis.state === "thinking"}
+        voice={voice}
+        token={token}
+        onShow={jarvis.show}
+      />
     </div>
   );
 }

@@ -63,6 +63,8 @@ export interface Vondo {
   dismiss: () => void;
   say: (text: string) => void;
   note: (text: string) => void;
+  /** Show a picture in the conversation, and what Jarvis made of it. */
+  show: (image: string, said: string, question?: string) => void;
 }
 
 export function useVondo(token: string): Vondo {
@@ -241,7 +243,16 @@ export function useVondo(token: string): Vondo {
   );
 
   const note = useCallback((text: string) => append("system", text), [append]);
+
+  const show = useCallback(
+    (image: string, said: string, question = "") => {
+      append("you", question || "Look at this.", { image });
+      append("jarvis", said, { brain: "vision" });
+    },
+    [append],
+  );
   const dismiss = useCallback(() => setAlert(null), []);
 
-  return { conn, state, brain, pcOnline, telemetry, log, queued, alert, dismiss, say, note };
+  return { conn, state, brain, pcOnline, telemetry, log, queued, alert, dismiss,
+           say, note, show };
 }

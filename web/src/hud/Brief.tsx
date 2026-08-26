@@ -26,6 +26,7 @@ export function Brief({ token, tick }: {
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [asked, setAsked] = useState(false); // opened by hand, not by the day
+  const [voiceNote, setVoiceNote] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -73,7 +74,21 @@ export function Brief({ token, tick }: {
         <span className="label">{asked ? "Today" : "Your briefing"}</span>
         <div className="brief-acts">
           {speech.available() && (
-            <button className="linkish label" onClick={() => speech.speak(text)}>
+            <button
+              className="linkish label"
+              onClick={async () => {
+                setVoiceNote("");
+                const spoke = await speech.speak(text);
+                // A button that does nothing and says nothing is the worst of
+                // both. If the device has no working voice, say so once.
+                if (!spoke) {
+                  setVoiceNote(
+                    "This device has no speech voice installed. Android: "
+                    + "Settings → Accessibility → Text-to-speech.",
+                  );
+                }
+              }}
+            >
               Read it
             </button>
           )}
@@ -81,6 +96,7 @@ export function Brief({ token, tick }: {
         </div>
       </div>
       <p className="brief-text">{text}</p>
+      {voiceNote && <p className="muted small">{voiceNote}</p>}
     </section>
   );
 }

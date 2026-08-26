@@ -17,33 +17,7 @@
 import { useRef, useState } from "react";
 
 import { look } from "../lib/api";
-
-const MAX_DIM = 1600; // Gemini gains nothing above this; the upload shrinks a lot.
-
-/** Shrink and re-encode before upload. A modern phone photo is several
-    megabytes of detail no vision model uses; this keeps a slow connection from
-    being the reason "show me" feels broken. */
-async function downscale(file: Blob): Promise<Blob> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
-    const w = Math.round(bitmap.width * scale);
-    const h = Math.round(bitmap.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.drawImage(bitmap, 0, 0, w, h);
-    return await new Promise((resolve) =>
-      canvas.toBlob((b) => resolve(b || file), "image/jpeg", 0.85),
-    );
-  } catch {
-    // A format the canvas cannot decode (HEIC on some browsers) still uploads
-    // as-is; the server handles the shrink-free case.
-    return file;
-  }
-}
+import { shrink } from "../lib/image";
 
 export function Vision({ token }: { token: string }) {
   const input = useRef<HTMLInputElement>(null);
@@ -64,7 +38,7 @@ export function Vision({ token }: { token: string }) {
       return url;
     });
     try {
-      const small = await downscale(file);
+      const small = await shrink(file);
       setSaid(await look(token, small));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't look at that.");

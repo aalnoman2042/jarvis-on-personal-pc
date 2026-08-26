@@ -134,7 +134,7 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
       </main>
 
       {open === "chat" && (
-        <ChatSheet jarvis={jarvis} voice={voice} onClose={() => setOpen("none")} />
+        <ChatSheet jarvis={jarvis} voice={voice} token={token} onClose={() => setOpen("none")} />
       )}
       {open === "settings" && (
         <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />

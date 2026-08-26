@@ -11,17 +11,24 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Mic } from "./Mic";
+import { look } from "../lib/api";
+import { shrink } from "../lib/image";
 import type { Voice } from "../lib/voice";
 
 const MAX_ROWS_PX = 120;
 
-export function Composer({ onSay, busy, voice }: {
+export function Composer({ onSay, busy, voice, token, onShow }: {
   onSay: (text: string) => void;
   busy: boolean;
   voice?: Voice;
+  /** Both needed to send a picture; omit them and the attach button hides. */
+  token?: string;
+  onShow?: (image: string, said: string, question?: string) => void;
 }) {
   const [text, setText] = useState("");
+  const [looking, setLooking] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
 
   // Height is measured, not guessed: reset to nothing, read what the content
   // needs, then set it. Doing it in an effect keeps it right after a send
@@ -41,6 +48,28 @@ export function Composer({ onSay, busy, voice }: {
     field.current?.focus();
   }
 
+  /** A picture goes into the conversation with whatever was typed as the
+      question — "what does this say?" alongside the photo, the way you would
+      hand something to a person. */
+  async function attach(file: File | undefined) {
+    if (!file || !token || !onShow) return;
+    const question = text.trim();
+    setText("");
+    setLooking(true);
+    // Kept as an object URL: the picture stays in this tab and never reaches
+    // the database. Only what Jarvis saw in it is remembered.
+    const preview = URL.createObjectURL(file);
+    try {
+      const said = await look(token, await shrink(file), question);
+      onShow(preview, said, question);
+    } catch (err) {
+      onShow(preview, err instanceof Error ? err.message : "I couldn't look at that.",
+             question);
+    }
+    setLooking(false);
+    if (picker.current) picker.current.value = "";
+  }
+
   return (
     <form
       className="composer bracket"
@@ -54,7 +83,9 @@ export function Composer({ onSay, busy, voice }: {
         rows={1}
         value={text}
         placeholder={
-          voice?.listening
+          looking
+            ? "Looking at that…"
+            : voice?.listening
             ? "Listening…"
             : voice?.working
               ? "Working out what you said…"
@@ -77,6 +108,27 @@ export function Composer({ onSay, busy, voice }: {
         }}
         aria-label="Message to Jarvis"
       />
+      {token && onShow && (
+        <>
+          <button
+            type="button"
+            className="attach"
+            onClick={() => picker.current?.click()}
+            disabled={looking}
+            aria-label="Show Jarvis a picture"
+            title="Show Jarvis a picture"
+          >
+            <span aria-hidden>{looking ? "···" : "⊹"}</span>
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => attach(e.target.files?.[0])}
+          />
+        </>
+      )}
       {voice && <Mic voice={voice} />}
       <button type="submit" className="send" disabled={!text.trim()} aria-label="Send">
         <span aria-hidden>&#9654;</span>

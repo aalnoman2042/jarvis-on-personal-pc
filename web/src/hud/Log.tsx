@@ -91,7 +91,12 @@ export function Log({ lines }: { lines: LogLine[] }) {
           <span className="line-who label">
             {line.who === "you" ? "You" : line.who === "jarvis" ? "Jarvis" : "sys"}
           </span>
-          <span className="line-text">{line.text}</span>
+          <span className="line-text">
+            {line.image && (
+              <img className="line-shot" src={line.image} alt="" />
+            )}
+            {line.text}
+          </span>
           {line.recalled?.length ? <Recalled items={line.recalled} /> : null}
         </div>
       ))}
