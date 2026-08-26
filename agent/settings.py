@@ -18,9 +18,11 @@ from core import config
 TOKEN_FILE = (os.getenv("VONDO_AGENT_TOKEN_FILE")
               or os.path.join(config.PROJECT_DIR, "agent.token"))
 
-# Where the cloud core lives. Defaults to a local server so the whole thing can
-# be run end-to-end on one machine before anything is deployed.
-CLOUD_URL = (os.getenv("VONDO_URL") or "http://127.0.0.1:8000").rstrip("/")
+# Where the cloud core lives. The deployed one by default — that is where Jarvis
+# actually is, and defaulting to localhost meant the agent quietly tried to reach
+# a server that was not running and reported the cloud as unreachable.
+# VONDO_URL still overrides it, which is how the tests point at a local server.
+CLOUD_URL = (os.getenv("VONDO_URL") or "https://vondo-core.onrender.com").rstrip("/")
 CLOUD_WS = CLOUD_URL.replace("https://", "wss://").replace("http://", "ws://")
 
 
