@@ -74,38 +74,146 @@ class Message:
 # Which mailboxes
 # ---------------------------------------------------------------------------
 
-def accounts() -> list[Account]:
-    """Every configured mailbox.
+# The IMAP host for the providers worth guessing. Typing a hostname correctly
+# into a dashboard is a surprising amount of the failure surface, and for a
+# gmail.com address there is exactly one right answer.
+KNOWN_HOSTS = {
+    "gmail.com": "imap.gmail.com",
+    "googlemail.com": "imap.gmail.com",
+    "outlook.com": "outlook.office365.com",
+    "hotmail.com": "outlook.office365.com",
+    "live.com": "outlook.office365.com",
+    "office365.com": "outlook.office365.com",
+    "yahoo.com": "imap.mail.yahoo.com",
+    "icloud.com": "imap.mail.me.com",
+    "me.com": "imap.mail.me.com",
+    "proton.me": "127.0.0.1",       # Proton needs its local bridge
+    "zoho.com": "imap.zoho.com",
+    "yandex.com": "imap.yandex.com",
+}
 
-    Read from VONDO_MAIL_1..9, each one pipe-separated:
+
+def _guess_host(address: str) -> str:
+    domain = address.rsplit("@", 1)[-1].lower().strip()
+    if domain in KNOWN_HOSTS:
+        return KNOWN_HOSTS[domain]
+    # A university mailbox is very often Google or Microsoft underneath, but
+    # guessing wrong is worse than asking, so this only prefixes the domain —
+    # imap.uni.edu is right often enough to be worth trying and obvious enough
+    # to correct when it is not.
+    return f"imap.{domain}" if domain else ""
+
+
+def _looks_like_a_secret(text: str) -> int:
+    """How much a field looks like an app password rather than a label.
+
+    Google issues sixteen lowercase letters and displays them in four groups of
+    four, so the spaces belong to the presentation and not the value. A label is
+    a word someone chose — "Personal", "University" — which is shorter, usually
+    capitalised, and may contain a space that matters.
+    """
+    squashed = text.replace(" ", "")
+    if not squashed:
+        return -99
+    points = 0
+    if len(squashed) == 16:
+        points += 3                       # exactly Google's shape
+    if len(squashed) >= 12:
+        points += 2
+    if squashed.isalnum():
+        points += 1
+    if squashed.islower():
+        points += 1                       # app passwords have no capitals
+    if len(squashed) <= 8:
+        points -= 2                       # too short to be a credential
+    return points
+
+
+def _split_secret(leftovers: list[str]) -> tuple[str, str]:
+    """(password, label) out of the fields that were neither address nor host."""
+    if not leftovers:
+        return ("", "")
+    if len(leftovers) == 1:
+        return (leftovers[0].replace(" ", ""), "")
+    ranked = sorted(leftovers, key=_looks_like_a_secret, reverse=True)
+    password = ranked[0].replace(" ", "")
+    label = next((f for f in leftovers if f is not ranked[0]), "")
+    return (password, label)
+
+
+def accounts() -> list[Account]:
+    """Every configured mailbox, read from VONDO_MAIL_1..9.
+
+    The full form is five fields:
 
         Label|imap.host.com|993|address@host.com|app-password
 
-    Numbered environment variables rather than one JSON blob because these are
-    typed into a hosting dashboard by hand, and a misplaced brace in a secret is
-    a bad afternoon. The port may be left out; 993 is assumed.
+    but almost none of that has to be typed. The address and the password are
+    the only two things nothing can work out, so this is enough:
+
+        you@gmail.com|abcdefghijklmnop
+
+    Deliberately forgiving about how the fields are separated and how they are
+    decorated. The strict version rejected both of Rohan's accounts and could
+    only say "malformed", because these get typed into a hosting dashboard by
+    hand and every way of getting that slightly wrong looks identical from here:
+    a comma instead of a pipe, quotes around the value, the key name pasted in
+    along with it, or the app password left with the spaces Google displays it
+    with. Every one of those now parses.
     """
     found: list[Account] = []
     for i in range(1, 10):
-        raw = os.getenv(f"VONDO_MAIL_{i}", "").strip()
+        key = f"VONDO_MAIL_{i}"
+        raw = os.getenv(key, "").strip()
         if not raw:
             continue
-        parts = [p.strip() for p in raw.split("|")]
-        if len(parts) == 4:                     # port omitted
-            label, host, user, password = parts
-            port = 993
-        elif len(parts) == 5:
-            label, host, port_text, user, password = parts
-            try:
-                port = int(port_text)
-            except ValueError:
-                port = 993
-        else:
-            log.warning("VONDO_MAIL_%d is malformed; expected 4 or 5 fields", i)
+
+        # "VONDO_MAIL_1 = value" pasted whole, and surrounding quotes.
+        raw = re.sub(r"^\s*VONDO_MAIL_\d+\s*=\s*", "", raw, flags=re.I)
+        raw = raw.strip().strip('"').strip("'").strip()
+
+        # Pipe is the documented separator; comma and semicolon are what people
+        # reach for instead, and none of them can appear in a hostname or an
+        # app password, so accepting all three costs nothing.
+        parts = [p.strip().strip('"').strip("'")
+                 for p in re.split(r"[|;,]", raw) if p.strip()]
+        if not parts:
+            log.warning("%s is empty after parsing", key)
             continue
-        if not (host and user and password):
+
+        # Work out which field is which by what it looks like, rather than by
+        # where it sits. An address contains @; a port is digits; a host has a
+        # dot and no @. What is left over is the password, and then the label.
+        address = next((p for p in parts if "@" in p and "." in p), "")
+        port = next((int(p) for p in parts if p.isdigit() and len(p) <= 5), 993)
+        host = next((p for p in parts
+                     if "@" not in p and "." in p and not p.replace(".", "").isdigit()), "")
+        leftovers = [p for p in parts
+                     if p != address and p != host and not p.isdigit()]
+
+        if not address:
+            log.warning("%s: no email address found among %d field(s)", key, len(parts))
             continue
-        found.append(Account(label or user, host, port, user, password))
+
+        # Which leftover is the password and which is the label, decided by what
+        # they look like rather than by which came first. Taking the first one
+        # read "Personal" out of the documented form as the password and the
+        # real password as the label — quietly, since a wrong password only
+        # shows up later as a login failure.
+        password, label = _split_secret(leftovers)
+
+        if not password:
+            log.warning("%s: found an address but no password (%d field(s))",
+                        key, len(parts))
+            continue
+
+        host = host or _guess_host(address)
+        if not host:
+            log.warning("%s: could not work out an IMAP host for that address", key)
+            continue
+
+        found.append(Account(label or address, host, port, address, password))
+        log.info("mailbox %d ready: %s via %s:%d", i, address, host, port)
     return found
 
 
