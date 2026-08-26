@@ -246,6 +246,41 @@ worse than one that behaves the same everywhere.
 update from the cloud; permissions live in the manifest. Adding either is one of
 the rare times a reinstall is genuinely required.
 
+## The phone as a device, not just a screen (phase 07)
+
+`core/phone.py` opens things on the phone in your hand. It exists because "my
+PC is off" had exactly one answer before, and that answer was no.
+
+**The fallback rule: PC first, phone second, refuse last.** `_pc_then_phone` in
+both `llm_tools` and `brain_free` tries the desktop, and hands the job to the
+phone when there is no desktop. A big screen is usually what "open YouTube"
+means, so the PC still wins when it is awake.
+
+But this only applies where the phone has a real second answer. **Reading the
+PC's CPU has none** — there is one PC, it is asleep, and inventing a number
+would be worse than saying so. `test_server.py` section 5 pins both halves:
+opening falls back, reading does not.
+
+**Android will not let one app drive another, and nothing here pretends
+otherwise.** No reading another app's screen, no tapping its buttons, no reading
+notifications. What an app *can* do is hand something off — a URL, a number, a
+map reference, a pre-filled message — and that is the whole module.
+
+**Nothing is sent or dialled automatically.** `call` opens the dialler with the
+number in it; `message` opens WhatsApp with the text typed. The last tap stays
+with the person whose name is on it, because a misheard sentence that places a
+call is not a mistake you can take back.
+
+**The instruction rides on the reply.** The brain runs in the cloud and cannot
+open anything, so a tool leaves a URL in `phone._pending` and `_answer` attaches
+it to the reply frame — taken *inside* the brain lock, so it can only belong to
+the turn that just finished. The client opens it with `window.open(url,
+"_system")`, which is what makes Capacitor hand it to Android instead of loading
+it in the WebView.
+
+**No new plugin, so no new APK.** Capacitor already routes unknown schemes to
+the OS. That was worth checking before adding a dependency.
+
 ## The HUD (phase 04)
 
 `web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud

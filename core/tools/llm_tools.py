@@ -13,12 +13,37 @@ import functools
 from core.lazy import actions
 from core import confirm
 from core import memory
+from core import phone
 from core import reminders
 
 
+def _pc_then_phone(on_pc, target: str) -> str:
+    """Do it on the desktop; if there is no desktop, do it on the phone.
+
+    "Open YouTube" with the PC asleep used to be answered with "your PC is
+    offline" — from a phone perfectly capable of opening YouTube. The desktop is
+    still preferred when it is awake, because a big screen is usually what is
+    meant; falling back is strictly better than refusing.
+
+    Both the raised and the returned form of "offline" are handled: the agent
+    hook raises in some paths and answers politely in others.
+    """
+    try:
+        result = on_pc()
+    except Exception:  # noqa: BLE001  (PCOffline, or the agent went mid-call)
+        return phone.open_app(target)
+    if "offline" in str(result).lower():
+        return phone.open_app(target)
+    return result
+
+
 def open_app(name: str) -> str:
-    """Open a desktop application by name (e.g. 'chrome', 'notepad', 'spotify')."""
-    return actions.open_app(name)
+    """Open an application. Tries the PC first, then the phone in your hand.
+
+    Use for "open chrome", "open youtube", "open spotify" — anywhere the user
+    did not say which device.
+    """
+    return _pc_then_phone(lambda: actions.open_app(name), name)
 
 
 def close_app(name: str) -> str:
@@ -37,8 +62,11 @@ def close_app(name: str) -> str:
 
 
 def open_website(target: str) -> str:
-    """Open a website. Accepts a shortcut ('youtube'), a domain, or a full URL."""
-    return actions.open_website(target)
+    """Open a website. Accepts a shortcut ('youtube'), a domain, or a full URL.
+
+    Opens on the PC when it is awake, and on the phone when it is not.
+    """
+    return _pc_then_phone(lambda: actions.open_website(target), target)
 
 
 def web_open_search(query: str) -> str:
@@ -103,6 +131,38 @@ def write_code(filename: str, content: str) -> str:
     you saved.
     """
     return actions.write_code(filename, content)
+
+
+def open_on_phone(target: str) -> str:
+    """Open an app or website ON THE PHONE — YouTube, WhatsApp, Maps, a URL.
+
+    Use when the PC is offline, or when the user says "on my phone". If the PC
+    is awake and they did not say which, open_app is usually what they mean.
+    """
+    return phone.open_app(target)
+
+
+def call_number(number: str, who: str = "") -> str:
+    """Bring up the phone's dialler with a number ready. Does not dial.
+
+    'number' must be the actual number. If you only have a name, look for it in
+    what you remember about the user first, and ask if it is not there.
+    """
+    return phone.call(number, who)
+
+
+def message_on_whatsapp(number: str, text: str = "", who: str = "") -> str:
+    """Open WhatsApp on a chat with the message typed in. Does not send it.
+
+    'number' must be the actual number, with country code. If you only have a
+    name, look in what you remember about the user, and ask if it is not there.
+    """
+    return phone.message(number, text, who)
+
+
+def navigate_to(place: str) -> str:
+    """Open maps with directions to somewhere."""
+    return phone.navigate(place)
 
 
 def remind(when: str, message: str, warn: str = "") -> str:
@@ -202,6 +262,7 @@ TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder,
+    open_on_phone, call_number, message_on_whatsapp, navigate_to,
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
 ]
@@ -304,6 +365,21 @@ OPENAI_TOOLS = [
            "message": _STR("What it is, in a few words"),
            "warn": _STR("Optional, to be told in advance: 'the day before'")},
           ["when", "message"]),
+    _tool("open_on_phone",
+          "Open an app or website ON THE PHONE (youtube, whatsapp, maps, a URL). "
+          "Use when the PC is offline or they said 'on my phone'.",
+          {"target": _STR("App name, site, or URL")}, ["target"]),
+    _tool("call_number",
+          "Bring up the phone's dialler with a number ready. Does not dial.",
+          {"number": _STR("The number, with country code"),
+           "who": _STR("Who it is, if known")}, ["number"]),
+    _tool("message_on_whatsapp",
+          "Open WhatsApp on a chat with the message typed in. Does not send.",
+          {"number": _STR("The number, with country code"),
+           "text": _STR("What to type"),
+           "who": _STR("Who it is, if known")}, ["number"]),
+    _tool("navigate_to", "Open maps with directions somewhere.",
+          {"place": _STR("Where to go")}, ["place"]),
     _tool("check_agenda",
           "See what is coming up. Use for 'what's coming up', 'what do I have "
           "tomorrow', 'when is my exam'."),

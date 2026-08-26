@@ -45,6 +45,7 @@ from core import ears
 from core import eyes
 from core.brains import factory
 from core import memory
+from core import phone
 from core import reminders
 from core.memory import agenda as agenda_store
 from core.memory import store
@@ -232,8 +233,15 @@ async def _answer(text: str) -> dict:
     brain = get_brain()
     async with _brain_lock:
         reply = await run_in_threadpool(brain.handle, text)
-    return {"reply": reply, "brain": getattr(brain, "name", "brain"),
-            "pc_online": agents.registry.online()}
+        # A tool may have asked the phone to open something. Taken inside the
+        # lock, so it can only ever belong to the turn that just finished — a
+        # concurrent turn cannot walk off with someone else's instruction.
+        opening = phone.take()
+    answer = {"reply": reply, "brain": getattr(brain, "name", "brain"),
+              "pc_online": agents.registry.online()}
+    if opening:
+        answer["open"] = opening
+    return answer
 
 
 @app.post("/chat")

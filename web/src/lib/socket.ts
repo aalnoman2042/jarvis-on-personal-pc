@@ -23,6 +23,31 @@ import type { ReactorState } from "../hud/reactorEngine";
 const BACKOFF_START = 800;
 const BACKOFF_MAX = 20000;
 
+/** Hand a URL or deep link to the operating system.
+ *
+ * `_system` is what Capacitor watches for: it hands the URL to Android rather
+ * than loading it inside the WebView, which is the difference between WhatsApp
+ * opening and a blank page where WhatsApp should be. A plain https link is fine
+ * either way, so one path covers both.
+ *
+ * Wrapped because a scheme with no app behind it throws rather than failing
+ * quietly, and a missing app is not worth breaking the reply over.
+ */
+function openOnDevice(url: string): void {
+  try {
+    const win = window.open(url, "_system");
+    // Some WebViews return null instead of navigating. Falling back to a plain
+    // assignment still reaches Capacitor's URL handler.
+    if (!win) location.href = url;
+  } catch {
+    try {
+      location.href = url;
+    } catch {
+      /* nothing else to try; the reply already said what was meant to happen */
+    }
+  }
+}
+
 export interface Vondo {
   conn: ConnState;
   state: ReactorState;
@@ -113,6 +138,10 @@ export function useVondo(token: string): Vondo {
           setPcOnline(frame.pc_online);
           setState("online");
           append("jarvis", frame.reply, { brain: frame.brain });
+          // A tool asked the phone to open something — YouTube, a dialler, a
+          // map. Done here rather than in a component because it must happen
+          // whether or not the conversation drawer is on screen.
+          if (frame.open) openOnDevice(frame.open);
           break;
         case "telemetry":
           setTelemetry({

@@ -151,6 +151,12 @@ Reminders reach you three ways, and the phone one is the one that matters:
 A reminder that comes due with nothing listening is **not** thrown away — it
 waits and arrives the moment you open the app.
 
+**It uses the phone when the PC is asleep.** *"Open YouTube"*, *"call dad"*,
+*"message Rifat on WhatsApp"*, *"navigate to CUET"* — the desktop still wins
+when it is awake, and the phone catches it when it is not. Calls and messages
+are opened ready, never sent: the last tap stays with you. Reading the PC's CPU
+still says it is offline, because there is no second answer to that one.
+
 **The board is the home screen.** Opening the app shows what is coming up, your
 PC's CPU and memory, how much is remembered and which brain is answering.
 Talking to it is the button in the corner.

@@ -110,9 +110,28 @@ try:
     check("  and turn 2 is the newest", turns[-1]["user"], contains="what time is it")
 
     print("\n=== 5. a PC action with no PC connected ===")
-    r = httpx.post(f"{BASE}/chat", headers=auth_phone, json={"message": "open chrome"}, timeout=30)
+    #
+    # Two different outcomes, and the difference is the point.
+    #
+    # Opening something has a second answer: the phone in your hand can open
+    # YouTube perfectly well, so a sleeping PC falls back to it rather than
+    # refusing. This used to say "your PC is offline" to a device holding a
+    # browser, which was true and useless.
+    r = httpx.post(f"{BASE}/chat", headers=auth_phone,
+                   json={"message": "open youtube"}, timeout=30)
     check("answers immediately instead of hanging", r.status_code, 200)
-    check("  and says the PC is offline", r.json()["reply"], contains="offline")
+    check("  opening falls back to the phone", r.json()["reply"], contains="opening")
+    check("  and the phone is told where to go", r.json().get("open", ""),
+          contains="youtube")
+    print(f"         -> {r.json()['reply'][:60]!r} open={r.json().get('open')!r}")
+
+    # Reading this machine's CPU has no second answer. There is exactly one PC
+    # and it is asleep, so saying so is the honest thing — falling back to
+    # anything here would mean inventing numbers.
+    r = httpx.post(f"{BASE}/chat", headers=auth_phone,
+                   json={"message": "what is my system status"}, timeout=30)
+    check("  but reading the PC still says it is offline",
+          r.json()["reply"], contains="offline")
     print(f"         -> {r.json()['reply'][:80]!r}")
 
     print("\n=== 6. now connect a PC agent and try again ===")

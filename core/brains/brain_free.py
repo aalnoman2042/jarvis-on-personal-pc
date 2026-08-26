@@ -10,6 +10,7 @@ import re
 
 from core.lazy import actions
 from core import config
+from core import phone
 from core.tools import llm_tools
 
 # Things you can "turn off" that are emphatically not the computer. Without
@@ -25,6 +26,24 @@ _NOT_THE_PC = (
 def _means_the_pc(text: str) -> bool:
     """True if "shut down" / "turn off" was aimed at the PC and nothing else."""
     return not any(word in text for word in _NOT_THE_PC)
+
+
+def _pc_then_phone(on_pc, target: str) -> str:
+    """Desktop if it is awake, the phone in your hand if it is not.
+
+    The rule-based brain calls actions.* directly rather than through the
+    dispatcher, so it needs its own copy of this — the same reason PC routing
+    lives in core.lazy rather than in llm_tools. Without it, "open youtube" from
+    a phone with the PC off is refused by the one brain most likely to be
+    answering when everything else has failed.
+    """
+    try:
+        result = on_pc()
+    except Exception:  # noqa: BLE001  (PCOffline, or the agent went mid-call)
+        return phone.open_app(target)
+    if "offline" in str(result).lower():
+        return phone.open_app(target)
+    return result
 
 
 def _search_or_answer(query: str) -> str:
@@ -152,14 +171,15 @@ class FreeBrain:
         if m:
             target = m.group(1).strip()
             if target in actions.SITE_SHORTCUTS or ".com" in target or "website" in target:
-                return actions.open_website(target.replace(" website", ""))
-            return actions.open_app(target)
+                site = target.replace(" website", "")
+                return _pc_then_phone(lambda: actions.open_website(site), site)
+            return _pc_then_phone(lambda: actions.open_app(target), target)
         m = re.search(r"(?:go to|launch|start)\s+(.+)", t)
         if m:
             target = m.group(1).strip()
             if target in actions.SITE_SHORTCUTS or ".com" in target:
-                return actions.open_website(target)
-            return actions.open_app(target)
+                return _pc_then_phone(lambda: actions.open_website(target), target)
+            return _pc_then_phone(lambda: actions.open_app(target), target)
 
         # --- Explicit web search ---
         #

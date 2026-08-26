@@ -33,7 +33,15 @@ export interface AgendaItem {
 /** Frames the server sends down /ws/client. */
 export type ServerFrame =
   | { type: "status"; state: string; brain?: string; pc_online?: boolean }
-  | { type: "reply"; reply: string; brain: string; pc_online: boolean }
+  | {
+      type: "reply";
+      reply: string;
+      brain: string;
+      pc_online: boolean;
+      /** Somewhere the phone was asked to go — a URL or a deep link like
+          tel: or whatsapp:. Present only when a tool asked for it. */
+      open?: string;
+    }
   | { type: "token"; text: string }
   | ({ type: "telemetry" } & Telemetry)
   | { type: "reminder"; id: number; text: string; message: string; due: number; all_day: boolean }
