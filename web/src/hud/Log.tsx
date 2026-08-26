@@ -25,6 +25,17 @@ export function Log({ lines }: { lines: LogLine[] }) {
     if (atBottom) end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [lines]);
 
+  // The keyboard opening takes a few hundred pixels off the log without moving
+  // its scroll position, which leaves the newest line hidden above the fold at
+  // the exact moment you are replying to it.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const pin = () => end.current?.scrollIntoView({ block: "end" });
+    vv.addEventListener("resize", pin);
+    return () => vv.removeEventListener("resize", pin);
+  }, []);
+
   if (!lines.length) {
     return (
       <div className="log log-empty" ref={box}>

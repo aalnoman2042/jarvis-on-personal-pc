@@ -3,9 +3,14 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import { isApp } from "./lib/endpoint";
+import { trackViewport } from "./lib/viewport";
 import "./fonts.css";
 import "./theme.css";
 import "./hud.css";
+
+// Before first paint, so the shell is never laid out against a height that is
+// about to change.
+trackViewport();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

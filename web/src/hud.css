@@ -5,6 +5,7 @@
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
+  overflow: hidden; /* the log scrolls; the shell never does */
   max-width: 1240px;
   margin: 0 auto;
   padding: 0 var(--s3);
@@ -281,6 +282,9 @@
   display: grid;
   place-items: center;
   height: 100%;
+  /* The page itself can no longer scroll, so a card taller than a short phone
+     scrolls here or not at all. */
+  overflow-y: auto;
   padding: var(--s4);
 }
 
@@ -357,8 +361,13 @@
   .hud {
     padding: 0 var(--s2);
   }
+  /* One column, and — the part that matters — explicit rows. Left to `auto`
+     the conversation grows with every message until it pushes the composer off
+     the bottom of the screen. `1fr auto` pins the composer and makes the log
+     the only thing that scrolls. */
   .stage {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
     gap: var(--s3);
     padding: var(--s3) 0;
   }
@@ -522,6 +531,41 @@
     width: clamp(120px, 30vw, 170px);
     height: clamp(120px, 30vw, 170px);
   }
+  /* The composer is the one thing that must never be scrolled away from. */
+  .composer {
+    position: sticky;
+    bottom: 0;
+    background: var(--ground);
+    z-index: 2;
+  }
+}
+
+/* ---------- while the keyboard is up ----------
+   About 300px of a phone screen has just gone. The reactor is atmosphere and
+   the conversation is the point, so the reactor gets small, the telemetry
+   gutter steps out entirely, and what is left is: what was said, and where you
+   type. It comes back the moment the keyboard closes.
+   Driven by a class on <html> from lib/viewport.ts — CSS alone cannot see a
+   keyboard. */
+.keyboard-up .reactor {
+  width: 44px;
+  height: 44px;
+}
+.keyboard-up .reactor-wrap {
+  flex-direction: row;
+  justify-content: center;
+  gap: var(--s2);
+}
+.keyboard-up .gutter {
+  display: none;
+}
+.keyboard-up .stage {
+  padding-top: var(--s2);
+  gap: var(--s2);
+}
+.keyboard-up .sweep,
+.keyboard-up .frame {
+  display: none;
 }
 
 /* ---------- settings sheet ---------- */
