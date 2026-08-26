@@ -13,6 +13,7 @@ import functools
 from core.lazy import actions
 from core import confirm
 from core import memory
+from core import reminders
 
 
 def open_app(name: str) -> str:
@@ -104,10 +105,37 @@ def write_code(filename: str, content: str) -> str:
     return actions.write_code(filename, content)
 
 
-def set_reminder(minutes: str, message: str) -> str:
-    """Set a spoken reminder. 'minutes' = how many minutes from now (a number),
-    'message' = what to remind about. Convert hours to minutes yourself."""
-    return actions.set_reminder(minutes, message)
+def remind(when: str, message: str, warn: str = "") -> str:
+    """Put something in the diary: an appointment, a deadline, a task, an exam.
+
+    'when' is when it happens, in the user's own words — "in 20 minutes",
+    "tomorrow at 5pm", "18 September", "next Thursday". Pass the phrase through;
+    do NOT convert it to a date yourself.
+    'message' is what it is, in a few words.
+    'warn' is optional and only for things worth knowing about in advance:
+    "the day before", "an hour before".
+
+    Use this whenever the user mentions something happening at a time — they do
+    not have to say the word "remind".
+    """
+    return reminders.schedule(when, message, warn)
+
+
+def check_agenda() -> str:
+    """See what is coming up: reminders, deadlines, appointments, events.
+
+    Use for "what's coming up", "what do I have tomorrow", "when is my exam",
+    or before answering anything about the user's plans.
+    """
+    return reminders.upcoming_text()
+
+
+def cancel_reminder(fragment: str) -> str:
+    """Drop upcoming reminders matching a word or phrase ('all' clears them)."""
+    dropped = reminders.cancel(fragment)
+    if not dropped:
+        return "Nothing upcoming matched that."
+    return f"Cancelled {dropped} item{'s' if dropped != 1 else ''}."
 
 
 def get_time() -> str:
@@ -172,7 +200,8 @@ def set_autostart(action: str) -> str:
 
 TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
-    write_code, remember, forget, active_window, top_processes, set_reminder,
+    write_code, remember, forget, active_window, top_processes,
+    remind, check_agenda, cancel_reminder,
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
 ]
@@ -267,9 +296,19 @@ OPENAI_TOOLS = [
           {"fragment": _STR("Word or phrase to forget")}, ["fragment"]),
     _tool("web_open_search", "Open a Google search page in the browser, when asked to.",
           {"query": _STR("What to search for")}, ["query"]),
-    _tool("set_reminder", "Set a spoken reminder after some minutes from now.",
-          {"minutes": _STR("Minutes from now (number)"),
-           "message": _STR("What to remind about")}, ["minutes", "message"]),
+    _tool("remind",
+          "Put something in the diary: an appointment, deadline, task or event. "
+          "Use whenever the user mentions a thing happening at a time.",
+          {"when": _STR("When it happens, in their words: 'in 20 minutes', "
+                        "'tomorrow at 5pm', '18 September'. Do not convert it."),
+           "message": _STR("What it is, in a few words"),
+           "warn": _STR("Optional, to be told in advance: 'the day before'")},
+          ["when", "message"]),
+    _tool("check_agenda",
+          "See what is coming up. Use for 'what's coming up', 'what do I have "
+          "tomorrow', 'when is my exam'."),
+    _tool("cancel_reminder", "Drop upcoming reminders matching a word ('all' clears them).",
+          {"fragment": _STR("Word or phrase to cancel")}, ["fragment"]),
     _tool("get_time", "Get the current local time."),
     _tool("get_date", "Get today's date."),
     _tool("system_info", "Get CPU, memory, and battery status of this PC."),
@@ -301,7 +340,7 @@ OPENAI_TOOLS = [
 # ---------------------------------------------------------------------------
 _LOCAL_SKIP = {
     "read_webpage", "write_code", "set_autostart",
-    "open_website", "web_open_search", "power_control",
+    "open_website", "web_open_search", "power_control", "cancel_reminder",
 }
 OPENAI_TOOLS_LITE = [t for t in OPENAI_TOOLS
                      if t["function"]["name"] not in _LOCAL_SKIP]

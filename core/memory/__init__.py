@@ -26,7 +26,9 @@ files to SQLite happen without touching a single brain.
 """
 from __future__ import annotations
 
+from core import clock
 from core import config
+from core.memory import agenda as _agenda_mod
 from core.memory import facts as _facts_mod
 from core.memory import migrate as _migrate
 from core.memory import store
@@ -46,6 +48,16 @@ facts = _facts_mod.facts
 add_fact = _facts_mod.add
 forget_fact = _facts_mod.forget
 facts_block = _facts_mod.block
+
+# --- what is still ahead ---------------------------------------------------
+#
+# Exposed as functions, not as `agenda = _agenda_mod`, on purpose: `facts` was
+# bound to a function here and has shadowed the submodule of the same name twice
+# now (see the note in CLAUDE.md). One trap of that shape is enough.
+upcoming = _agenda_mod.upcoming
+schedule_count = _agenda_mod.count
+agenda_block = _agenda_mod.block
+describe_item = _agenda_mod.describe
 
 # --- where v1 kept things, for anything that still refers to them ---------
 HISTORY_FILE = _migrate.HISTORY_FILE
@@ -73,7 +85,13 @@ def system_prompt() -> str:
     at import, so a fact remembered mid-session wouldn't reach the model until a
     restart — and config importing memory would be a circular import.
     """
-    return config.system_prompt() + facts_block()
+    # Today's date matters more than it looks. Without it a model dates
+    # everything from its training cut-off, so "next Thursday" lands in the
+    # wrong year and nobody finds out until the reminder does not arrive.
+    return (config.system_prompt()
+            + f"\n\nRight now it is {clock.today_line()}."
+            + facts_block()
+            + agenda_block())
 
 
 # ---------------------------------------------------------------------------

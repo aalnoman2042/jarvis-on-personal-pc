@@ -43,8 +43,10 @@ from starlette.concurrency import run_in_threadpool
 from core import config
 from core.brains import factory
 from core import memory
+from core import reminders
+from core.memory import agenda as agenda_store
 from core.memory import store
-from server import agents, auth
+from server import agents, auth, nudges
 
 log = logging.getLogger("vondo")
 
@@ -72,9 +74,19 @@ def get_brain():
 async def lifespan(app: FastAPI):
     store.connect()                                   # open the database, migrate v1 files
     agents.install_hook(asyncio.get_running_loop())   # PC tools now route to the agent
-    log.info("vondo core up | pin set: %s | devices: %d",
-             bool(auth.PIN), auth.device_count())
-    yield
+    stop = asyncio.Event()
+    # Watches the diary. Cheap — one indexed query every thirty seconds — and it
+    # is the only reason a reminder set on the phone ever arrives anywhere.
+    sweeper = asyncio.create_task(nudges.loop(stop))
+    log.info("vondo core up | pin set: %s | devices: %d | upcoming: %d",
+             bool(auth.PIN), auth.device_count(), agenda_store.count())
+    try:
+        yield
+    finally:
+        stop.set()
+        sweeper.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sweeper
 
 
 app = FastAPI(title="VONDO core", version="2.0.0-dev", lifespan=lifespan)
@@ -283,7 +295,69 @@ async def status(device: dict = Depends(caller)):
         "exchanges_remembered": store.count(),
         "pc": agents.registry.status(),
         "devices": len(auth.devices()),
+        "upcoming": agenda_store.count(),
     }
+
+
+# ---------------------------------------------------------------------------
+# The diary
+# ---------------------------------------------------------------------------
+
+class RemindIn(BaseModel):
+    when: str = Field(min_length=1, max_length=120)
+    message: str = Field(min_length=1, max_length=500)
+    warn: str = Field(default="", max_length=60)
+
+
+@app.get("/agenda")
+async def get_agenda(device: dict = Depends(caller)):
+    """What is coming up, soonest first — the dashboard's UP NEXT panel.
+
+    `said` is the same line Jarvis would speak, so a screen and a spoken answer
+    can never disagree about what is in the diary.
+    """
+    items = await run_in_threadpool(agenda_store.upcoming, 20)
+    return {
+        "items": [{**item, "said": agenda_store.describe(item)} for item in items],
+        "count": len(items),
+    }
+
+
+@app.post("/agenda")
+async def add_agenda(body: RemindIn, device: dict = Depends(caller)):
+    """Add something without going through a brain.
+
+    Worth having on its own: typing a date into a form should not depend on a
+    free tier being up, and the offline outbox needs somewhere to replay to.
+    """
+    said = await run_in_threadpool(reminders.schedule, body.when, body.message, body.warn)
+    items = await run_in_threadpool(agenda_store.upcoming, 20)
+    return {"said": said,
+            "items": [{**item, "said": agenda_store.describe(item)} for item in items]}
+
+
+@app.delete("/agenda/{item_id}")
+async def drop_agenda(item_id: int, device: dict = Depends(caller)):
+    dropped = await run_in_threadpool(agenda_store.cancel_id, item_id)
+    items = await run_in_threadpool(agenda_store.upcoming, 20)
+    return {"dropped": dropped,
+            "items": [{**item, "said": agenda_store.describe(item)} for item in items]}
+
+
+@app.post("/tick")
+async def tick():
+    """Wake up, look at the diary, deliver anything due.
+
+    Unauthenticated on purpose, and it does nothing an anonymous caller could
+    misuse: no arguments, no output but a count, and the work is identical to
+    what the server does by itself every thirty seconds.
+
+    It exists because the free tier sleeps after a quarter of an hour with no
+    traffic, and a sleeping server has no timers. An external cron hitting this
+    every few minutes is what keeps a 7am reminder possible at all.
+    """
+    sent = await nudges.deliver_due()
+    return {"ok": True, "delivered": sent, "listening": nudges.listeners.count()}
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +381,12 @@ async def ws_client(websocket: WebSocket):
         "brain": getattr(get_brain(), "name", "?"),
         "pc_online": agents.registry.online(),
     }))
+
+    nudges.listeners.add(websocket)
+    # Anything that came due while nobody had the app open is waiting, not lost.
+    # It arrives the moment there is someone to tell — which is the whole reason
+    # the sweeper refuses to mark an item delivered into an empty room.
+    await nudges.deliver_due()
 
     try:
         while True:
@@ -337,8 +417,14 @@ async def ws_client(websocket: WebSocket):
                     {"type": "error", "error": f"Something went wrong: {exc}"}))
                 continue
             await websocket.send_text(json.dumps({"type": "reply", **answer}))
+            # A turn may well have just put something in the diary for one
+            # minute from now. Looking straight after means it arrives then,
+            # rather than up to thirty seconds late.
+            await nudges.deliver_due()
     except WebSocketDisconnect:
         pass
+    finally:
+        nudges.listeners.remove(websocket)
 
 
 # ---------------------------------------------------------------------------

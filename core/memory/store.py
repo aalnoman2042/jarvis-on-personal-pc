@@ -45,9 +45,11 @@ _initialised = False
 
 # --- schema ---------------------------------------------------------------
 #
-# `device` and the devices/reminders/settings tables are unused today. They are
-# here because adding a column to an empty schema costs nothing, while migrating
-# a live one later costs a phase. Phases 02 and 03 fill them in.
+# Written to be run on every start: everything is IF NOT EXISTS, and columns
+# added after a database already exists go in _LATER_COLUMNS below, because
+# CREATE TABLE IF NOT EXISTS silently does nothing to a table that is already
+# there. Forgetting that is how a live database ends up one column behind its
+# own schema string, with the mismatch only showing up on the deployed copy.
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
@@ -87,12 +89,19 @@ CREATE TABLE IF NOT EXISTS devices (
     revoked    INTEGER NOT NULL DEFAULT 0
 );
 
+-- What is coming, rather than what was said. `due` is when the thing happens;
+-- `remind_at` is when to mention it, which is earlier for anything worth being
+-- warned about. See core/memory/agenda.py.
 CREATE TABLE IF NOT EXISTS reminders (
-    id      INTEGER PRIMARY KEY,
-    due     REAL NOT NULL,
-    message TEXT NOT NULL,
-    created REAL NOT NULL,
-    fired   INTEGER NOT NULL DEFAULT 0
+    id        INTEGER PRIMARY KEY,
+    due       REAL NOT NULL,
+    message   TEXT NOT NULL,
+    created   REAL NOT NULL,
+    fired     INTEGER NOT NULL DEFAULT 0,
+    remind_at REAL NOT NULL DEFAULT 0,
+    all_day   INTEGER NOT NULL DEFAULT 0,
+    kind      TEXT NOT NULL DEFAULT 'reminder',
+    device    TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -130,6 +139,17 @@ CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
 END;
 """
 
+# Columns added to a table that already existed in the wild. SQLite has no
+# "ADD COLUMN IF NOT EXISTS", so each is attempted and the duplicate-column
+# error ignored — cheap, idempotent, and it works the same on Turso, which
+# raises its own error type rather than sqlite3's.
+_LATER_COLUMNS = (
+    ("reminders", "remind_at REAL NOT NULL DEFAULT 0"),
+    ("reminders", "all_day INTEGER NOT NULL DEFAULT 0"),
+    ("reminders", "kind TEXT NOT NULL DEFAULT 'reminder'"),
+    ("reminders", "device TEXT NOT NULL DEFAULT ''"),
+)
+
 has_search = True  # flipped off below if this SQLite build lacks FTS5
 
 
@@ -162,6 +182,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     global _initialised, has_search
     with _init_lock:
         conn.executescript(_SCHEMA)
+        for table, column in _LATER_COLUMNS:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+                conn.commit()
+            except Exception:  # noqa: BLE001  (already there, which is the usual case)
+                pass
         try:
             conn.executescript(_FTS)
         except Exception:  # noqa: BLE001
