@@ -133,6 +133,26 @@ export async function state(): Promise<NotifyState> {
       typeof Notification === "undefined"
         ? "unsupported"
         : (Notification.permission as Permission);
+
+    // Being inside the app with no alarm plugin is a completely different
+    // problem from being in a browser tab, and reporting them the same way sent
+    // everyone looking in the wrong place. It means the installed APK was built
+    // before the plugin existed — the web half updates itself from the cloud,
+    // the native half cannot — so reminders show up inside the app (the socket
+    // still works) and never reach the notification bar.
+    if (native) {
+      return {
+        native: true,
+        permission: browser,
+        scheduled: 0,
+        exact: null,
+        problem:
+          "This app build has no alarm support, so reminders can only appear "
+          + "while it is open. Uninstall Jarvis and install the newest APK — "
+          + "screens update themselves, this part cannot.",
+      };
+    }
+
     return {
       native: false,
       permission: browser,

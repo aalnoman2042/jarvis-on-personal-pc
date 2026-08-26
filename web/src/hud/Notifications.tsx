@@ -51,7 +51,13 @@ export function Notifications() {
       <h3 className="panel-head">
         {working ? "Working" : info.permission === "granted" ? "Partly" : "Not yet"}
         <span className={`chip panel-badge ${working ? "chip-good" : "chip-warn"}`}>
-          {info.native ? "APP" : "BROWSER"}
+          {/* "APP · NO ALARMS" is its own state: inside the app, but this build
+              predates the alarm plugin. Reminders then appear in the app and
+              never in the notification bar, which is exactly the symptom that
+              is impossible to diagnose if it is labelled BROWSER. */}
+          {!info.native ? "BROWSER" : info.scheduled === 0 && info.exact === null
+            ? "APP · NO ALARMS"
+            : "APP"}
         </span>
       </h3>
 
