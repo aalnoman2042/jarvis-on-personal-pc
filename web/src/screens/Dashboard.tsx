@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Gauge } from "../hud/Gauge";
 import { Reactor } from "../hud/Reactor";
 import { dropAgenda, me } from "../lib/api";
+import { askPermission, syncAlarms } from "../lib/notify";
 import type { Me } from "../lib/types";
 import type { Vondo } from "../lib/socket";
 
@@ -67,12 +68,24 @@ export function Dashboard({ token, jarvis, onOpenChat, onSettings }: {
 
   async function load() {
     try {
-      setInfo(await me(token));
+      const next = await me(token);
+      setInfo(next);
+      // Hand the diary to the phone's own alarm clock. This is what makes a
+      // reminder arrive with the app shut, the phone offline and the free-tier
+      // server asleep — the three conditions the websocket cannot survive.
+      syncAlarms(next.upcoming ?? []);
     } catch {
       // A board that cannot load is not an error worth a red banner: the socket
       // above it already says whether there is a connection at all.
     }
   }
+
+  // Asked once, on the first board, and only after something is in the diary
+  // worth being told about — a permission prompt on the very first launch, for
+  // a thing you have not used yet, is the one people refuse out of hand.
+  useEffect(() => {
+    if (info?.upcoming?.length) askPermission();
+  }, [info?.upcoming?.length]);
 
   // Counted rather than watching the whole log: reloading on every line would
   // fetch twice per turn, once for the question and once for the answer, and

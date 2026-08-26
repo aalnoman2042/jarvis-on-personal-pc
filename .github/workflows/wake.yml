@@ -1,0 +1,40 @@
+# Keep the cloud core awake during Rohan's waking hours, and let it look at the
+# diary while it is up.
+#
+# Render's free tier sleeps after about fifteen minutes with no traffic, and a
+# sleeping server has no timers — so nothing notices a reminder has come due,
+# and the next request pays a thirty-to-fifty-second cold start before the app
+# will even draw. This costs nothing and fixes both.
+#
+# **Waking hours only, on purpose.** The free tier allows 750 instance-hours a
+# month, and a month is 744 hours: pinging around the clock would spend the
+# entire allowance with no margin, and run out early on a long month. 06:00 to
+# 23:00 Dhaka is about 527 hours, which leaves room to spare and covers every
+# hour Rohan would notice the app being slow.
+#
+# Two things worth knowing:
+#   * GitHub disables scheduled workflows on a repository with no commits for
+#     sixty days. If reminders go quiet after a long break, look here first.
+#   * Scheduled runs are best-effort and are often late by several minutes under
+#     load. That is fine for keeping a server warm and is why reminders on the
+#     phone are scheduled on the phone (web/src/lib/notify.ts) rather than
+#     depending on this.
+
+name: keep awake
+
+on:
+  schedule:
+    # Every ten minutes, 00:00–16:50 UTC = 06:00–22:50 in Dhaka.
+    - cron: "*/10 0-16 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the core and sweep the diary
+        run: |
+          # --max-time is generous because a cold start really can take 50s, and
+          # timing out is the one outcome that makes this pointless.
+          curl -fsS --max-time 90 -X POST https://vondo-core.onrender.com/tick \
+            || echo "core did not answer; it will be woken by the next run"
