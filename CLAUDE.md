@@ -356,6 +356,26 @@ second account does not hide the first.
 for minutes and a turn cannot. `socket.setdefaulttimeout` is set around the
 fetch and restored afterwards.
 
+## What Jarvis costs when nobody is using it
+
+"Lightweight" was a stated requirement and it is the easiest one to lose by
+accident, so the rule is: **nothing runs while nothing is happening.**
+
+- **A waiting reminder costs nothing.** The phone's own alarm clock holds it,
+  exactly as it holds an alarm. Jarvis is not running, not polling, and holds no
+  connection. This is the real reason local notifications beat push here, ahead
+  of avoiding Firebase.
+- **`allowWhileIdle` is why no exemption is needed.** It maps to
+  `setExactAndAllowWhileIdle`, the API Android provides so an alarm fires during
+  Doze without a battery-optimisation exemption. **Never tell Rohan to disable
+  battery optimisation** — it trades real battery life for a problem that is
+  almost always somewhere else. A diagnostic that suggests it is a bad
+  diagnostic.
+- **The reactor stops when the tab is hidden**, and so does the board's clock —
+  a timer nobody can see is pure waste.
+- **The websocket exists only while the app is open.** Nothing reconnects in the
+  background.
+
 ## The HUD (phase 04)
 
 `web/` is Vite + React + TypeScript, built to `web/dist` and served by the cloud

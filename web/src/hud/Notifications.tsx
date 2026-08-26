@@ -115,6 +115,18 @@ export function Notifications() {
 
       {said && <p className="muted small notify-said">{said}</p>}
 
+      {/* Said plainly because it is the thing people assume is untrue. A
+          reminder waiting costs nothing at all: the phone's own alarm clock
+          holds it, exactly as it holds yours. Jarvis is not running, not
+          polling, and holds no connection while it waits. */}
+      {info.native && (
+        <p className="muted small">
+          Waiting costs no battery — the phone holds these the same way it holds
+          an alarm. Jarvis is not running in the background, and needs no
+          battery-optimisation exemption.
+        </p>
+      )}
+
       {info.permission === "denied" && (
         <p className="muted small">
           Android will not ask twice. Turn it back on in Settings → Apps → Jarvis

@@ -47,8 +47,22 @@ function ago(ts?: number | null): string {
 function Clock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 1000 * 20);
-    return () => window.clearInterval(t);
+    // Stops dead when the app is not on screen, which is the same rule the
+    // reactor keeps. A twenty-second timer is not much, but "lightweight" was a
+    // stated requirement and a timer nobody can see is pure waste.
+    let timer = 0;
+    const run = () => {
+      window.clearInterval(timer);
+      if (document.hidden) return;
+      setNow(new Date());
+      timer = window.setInterval(() => setNow(new Date()), 20_000);
+    };
+    run();
+    document.addEventListener("visibilitychange", run);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", run);
+    };
   }, []);
   return (
     <>

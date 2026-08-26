@@ -238,7 +238,8 @@ export async function state(): Promise<NotifyState> {
       + "notifications posted to a channel that does not exist. Falling back to "
       + "the default channel.";
   } else if (exact === false) {
-    problem = "Allowed, but Android may delay them — exact alarms are off for Jarvis.";
+    problem = "Allowed. Android may batch them by a few minutes, which is fine "
+      + "for a reminder and costs no battery to avoid.";
   }
 
   return { native, permission, scheduled, exact, channel, problem };
@@ -299,8 +300,13 @@ export async function test(): Promise<string> {
     const held = await api.getPending();
     const landed = held.notifications.some((n) => n.id === TEST_ID);
     if (!landed) {
-      return "Android accepted it but is not holding it — check battery "
-        + "optimisation for Jarvis, which can drop scheduled alarms.";
+      // Deliberately does NOT tell anyone to disable battery optimisation.
+      // allowWhileIdle maps to setExactAndAllowWhileIdle, which is the API
+      // Android provides precisely so an alarm fires during Doze without an
+      // exemption — asking for one would trade real battery life for a problem
+      // that is almost certainly elsewhere.
+      return "Android took the request but is not holding the alarm. Try once "
+        + "more; if it keeps happening, tell me and I will look further.";
     }
     return "On its way. Lock your phone — it should arrive in about eight seconds.";
   } catch (err) {
