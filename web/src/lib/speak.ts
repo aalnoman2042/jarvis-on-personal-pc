@@ -17,13 +17,53 @@
  */
 const KEY = "vondo.speak";
 
+/* Android's WebView does not implement the Web Speech API's synthesis half.
+ *
+ * `window.speechSynthesis` is present — which is why the Read It button
+ * appeared and why `available()` said yes — but `getVoices()` returns an empty
+ * list for ever and `speak()` makes no sound at all. It is a Chrome feature,
+ * not a WebView one, so it worked on the desktop and was silent in the app, and
+ * waiting longer for voices could never have helped because none were coming.
+ *
+ * So the app uses the platform's own text-to-speech through a plugin, and the
+ * browser keeps the Web Speech path. Same two-roads shape as listening: the
+ * WebView cannot be relied on for either half of the Web Speech API. */
+type NativeTts = typeof import("@capacitor-community/text-to-speech").TextToSpeech;
+
+function nativePlatform(): boolean {
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
+}
+
+let nativeTts: NativeTts | null | undefined;
+
+async function native(): Promise<NativeTts | null> {
+  if (nativeTts !== undefined) return nativeTts;
+  if (!nativePlatform()) {
+    nativeTts = null;
+    return null;
+  }
+  try {
+    const mod = await import("@capacitor-community/text-to-speech");
+    nativeTts = mod.TextToSpeech;
+  } catch {
+    // An APK built before the plugin existed. The button will say so rather
+    // than failing mutely, which is what it did before.
+    nativeTts = null;
+  }
+  return nativeTts;
+}
+
 function nativeShell(): boolean {
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return Boolean(cap?.isNativePlatform?.());
 }
 
 export function available(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+  if (typeof window === "undefined") return false;
+  // In the app the plugin is what speaks; in a browser it is the Web Speech
+  // API. Either counts, and the button is offered on that basis.
+  return nativePlatform() || "speechSynthesis" in window;
 }
 
 export function enabled(): boolean {
@@ -94,6 +134,29 @@ export async function speak(text: string): Promise<boolean> {
   const words = (text || "").trim();
   if (!words) return false;
 
+  const tts = await native();
+  if (tts) {
+    try {
+      await tts.stop();          // never two voices at once
+      await tts.speak({
+        text: words,
+        lang: "en-US",
+        rate: 1.05,
+        pitch: 0.95,
+        volume: 1.0,
+        category: "playback",
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  if (nativePlatform()) {
+    // In the app with no plugin: nothing can speak, and pretending otherwise is
+    // how this went unnoticed for so long.
+    return false;
+  }
+
   const voices = await loadVoices();
 
   window.speechSynthesis.cancel();
@@ -135,5 +198,8 @@ export async function speak(text: string): Promise<boolean> {
 }
 
 export function silence(): void {
-  if (available()) window.speechSynthesis.cancel();
+  native().then((tts) => tts?.stop().catch(() => {}));
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
 }

@@ -82,9 +82,18 @@ export function Brief({ token, tick }: {
                 // A button that does nothing and says nothing is the worst of
                 // both. If the device has no working voice, say so once.
                 if (!spoke) {
+                  const inApp = Boolean(
+                    (window as unknown as {
+                      Capacitor?: { isNativePlatform?: () => boolean };
+                    }).Capacitor?.isNativePlatform?.(),
+                  );
                   setVoiceNote(
-                    "This device has no speech voice installed. Android: "
-                    + "Settings → Accessibility → Text-to-speech.",
+                    inApp
+                      ? "This app build cannot speak — Android's WebView has no "
+                        + "speech engine of its own. Install the newest APK; "
+                        + "screens update themselves, this part cannot."
+                      : "No speech voice on this device. Android: Settings → "
+                        + "Accessibility → Text-to-speech.",
                   );
                 }
               }}
