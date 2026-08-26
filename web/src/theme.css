@@ -55,6 +55,17 @@
   box-sizing: border-box;
 }
 
+/* Nothing replaced-content may exceed its box. A photo in the vision panel or a
+   canvas at its natural size would otherwise push the layout past the screen
+   edge — and the shell hides overflow rather than scrolling it, so the result
+   is silently clipped rather than visibly wrong. */
+img,
+canvas,
+video,
+svg {
+  max-width: 100%;
+}
+
 /* --app-height is set by lib/viewport.ts from visualViewport — the only figure
    that shrinks when the keyboard opens. 100dvh is the fallback for the moment
    before the script runs, and for anything without a visual viewport. */

@@ -107,7 +107,7 @@
    the accent colour, and stays until it is dismissed. */
 .alert {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--s3);
   width: 100%;
@@ -120,6 +120,7 @@
 }
 .alert-text {
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 .alert-x {
   color: var(--dim);
@@ -174,11 +175,23 @@
    many columns it has. */
 .panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  /* min(230px, 100%) rather than a bare 230px. auto-fit honours the minimum
+     even when the container is narrower than it, so on a small phone the track
+     stays 230px wide inside a 200px space and the panel is clipped — and
+     clipped rather than scrollable, because the shell deliberately hides
+     overflow. The min() lets the track collapse to whatever room there is. */
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: var(--s3);
 }
 .panel-wide {
   grid-column: 1 / -1;
+}
+/* Grid and flex children default to min-width:auto, which means "never shrink
+   below your content". One long word, one unbroken URL, one mono timestamp and
+   the panel pushes past the screen edge. Everything on the board opts out. */
+.panels > *,
+.board > * {
+  min-width: 0;
 }
 .panel-head {
   display: flex;
@@ -222,11 +235,20 @@
 }
 .agenda li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  /* The date column is auto, so it never shrinks, and "on 18th September (in
+     22 days)" is wide. On a phone it drops to its own row instead of forcing
+     the whole panel past the screen edge. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: var(--s2);
   padding-bottom: var(--s2);
   border-bottom: 1px solid var(--line-soft);
+}
+.agenda li > * {
+  min-width: 0;
+}
+.agenda-what {
+  overflow-wrap: anywhere;
 }
 .agenda li:last-child {
   border-bottom: none;
@@ -247,7 +269,7 @@
 /* ---------- gauges ---------- */
 .gauge {
   display: grid;
-  grid-template-columns: 4.5em 1fr 2.8em;
+  grid-template-columns: 4.5em minmax(0, 1fr) 2.8em;
   align-items: center;
   gap: var(--s2);
   margin-top: 8px;
@@ -488,8 +510,9 @@
 }
 .recalled-list li {
   display: grid;
-  grid-template-columns: 4.2em 1fr;
+  grid-template-columns: 4.2em minmax(0, 1fr);
   gap: var(--s2);
+  overflow-wrap: anywhere;
 }
 .recalled-when {
   font-size: 0.68rem;
@@ -536,6 +559,7 @@
 .vision-body {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  /* the read-out can hold a paragraph of recognised text */
   gap: var(--s3);
   margin-top: var(--s2);
 }
@@ -593,6 +617,7 @@
 }
 .vision-said {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--ink-strong);
   font-size: 0.95rem;
   line-height: 1.5;
@@ -602,7 +627,7 @@
 }
 @media (max-width: 620px) {
   .vision-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -691,7 +716,7 @@
 
 .line {
   display: grid;
-  grid-template-columns: 3.6em 5.2em 1fr;
+  grid-template-columns: 3.6em 5.2em minmax(0, 1fr);
   gap: var(--s3);
   padding: var(--s2) 0;
   align-items: baseline;
@@ -911,7 +936,7 @@
     gap: var(--s3);
   }
   .line {
-    grid-template-columns: 3.4em 1fr;
+    grid-template-columns: 3.4em minmax(0, 1fr);
   }
   .line-time {
     grid-row: 1;
@@ -1046,13 +1071,32 @@
     padding-left: max(var(--s2), env(safe-area-inset-left));
     padding-right: max(var(--s2), env(safe-area-inset-right));
   }
+  /* The top bar carries a wordmark, a connection state, sometimes a held-count
+     and an install button, plus two icon buttons. That is more than 320px of
+     phone holds at desktop sizes, and the overflow is clipped rather than
+     scrolled — so the gear disappears off the right edge with nothing to say it
+     is there. The name and the buttons keep their size; the connection text is
+     the one part that can lose characters without losing meaning. */
   .topbar {
     gap: var(--s2);
     padding: var(--s2) var(--s1);
+    flex-wrap: nowrap;
   }
   .wordmark {
     font-size: 0.92rem;
     letter-spacing: 0.16em;
+    flex: none;
+  }
+  .conn {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .gear,
+  .install-small,
+  .held {
+    flex: none;
   }
   /* 16px stops iOS and some Android keyboards zooming the page on focus. */
   .composer textarea {
@@ -1065,6 +1109,49 @@
     width: clamp(120px, 30vw, 170px);
     height: clamp(120px, 30vw, 170px);
   }
+
+  /* ---- things that fit side by side on a desk and not in a hand ---- */
+
+  /* The diary date goes under its own item rather than fighting it for width.
+     Shrinking it instead would leave "on 18th Sept…" truncated, which is worse
+     than a second line — a date you cannot read is not a date. */
+  .agenda li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .agenda-when {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* The tool-name column is most of a phone's width before the arguments have
+     had any. */
+  .act-tool {
+    min-width: 0;
+  }
+
+  /* Six readouts at desktop spacing is two crowded lines; at this size it is
+     three tidy ones. */
+  .strip {
+    gap: var(--s2);
+    font-size: 0.6rem;
+  }
+  .strip-end {
+    margin-left: 0;
+  }
+
+  .panel {
+    padding: var(--s3);
+  }
+  .gauge {
+    grid-template-columns: 3.6em minmax(0, 1fr) 2.6em;
+  }
+
+  /* Wide on purpose: two columns of ~150px each is not a photo and not a
+     paragraph. */
+  .vision-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   /* The composer is the one thing that must never be scrolled away from. */
   .composer {
     position: sticky;
@@ -1182,7 +1269,10 @@
   background: var(--panel-2);
   font-size: 0.9rem;
 }
-.acts li { justify-content: flex-start; }
+.acts li { justify-content: flex-start; flex-wrap: wrap; }
+.acts li > * { min-width: 0; overflow-wrap: anywhere; }
+/* 9em keeps the tool names in a column on a wide screen. On a phone it is most
+   of the width before the arguments have had any, so it is dropped there. */
 .act-tool { color: var(--accent); font-size: 0.82rem; min-width: 9em; }
 
 .danger {
