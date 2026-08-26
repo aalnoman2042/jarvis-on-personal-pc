@@ -27,6 +27,25 @@ def _means_the_pc(text: str) -> bool:
     return not any(word in text for word in _NOT_THE_PC)
 
 
+def _search_or_answer(query: str) -> str:
+    """Show the results if there is a screen to show them on; otherwise say them.
+
+    `web_search` opens a browser and is therefore a PC action, routed to the
+    agent. `web_answer` fetches text and runs wherever this happens to be. When
+    the PC is asleep the first is impossible and the second is not, and giving
+    the answer is a better outcome than explaining why you cannot open a window.
+    """
+    try:
+        result = actions.web_search(query)
+    except Exception:  # noqa: BLE001  (PCOffline, or the agent went mid-call)
+        return actions.web_answer(query)
+    # The hook answers rather than raising in some paths, so the sentence has to
+    # be recognised as well as the exception.
+    if "offline" in str(result).lower():
+        return actions.web_answer(query)
+    return result
+
+
 class FreeBrain:
     name = "free"
 
@@ -143,9 +162,22 @@ class FreeBrain:
             return actions.open_app(target)
 
         # --- Explicit web search ---
+        #
+        # "Search for X" is a request to be *shown* results, so it opens a
+        # browser — on the PC, because that is where a browser is. With the PC
+        # asleep there is nothing to open, and refusing outright would be a
+        # worse answer than the one we can actually give, so it falls through to
+        # looking the thing up and saying it.
         m = re.search(r"(?:search(?: for)?|google|look up)\s+(.+)", t)
         if m:
-            return actions.web_search(m.group(1))
+            return _search_or_answer(m.group(1))
 
-        # --- Fallback: search the web so you still get an answer ---
-        return actions.web_search(t)
+        # --- Fallback: look it up, so you still get an answer ---
+        #
+        # This used to call web_search, which is a PC action: it opens a browser
+        # window. So every unrecognised question, asked from a phone with the PC
+        # switched off, came back as "your PC is offline" — from a device holding
+        # a perfectly good internet connection, about a question the cloud could
+        # have answered on its own. web_answer runs in the cloud and needs
+        # nothing but the server's own network.
+        return actions.web_answer(t)

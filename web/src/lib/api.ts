@@ -49,6 +49,27 @@ export function forgetFact(token: string, fragment: string) {
   return post("/facts/forget", { fragment }, token);
 }
 
+/** A recorded clip in, the words in it out.
+
+    Multipart rather than JSON so the audio is not base64-inflated by a third on
+    a connection that may be a phone on mobile data. No Content-Type is set on
+    purpose: the browser has to add the multipart boundary itself. */
+export async function transcribe(token: string, clip: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("clip", clip, "clip.webm");
+  const res = await fetch(apiBase() + "/listen", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    if (res.status === 503) throw new Error("Speech isn't configured on the server.");
+    throw new Error("Couldn't hear that just now.");
+  }
+  const data = await res.json();
+  return (data.text || "").trim();
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

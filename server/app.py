@@ -32,8 +32,8 @@ import logging
 import os
 import time
 
-from fastapi import (Depends, FastAPI, Header, HTTPException, Request,
-                     WebSocket, WebSocketDisconnect)
+from fastapi import (Depends, FastAPI, File, Header, HTTPException, Request,
+                     UploadFile, WebSocket, WebSocketDisconnect)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -41,6 +41,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from core import config
+from core import ears
 from core.brains import factory
 from core import memory
 from core import reminders
@@ -347,6 +348,27 @@ async def drop_agenda(item_id: int, device: dict = Depends(caller)):
     items = await run_in_threadpool(agenda_store.upcoming, 20)
     return {"dropped": dropped,
             "items": [{**item, "said": agenda_store.describe(item)} for item in items]}
+
+
+@app.post("/listen")
+async def listen(clip: UploadFile = File(...), device: dict = Depends(caller)):
+    """A few seconds of audio in, the words in it out.
+
+    Deliberately does NOT answer the question it heard. Transcribing and
+    answering are separate steps so that what was heard can be shown before it
+    is acted on — a misheard "shut down the PC" needs to be visible, not
+    obeyed — and so the turn still goes through the one socket that everything
+    else goes through, with its status frames and its lock.
+    """
+    if not ears.available():
+        raise HTTPException(status_code=503, detail="No speech key configured.")
+    if not _rate_ok(device["id"]):
+        raise HTTPException(status_code=429, detail="Slow down a moment.")
+    data = await clip.read()
+    if len(data) > ears.MAX_BYTES:
+        raise HTTPException(status_code=413, detail="That clip is too long.")
+    text = await run_in_threadpool(ears.transcribe, data, clip.filename or "clip.webm")
+    return {"text": text, "heard": bool(text)}
 
 
 @app.post("/tick")

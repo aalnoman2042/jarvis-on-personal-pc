@@ -10,9 +10,16 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import { Mic } from "./Mic";
+import type { Voice } from "../lib/voice";
+
 const MAX_ROWS_PX = 120;
 
-export function Composer({ onSay, busy }: { onSay: (text: string) => void; busy: boolean }) {
+export function Composer({ onSay, busy, voice }: {
+  onSay: (text: string) => void;
+  busy: boolean;
+  voice?: Voice;
+}) {
   const [text, setText] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
 
@@ -46,7 +53,15 @@ export function Composer({ onSay, busy }: { onSay: (text: string) => void; busy:
         ref={field}
         rows={1}
         value={text}
-        placeholder={busy ? "Jarvis is thinking…" : "Say something to Jarvis"}
+        placeholder={
+          voice?.listening
+            ? "Listening…"
+            : voice?.working
+              ? "Working out what you said…"
+              : busy
+                ? "Jarvis is thinking…"
+                : "Say something to Jarvis"
+        }
         onChange={(e) => setText(e.target.value)}
         onFocus={() => {
           // Android raises the keyboard a beat after focus. Nudging the field
@@ -62,6 +77,7 @@ export function Composer({ onSay, busy }: { onSay: (text: string) => void; busy:
         }}
         aria-label="Message to Jarvis"
       />
+      {voice && <Mic voice={voice} />}
       <button type="submit" className="send" disabled={!text.trim()} aria-label="Send">
         <span aria-hidden>&#9654;</span>
       </button>

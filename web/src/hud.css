@@ -300,6 +300,96 @@
   color: var(--ground);
 }
 
+/* ---------- the microphone ----------
+   The ring is the live level, fed by --mic-level from the component. It is not
+   decoration: it is the answer to "is this thing picking me up", which is the
+   question everyone silently asks a voice interface. */
+.mic {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  background: transparent;
+}
+.mic-on {
+  color: var(--ground);
+  background: var(--good);
+  border-color: var(--good);
+}
+.mic-working {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.mic-glyph {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.mic-ring {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: calc(var(--mic-level, 0) * 0.9);
+  transform: scale(calc(1 + var(--mic-level, 0) * 0.45));
+  /* Fast enough to feel like a response, slow enough not to strobe on a
+     consonant. */
+  transition: transform 0.08s linear, opacity 0.12s linear;
+  pointer-events: none;
+}
+.mic-error {
+  margin: 0;
+  padding: 0 var(--s1);
+  color: var(--warn);
+}
+
+/* The microphone as a second floating button, so talking to Jarvis does not
+   require opening the conversation first. */
+.fab-row {
+  position: fixed;
+  right: max(var(--s3), env(safe-area-inset-right));
+  bottom: calc(var(--s3) + env(safe-area-inset-bottom));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.fab-row .fab {
+  position: static;
+}
+.fab-mic {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 1.1rem;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  box-shadow: none;
+}
+.fab-mic-on {
+  color: var(--ground);
+  background: var(--good);
+  border-color: var(--good);
+  box-shadow: 0 0 26px rgba(64, 220, 160, 0.45);
+}
+.fab-mic-working {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/* Muted or not. Same shape as the gear so the top bar stays a row of controls
+   rather than a row of different things. */
+.speaker-off {
+  opacity: 0.45;
+}
+
 /* ---------- the conversation drawer ---------- */
 .chat-sheet {
   position: fixed;

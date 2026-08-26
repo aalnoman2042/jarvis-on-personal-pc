@@ -6,11 +6,13 @@
  * underneath all three, held by this component, so opening and closing a drawer
  * never drops the connection or loses the log.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatSheet } from "./hud/ChatSheet";
 import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
+import * as speech from "./lib/speak";
+import { useVoice } from "./lib/voice";
 import { clearToken, readToken, writeToken } from "./lib/store";
 import { Dashboard } from "./screens/Dashboard";
 import { Pin } from "./screens/Pin";
@@ -27,6 +29,39 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   const jarvis = useVondo(token);
   const { canInstall, install } = useInstall();
   const [open, setOpen] = useState<"none" | "chat" | "settings">("none");
+  const [talkback, setTalkback] = useState(speech.enabled);
+
+  // Something said out loud goes straight to Jarvis. Held in a ref because the
+  // recorder's callback is built once and would otherwise keep the first
+  // render's `say` for ever.
+  const say = useRef(jarvis.say);
+  say.current = jarvis.say;
+  const heard = useCallback((text: string) => say.current(text), []);
+  const voice = useVoice(token, heard);
+
+  // Read the newest reply aloud, once. Counting replies rather than watching the
+  // array means a re-render for any other reason cannot make it repeat itself.
+  const spokenTo = useRef(0);
+  useEffect(() => {
+    const replies = jarvis.log.filter((line) => line.who === "jarvis");
+    if (replies.length <= spokenTo.current) {
+      spokenTo.current = replies.length; // the log was cleared or trimmed
+      return;
+    }
+    spokenTo.current = replies.length;
+    if (talkback) speech.speak(replies[replies.length - 1].text);
+  }, [jarvis.log, talkback]);
+
+  // Talking over yourself is the one thing a voice interface must never do.
+  useEffect(() => {
+    if (voice.listening) speech.silence();
+  }, [voice.listening]);
+
+  function toggleTalkback() {
+    const next = !talkback;
+    speech.setEnabled(next);
+    setTalkback(next);
+  }
 
   // A revoked or unknown token cannot fix itself by retrying, so say what
   // happened and offer the one thing that helps.
@@ -67,6 +102,19 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
             Install
           </button>
         )}
+        {/* Muting is one tap and it is remembered. Jarvis reading answers aloud
+            is the point on a phone and an ambush in a quiet room. */}
+        {speech.available() && (
+          <button
+            className={`gear speaker${talkback ? "" : " speaker-off"}`}
+            onClick={toggleTalkback}
+            aria-pressed={talkback}
+            aria-label={talkback ? "Jarvis speaks replies. Turn off" : "Jarvis is muted. Turn on"}
+            title={talkback ? "Speaking replies" : "Muted"}
+          >
+            <span aria-hidden>{talkback ? "\u{1F50A}" : "\u{1F507}"}</span>
+          </button>
+        )}
         {/* Which brain answered, what is stored, which devices are signed in —
             all of it lives behind this. The board is a readout, not a control
             panel. */}
@@ -79,12 +127,15 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
         <Dashboard
           token={token}
           jarvis={jarvis}
+          voice={voice}
           onOpenChat={() => setOpen("chat")}
           onSettings={() => setOpen("settings")}
         />
       </main>
 
-      {open === "chat" && <ChatSheet jarvis={jarvis} onClose={() => setOpen("none")} />}
+      {open === "chat" && (
+        <ChatSheet jarvis={jarvis} voice={voice} onClose={() => setOpen("none")} />
+      )}
       {open === "settings" && (
         <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />
       )}

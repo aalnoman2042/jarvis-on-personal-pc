@@ -15,8 +15,13 @@ import { useEffect } from "react";
 import { Composer } from "./Composer";
 import { Log } from "./Log";
 import type { Vondo } from "../lib/socket";
+import type { Voice } from "../lib/voice";
 
-export function ChatSheet({ jarvis, onClose }: { jarvis: Vondo; onClose: () => void }) {
+export function ChatSheet({ jarvis, voice, onClose }: {
+  jarvis: Vondo;
+  voice: Voice;
+  onClose: () => void;
+}) {
   // Escape closes it on a desktop. On a phone the back gesture is the way out,
   // which the browser handles for the sheet being a route-less overlay only
   // because there is nothing to go back to — so the button is not optional.
@@ -33,7 +38,13 @@ export function ChatSheet({ jarvis, onClose }: { jarvis: Vondo; onClose: () => v
       <header className="chat-top">
         <span className={`conn conn-${jarvis.conn}`}>
           <span className="dot" aria-hidden />
-          {jarvis.state === "thinking" ? "Thinking" : jarvis.conn === "online" ? "Listening" : "Reconnecting"}
+          {voice.listening
+            ? "Listening"
+            : jarvis.state === "thinking"
+              ? "Thinking"
+              : jarvis.conn === "online"
+                ? "Ready"
+                : "Reconnecting"}
         </span>
         {jarvis.queued > 0 && (
           <span className="held label" title="Waiting for a connection">
@@ -43,8 +54,9 @@ export function ChatSheet({ jarvis, onClose }: { jarvis: Vondo; onClose: () => v
         <button className="linkish label chat-close" onClick={onClose}>Close</button>
       </header>
 
+      {voice.error && <p className="mic-error label">{voice.error}</p>}
       <Log lines={jarvis.log} />
-      <Composer onSay={jarvis.say} busy={jarvis.state === "thinking"} />
+      <Composer onSay={jarvis.say} busy={jarvis.state === "thinking"} voice={voice} />
     </div>
   );
 }

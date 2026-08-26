@@ -19,6 +19,7 @@ import { dropAgenda, me } from "../lib/api";
 import { askPermission, syncAlarms } from "../lib/notify";
 import type { Me } from "../lib/types";
 import type { Vondo } from "../lib/socket";
+import type { Voice } from "../lib/voice";
 
 function greeting(hour: number): string {
   if (hour < 5) return "Still up";
@@ -58,9 +59,10 @@ function Clock() {
   );
 }
 
-export function Dashboard({ token, jarvis, onOpenChat, onSettings }: {
+export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
   token: string;
   jarvis: Vondo;
+  voice: Voice;
   onOpenChat: () => void;
   onSettings: () => void;
 }) {
@@ -133,7 +135,13 @@ export function Dashboard({ token, jarvis, onOpenChat, onSettings }: {
 
       <section className="hero">
         <div className="hero-reactor">
-          <Reactor state={jarvis.state} />
+          {/* Listening is a local fact the server knows nothing about, so it
+              overrides whatever the socket last said. The level is what makes
+              the ring answer "can you hear me" without anyone asking. */}
+          <Reactor
+            state={voice.listening ? "listening" : jarvis.state}
+            level={voice.listening ? voice.level : 0}
+          />
         </div>
         <div className="hero-words">
           <h1 className="hero-greet">
@@ -243,10 +251,27 @@ export function Dashboard({ token, jarvis, onOpenChat, onSettings }: {
 
       {/* The way in to a conversation. Fixed to the corner so it is reachable
           with a thumb and never scrolls away. */}
-      <button className="fab" onClick={onOpenChat} aria-label="Talk to Jarvis">
-        <span className="fab-icon" aria-hidden>◈</span>
-        <span className="fab-word label">Ask</span>
-      </button>
+      {/* Two ways in, side by side: type, or just talk. The microphone works
+          from the board itself — needing to open the conversation first would
+          make the quick thing the slow one. */}
+      <div className="fab-row">
+        {voice.supported && (
+          <button
+            className={`fab fab-mic fab-mic-${voice.working ? "working" : voice.listening ? "on" : "off"}`}
+            onClick={voice.toggle}
+            disabled={voice.working}
+            aria-label={voice.listening ? "Listening — tap to stop" : "Talk to Jarvis"}
+            style={{ ["--mic-level" as string]: voice.listening ? voice.level.toFixed(2) : "0" }}
+          >
+            <span className="mic-ring" aria-hidden />
+            <span aria-hidden>{voice.working ? "···" : "◉"}</span>
+          </button>
+        )}
+        <button className="fab" onClick={onOpenChat} aria-label="Talk to Jarvis">
+          <span className="fab-icon" aria-hidden>◈</span>
+          <span className="fab-word label">Ask</span>
+        </button>
+      </div>
     </div>
   );
 }
