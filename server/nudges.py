@@ -84,10 +84,22 @@ def _frame(item: dict) -> dict:
 
 
 async def deliver_due() -> int:
-    """Send anything that has come due. Returns how many were delivered.
+    """Send anything that has come due. Returns how many were put on the wire.
 
-    Safe to call as often as you like: `agenda.ready()` only returns what has
-    not been marked, so a burst of calls delivers each item once.
+    **Nothing is marked delivered here.** That is the whole point of this
+    function's shape and it was wrong until now.
+
+    `send_text` not raising means the bytes reached a socket buffer, not that a
+    person saw anything. A backgrounded Android WebView keeps its TCP connection
+    wide open while its JavaScript is frozen — so the frame was accepted, the
+    row was marked fired, and the reminder was consumed for ever without ever
+    being shown. A reminder that arrives late is a nuisance; one silently eaten
+    by a sleeping app is the failure this whole subsystem exists to prevent.
+
+    So the client acknowledges (`{"type": "seen", "id": n}`) and `mark_seen`
+    below is the only thing that marks a row fired. Un-acknowledged reminders
+    come round again on the next sweep, which is exactly right: they have not
+    been delivered.
     """
     items = await run_in_threadpool(reminders.due)
     if not items:
@@ -95,12 +107,18 @@ async def deliver_due() -> int:
     sent = 0
     for item in items:
         if await listeners.send(_frame(item)):
-            await run_in_threadpool(reminders.delivered, item["id"])
             sent += 1
-            log.info("reminder delivered: %s", item["message"][:60])
-    if len(items) > sent:
-        log.info("%d reminder(s) waiting for someone to be listening", len(items) - sent)
+    if not sent and items:
+        log.info("%d reminder(s) waiting for someone to be listening", len(items))
     return sent
+
+
+async def mark_seen(reminder_id: int) -> None:
+    """A client has actually shown one. Only now is it delivered."""
+    if not reminder_id:
+        return
+    await run_in_threadpool(reminders.delivered, int(reminder_id))
+    log.info("reminder acknowledged: %s", reminder_id)
 
 
 async def loop(stop: asyncio.Event) -> None:

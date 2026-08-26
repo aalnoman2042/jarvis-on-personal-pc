@@ -175,15 +175,23 @@ try:
     agenda.add(clock.now() - 5, "take the bread out")   # due five seconds ago
     url = f"ws://127.0.0.1:{PORT}/ws/client?token={token}"
     with ws_connect(url) as socket:
-        arrived = ""
+        arrived, rid = "", 0
         deadline = time.time() + 10
         while time.time() < deadline:
             frame = json.loads(socket.recv(timeout=5))
             if frame.get("type") == "reminder":
-                arrived = frame.get("text", "")
+                arrived, rid = frame.get("text", ""), frame.get("id", 0)
                 break
         check("it was pushed to the open app", arrived, contains="take the bread out")
-    check("and is not delivered twice", [i["message"] for i in agenda.ready()], [])
+
+        # Sending bytes is not delivery. Until the client says it displayed the
+        # thing, the row stays pending — see the regression below.
+        check("  and stays pending until acknowledged",
+              [i["message"] for i in agenda.ready()], contains="take the bread out")
+        socket.send(json.dumps({"type": "seen", "id": rid}))
+        time.sleep(1.0)
+    check("acknowledged, it is not delivered twice",
+          [i["message"] for i in agenda.ready()], [])
 
     print("\n=== 8. THE REGRESSION: nobody listening must not eat it ===")
     agenda.cancel("all")
@@ -196,15 +204,40 @@ try:
           [i["message"] for i in agenda.ready()],
           contains="the exam warning nobody heard")
     with ws_connect(url) as socket:
-        arrived = ""
+        arrived, rid = "", 0
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            frame = json.loads(socket.recv(timeout=5))
+            if frame.get("type") == "reminder" and "nobody heard" in frame.get("text", ""):
+                arrived, rid = frame.get("text", ""), frame.get("id", 0)
+                break
+        check("it arrives the moment the app is opened", arrived,
+              contains="the exam warning nobody heard")
+        socket.send(json.dumps({"type": "seen", "id": rid}))
+        time.sleep(1.0)
+
+    print("")
+    print("=== 8b. THE REGRESSION: a frozen app must not eat a reminder ===")
+    #
+    # An Android WebView that has been backgrounded keeps its TCP socket wide
+    # open while its JavaScript is frozen. send_text succeeds, the bytes sit in
+    # a buffer nobody will ever read, and marking the row fired on that basis
+    # consumed the reminder for ever — which is exactly what happened to Rohan.
+    # Sending must never be mistaken for delivering.
+    agenda.cancel("all")
+    agenda.add(clock.now() - 5, "must survive a sleeping app")
+    with ws_connect(url) as socket:
         deadline = time.time() + 10
         while time.time() < deadline:
             frame = json.loads(socket.recv(timeout=5))
             if frame.get("type") == "reminder":
-                arrived = frame.get("text", "")
                 break
-        check("it arrives the moment the app is opened", arrived,
-              contains="the exam warning nobody heard")
+        # Deliberately no acknowledgement — this is the frozen client.
+        check("the frame went out", frame.get("type"), "reminder")
+    time.sleep(0.5)
+    check("  but with no acknowledgement it is STILL pending",
+          [i["message"] for i in agenda.ready()],
+          contains="must survive a sleeping app")
 
     print("\n=== 9. the wake-up call a sleeping free tier needs ===")
     r = httpx.post(f"{BASE}/tick")

@@ -160,6 +160,15 @@ export function useVondo(token: string): Vondo {
           // it is seen today.
           append("jarvis", frame.text, { brain: "reminder" });
           setAlert({ id: frame.id, text: frame.text });
+          // Tell the server it was actually shown. Until this arrives the row
+          // stays pending and will be sent again — because a socket accepting
+          // bytes is not a person having seen them, and a backgrounded WebView
+          // accepts bytes all day with its JavaScript frozen.
+          try {
+            ws.send(JSON.stringify({ type: "seen", id: frame.id }));
+          } catch {
+            /* the socket went; the reminder stays pending, which is correct */
+          }
           break;
         case "error":
           setState("online");

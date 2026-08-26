@@ -308,7 +308,7 @@ async def me(device: dict = Depends(caller)):
         # separately for the same reason as everything else in this response:
         # a screen filling in two stages looks broken on a slow connection.
         "upcoming": [{**item, "said": agenda_store.describe(item)}
-                     for item in agenda_store.upcoming(8)],
+                     for item in agenda_store.upcoming(30)],
     }
 
 
@@ -540,6 +540,13 @@ async def ws_client(websocket: WebSocket):
             except ValueError:
                 await websocket.send_text(json.dumps(
                     {"type": "error", "error": "that wasn't valid JSON"}))
+                continue
+
+            # The client confirming it actually displayed a reminder. Until
+            # this arrives the row stays unfired and will be sent again — a
+            # socket accepting bytes is not a person having seen them.
+            if frame.get("type") == "seen":
+                await nudges.mark_seen(frame.get("id") or 0)
                 continue
 
             if frame.get("type") != "say":
