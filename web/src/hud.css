@@ -445,6 +445,12 @@ button.chip:hover {
 }
 .chip-good { background: transparent; border-color: var(--good); color: var(--good); }
 .chip-warn { background: transparent; border-color: var(--warn); color: var(--warn); }
+button.chip-hot:hover { color: var(--ground); background: var(--accent); }
+.notify-said {
+  margin-top: var(--s2);
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
 
 .chip-row {
   display: flex;

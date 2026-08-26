@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { Notifications } from "../hud/Notifications";
 import { forgetFact, me } from "../lib/api";
 import type { Me } from "../lib/types";
 
@@ -123,6 +124,8 @@ export function Settings({ token, onClose, onSignOut }: {
             </p>
           )}
         </section>
+
+        <Notifications />
 
         <section className="panel bracket">
           <span className="label">Your PC</span>

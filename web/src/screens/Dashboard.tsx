@@ -85,12 +85,16 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
     }
   }
 
-  // Asked once, on the first board, and only after something is in the diary
-  // worth being told about — a permission prompt on the very first launch, for
-  // a thing you have not used yet, is the one people refuse out of hand.
+  // Asked the first time there is something in the diary OR the first time the
+  // board loads with an empty one and the app has been used a little — the old
+  // rule required an existing reminder, which is a chicken and egg: nothing
+  // asked, so nothing could ever arrive, so nobody found out until they missed
+  // something. Android only ever asks once, so the timing still matters: this
+  // waits for the app to be worth granting rather than prompting on launch.
   useEffect(() => {
-    if (info?.upcoming?.length) askPermission();
-  }, [info?.upcoming?.length]);
+    if (!info) return;
+    if (info.upcoming?.length || (info.remembered ?? 0) > 3) askPermission();
+  }, [info?.upcoming?.length, info?.remembered]);
 
   // Counted rather than watching the whole log: reloading on every line would
   // fetch twice per turn, once for the question and once for the answer, and

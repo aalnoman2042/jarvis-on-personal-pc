@@ -56,4 +56,18 @@
          gallery, which is a lesser thing, not a broken one. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Reminders that arrive at the minute they were set for.
+         Android 12 split exact timing out into its own permission, and the one
+         the notifications plugin declares — SCHEDULE_EXACT_ALARM — is NOT
+         granted by default on Android 13 and later: it has to be found and
+         switched on under Alarms & reminders. Until then the system is free to
+         delay an alarm to batch it, which is survivable for "your exam is
+         tomorrow" and not for "leave in ten minutes".
+         USE_EXACT_ALARM is granted at install and is meant for exactly this
+         case — an app whose purpose is alarms and reminders. It is the right
+         one to hold, and it means nothing has to be toggled by hand.
+         (Play Store distribution restricts this permission to alarm and
+         calendar apps. Jarvis is sideloaded, and is one anyway.) -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>
