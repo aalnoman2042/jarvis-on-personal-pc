@@ -40,6 +40,41 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      # --- the signing key, kept the same between builds -------------------
+      #
+      # `assembleDebug` signs with ~/.android/debug.keystore, and on a fresh
+      # runner that file does not exist — so Gradle generates a NEW random one
+      # every single build. Android refuses to install an APK over an app signed
+      # with a different key, so every update failed with "App not installed"
+      # and the phone quietly kept running the first APK it ever got. That is
+      # how a microphone permission added weeks ago never reached the device:
+      # not a permission bug at all, a signing one.
+      #
+      # Cached under a fixed key so every build signs with the same certificate
+      # and installs are real updates. Bump the key's version suffix to start
+      # over — which then costs one uninstall, once.
+      - name: Restore the debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: vondo-debug-keystore-v1
+
+      - name: Create it if this is the very first build
+        run: |
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=VONDO Debug,O=VONDO,C=BD"
+            echo "created a new debug key — this build needs a clean install"
+          else
+            echo "reusing the cached debug key — this build installs as an update"
+          fi
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey | grep -i "SHA1:" || true
+
       - name: Build the HUD
         working-directory: web
         run: |

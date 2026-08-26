@@ -171,12 +171,27 @@ export function useVoice(token: string, onHeard: (text: string) => void): Voice 
       );
     } catch (err) {
       teardown();
-      // The message matters here: "denied" and "no microphone" need different
-      // things from the person reading it.
+      // The message matters here, and the app case is not the obvious one.
+      // Inside the APK, "not allowed" usually does NOT mean the person said no
+      // — it means the installed APK predates the microphone permission, so
+      // Android refuses before any dialog can appear. That happened for weeks
+      // and read as a broken button. Say the thing that actually helps.
       const name = (err as { name?: string })?.name || "";
-      if (name === "NotAllowedError") setError("Microphone permission is off.");
-      else if (name === "NotFoundError") setError("No microphone on this device.");
-      else setError("Couldn't start the microphone.");
+      const inApp = Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+          .Capacitor?.isNativePlatform?.(),
+      );
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        setError(
+          inApp
+            ? "No mic permission. Uninstall Jarvis, then install the newest APK — an update over the old one is refused."
+            : "Microphone permission is off — allow it in your browser's site settings.",
+        );
+      } else if (name === "NotFoundError") {
+        setError("No microphone on this device.");
+      } else {
+        setError("Couldn't start the microphone.");
+      }
     }
   }, [token, onHeard, stop, teardown]);
 
