@@ -147,6 +147,40 @@ check("a one-off still finishes for good", agenda.ready(), [])
 agenda.cancel_id(gone)
 agenda.cancel_id(rid)
 
+print("")
+print("=== 3d. people, and reaching them by name ===")
+#
+# A number used to be a sentence in `facts`, so "call dad" depended on a model
+# finding the right sentence and reading the digits out correctly, every time,
+# with no way to tell whether it had. A number is structured data.
+from core.memory import contacts  # noqa: E402
+from core import phone  # noqa: E402
+
+check("saving someone", contacts.remember("dad", "01712 345678"), contains="saved")
+check("  found by name", (contacts.find("dad") or {}).get("phone"), "01712 345678")
+check("  and by a fragment", (contacts.find("da") or {}).get("name"), "dad")
+contacts.remember("dad", "", "dad@example.com")
+check("adding an email keeps the number",
+      (contacts.find("dad") or {}).get("phone"), "01712 345678")
+
+check("call by name", llm_tools.DISPATCH["call_contact"]("dad"), contains="calling dad")
+check("  and it dials the right digits", phone.take(), "tel:01712345678")
+check("someone unknown is asked about, not guessed",
+      llm_tools.DISPATCH["call_contact"]("nobody"), contains="tell me it once")
+
+# wa.me refuses a local number outright — it opens nothing at all, which looks
+# exactly like the app being broken.
+llm_tools.DISPATCH["message_contact"]("dad", "hello")
+check("whatsapp gets an international number", phone.take(), contains="wa.me/88017123456")
+
+# The prompt must know WHO exists so it can say it has no number for someone,
+# without carrying everybody's number into every single turn.
+people_block = contacts.block()
+check("the prompt lists names", people_block, contains="dad")
+check("  and never the numbers", "345678" in people_block, False)
+contacts.forget("dad")
+check("forgetting works", contacts.find("dad"), None)
+
 print("\n=== 4. the tools a brain reaches for ===")
 agenda.cancel("all")
 check("remind", llm_tools.DISPATCH["remind"]("in 20 minutes", "call dad"),

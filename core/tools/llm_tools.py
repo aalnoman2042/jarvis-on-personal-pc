@@ -15,6 +15,7 @@ from core import confirm
 from core import mail
 from core import memory
 from core import phone
+from core.memory import contacts
 from core import reminders
 
 
@@ -141,6 +142,59 @@ def open_on_phone(target: str) -> str:
     is awake and they did not say which, open_app is usually what they mean.
     """
     return phone.open_app(target)
+
+
+def remember_contact(name: str, phone_number: str = "", email: str = "",
+                     note: str = "") -> str:
+    """Save someone's phone number or email so you can reach them by name later.
+
+    Use whenever the user gives you a number or an address for a person —
+    "dad's number is 01712...", "Rifat is on +8801...". Saving it means never
+    having to ask twice.
+    """
+    return contacts.remember(name, phone_number, email, note)
+
+
+def who_do_i_know() -> str:
+    """List the people you have contact details for."""
+    people = contacts.everyone()
+    if not people:
+        return "I don't have anyone's details yet."
+    return "You have details for: " + ", ".join(
+        p["name"] + (" (phone)" if p["phone"] else "") + (" (email)" if p["email"] else "")
+        for p in people) + "."
+
+
+def call_contact(name: str) -> str:
+    """Ring someone you know BY NAME — "call dad", "ring Rifat".
+
+    Looks the number up rather than being told it. Prefer this over
+    call_number: guessing digits from a remembered sentence is how a call goes
+    to a stranger.
+    """
+    person = contacts.find(name)
+    if not person:
+        return (f"I don't have a number for {name}. Tell me it once and I'll "
+                f"keep it.")
+    if not person["phone"]:
+        return f"I know {person['name']} but have no phone number for them."
+    contacts.touch(person["id"])
+    return phone.call(person["phone"], person["name"])
+
+
+def message_contact(name: str, text: str = "") -> str:
+    """Open WhatsApp to someone you know BY NAME, with the message typed in.
+
+    Does not send it — the last tap stays with you.
+    """
+    person = contacts.find(name)
+    if not person:
+        return (f"I don't have a number for {name}. Tell me it once and I'll "
+                f"keep it.")
+    if not person["phone"]:
+        return f"I know {person['name']} but have no phone number for them."
+    contacts.touch(person["id"])
+    return phone.message(person["phone"], text, person["name"])
 
 
 def call_number(number: str, who: str = "") -> str:
@@ -296,6 +350,7 @@ TOOL_FUNCTIONS = [
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
+    remember_contact, who_do_i_know, call_contact, message_contact,
     get_time, get_date, system_info, control_volume, media_control,
     take_screenshot, lock_screen, power_control, set_autostart,
 ]
@@ -404,6 +459,22 @@ OPENAI_TOOLS = [
           "Open an app or website ON THE PHONE (youtube, whatsapp, maps, a URL). "
           "Use when the PC is offline or they said 'on my phone'.",
           {"target": _STR("App name, site, or URL")}, ["target"]),
+    _tool("remember_contact",
+          "Save someone's phone number or email so you can reach them by name "
+          "later. Use whenever the user gives you a number for a person.",
+          {"name": _STR("What the user calls them, e.g. 'dad'"),
+           "phone_number": _STR("Their number, as given"),
+           "email": _STR("Their email, if given"),
+           "note": _STR("Anything worth remembering about them")}, ["name"]),
+    _tool("who_do_i_know", "List the people you have contact details for."),
+    _tool("call_contact",
+          "Ring someone BY NAME — 'call dad'. Looks the number up rather than "
+          "guessing it. Prefer this over call_number.",
+          {"name": _STR("Who to call, e.g. 'dad'")}, ["name"]),
+    _tool("message_contact",
+          "Open WhatsApp to someone BY NAME with a message typed in. Does not send.",
+          {"name": _STR("Who to message"),
+           "text": _STR("What to type")}, ["name"]),
     _tool("call_number",
           "Bring up the phone's dialler with a number ready. Does not dial.",
           {"number": _STR("The number, with country code"),

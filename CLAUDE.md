@@ -325,6 +325,25 @@ otherwise.** No reading another app's screen, no tapping its buttons, no reading
 notifications. What an app *can* do is hand something off — a URL, a number, a
 map reference, a pre-filled message — and that is the whole module.
 
+**People live in `core/memory/contacts.py`, not in the facts.** A number was a
+sentence — "Rohan's dad's number is +8801…" — so "call dad" depended on a model
+finding the right sentence among dozens and reading the digits out of it
+correctly, every time, with no way to tell whether it had. A number is
+structured data and belongs in a column.
+
+The system prompt carries the **names only**, never the numbers: the model has
+to know who exists so it can say "I have no number for Rifat" instead of
+inventing one, and the tool fetches the number at the moment it dials. Shipping
+a dozen numbers into every turn is both wasteful and the easiest way for one to
+end up somewhere it should not be.
+
+**`wa.me` refuses a local number.** It opens nothing at all for "01812999888" —
+silently, which looks exactly like the app being broken — so `_international`
+converts at the point of use. Only there: the dialler is happy with the local
+form, and rewriting what Rohan typed would make it unrecognisable read back.
+`VONDO_COUNTRY_CODE` is the same fact `VONDO_TZ` already carries, in the form a
+phone number needs.
+
 **Nothing is sent or dialled automatically.** `call` opens the dialler with the
 number in it; `message` opens WhatsApp with the text typed. The last tap stays
 with the person whose name is on it, because a misheard sentence that places a

@@ -29,6 +29,7 @@ from __future__ import annotations
 from core import clock
 from core import config
 from core.memory import agenda as _agenda_mod
+from core.memory import contacts as _contacts_mod
 from core.memory import facts as _facts_mod
 from core.memory import migrate as _migrate
 from core.memory import recall as _recall_mod
@@ -56,6 +57,9 @@ facts_block = _facts_mod.block
 # bound to a function here and has shadowed the submodule of the same name twice
 # now (see the note in CLAUDE.md). One trap of that shape is enough.
 recalled_for = _recall_mod.describe   # what was recalled, for the screen
+people = _contacts_mod.everyone
+contacts_block = _contacts_mod.block
+contacts_count = _contacts_mod.count
 upcoming = _agenda_mod.upcoming
 schedule_count = _agenda_mod.count
 agenda_block = _agenda_mod.block
@@ -100,6 +104,7 @@ def system_prompt(about: str = "") -> str:
             + f"\n\nRight now it is {clock.today_line()}."
             + facts_block()
             + agenda_block()
+            + contacts_block()
             + (_recall_mod.block(about, skip_recent=config.MEMORY_TURNS)
                if about else ""))
 

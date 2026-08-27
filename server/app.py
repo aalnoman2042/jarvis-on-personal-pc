@@ -50,6 +50,7 @@ from core import memory
 from core import phone
 from core import reminders
 from core.memory import agenda as agenda_store
+from core.memory import contacts as contacts_store
 from core.memory import store
 from server import agents, auth, nudges, push
 
@@ -304,6 +305,12 @@ async def me(device: dict = Depends(caller)):
         "recent_actions": store.recent_actions(8),
         "pc": agents.registry.status(),
         "devices": auth.devices(),
+        # Names and whether there is a number — never the numbers themselves.
+        # A screen that lists them is useful; shipping a dozen phone numbers to
+        # every device on every board load is not.
+        "people": [{"name": p["name"], "phone": bool(p["phone"]),
+                    "email": bool(p["email"])}
+                   for p in contacts_store.everyone(30)],
         # The dashboard's UP NEXT panel. Carried here rather than fetched
         # separately for the same reason as everything else in this response:
         # a screen filling in two stages looks broken on a slow connection.

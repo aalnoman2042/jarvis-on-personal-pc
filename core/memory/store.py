@@ -126,6 +126,25 @@ CREATE TABLE IF NOT EXISTS tasks (
     asked_at REAL NOT NULL DEFAULT 0       -- when it was last chased
 );
 
+-- People, and how to reach them.
+--
+-- A number was a sentence in `facts` before, which meant "call dad" depended on
+-- the model finding the right sentence and reading the digits out of it
+-- correctly — every single time, with no way to be sure it had. A number is
+-- structured data and belongs in a column.
+--
+-- `name` is what Rohan calls them, and it is unique and case-insensitive: there
+-- is one "dad". Saying it again updates rather than adding a second.
+CREATE TABLE IF NOT EXISTS contacts (
+    id      INTEGER PRIMARY KEY,
+    name    TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    phone   TEXT NOT NULL DEFAULT '',
+    email   TEXT NOT NULL DEFAULT '',
+    note    TEXT NOT NULL DEFAULT '',
+    created REAL NOT NULL,
+    used    REAL NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

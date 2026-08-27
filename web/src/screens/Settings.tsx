@@ -163,6 +163,27 @@ export function Settings({ token, onClose, onSignOut }: {
           </section>
         ) : null}
 
+        {info?.people?.length ? (
+          <section className="panel bracket">
+            <span className="label">People</span>
+            <p className="muted small">
+              Say &ldquo;call dad&rdquo; and Jarvis looks the number up rather
+              than guessing it. Numbers stay on the server and are never sent to
+              this screen.
+            </p>
+            <ul className="facts">
+              {info.people.map((p) => (
+                <li key={p.name}>
+                  <span>{p.name}</span>
+                  <span className="muted small">
+                    {[p.phone && "phone", p.email && "email"].filter(Boolean).join(" · ") || "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <section className="panel bracket">
           <span className="label">Devices</span>
           <ul className="facts">

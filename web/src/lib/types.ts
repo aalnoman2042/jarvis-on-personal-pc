@@ -92,4 +92,6 @@ export interface Me {
   pc: { name: string; last_seen: number; telemetry: Telemetry }[];
   devices: { id: string; name: string; kind: string; last_seen: number; revoked: number }[];
   upcoming: AgendaItem[];
+  /** Names only — the numbers stay on the server. */
+  people: { name: string; phone: boolean; email: boolean }[];
 }

@@ -75,9 +75,34 @@ def take() -> str:
         return url
 
 
+# Where Rohan's local numbers belong. VONDO_TZ already says Asia/Dhaka; this is
+# the same fact in the form a phone number needs.
+COUNTRY_CODE = __import__("os").getenv("VONDO_COUNTRY_CODE", "880").lstrip("+")
+
+
 def _tidy_number(raw: str) -> str:
     """Strip a spoken number down to something a dialler accepts."""
     return re.sub(r"[^\d+]", "", raw or "")
+
+
+def _international(raw: str) -> str:
+    """A number in the form WhatsApp needs: country code, no plus, no leading 0.
+
+    wa.me will not open a chat for a local number — "01812999888" silently does
+    nothing, which looks exactly like the app being broken. A number saved the
+    way it is written locally therefore has to be converted at the point of use,
+    and only here: the dialler is perfectly happy with the local form, and
+    rewriting what Rohan typed would make it unrecognisable when read back.
+    """
+    digits = _tidy_number(raw)
+    if digits.startswith("+"):
+        return digits[1:]
+    if digits.startswith("00"):
+        return digits[2:]
+    if digits.startswith(COUNTRY_CODE) and len(digits) > len(COUNTRY_CODE) + 6:
+        return digits
+    # A local number: drop the trunk zero and put the country code on.
+    return COUNTRY_CODE + digits.lstrip("0")
 
 
 def resolve(target: str) -> tuple[str, str]:
@@ -139,8 +164,8 @@ def message(number: str, text: str = "", who: str = "") -> str:
     with the person whose name is on the message.
     """
     from urllib.parse import quote
-    digits = _tidy_number(number).lstrip("+")
-    if len(digits) < 3:
+    digits = _international(number)
+    if len(digits) < 6:
         return "I need a number to message."
     body = f"&text={quote(text)}" if text else ""
     request(f"https://wa.me/{digits}?{body.lstrip('&')}")
