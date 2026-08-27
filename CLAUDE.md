@@ -96,6 +96,22 @@ Recalled text goes in the **system prompt**, never as extra messages — injecti
 old exchanges as real turns is the fastest way to build the non-alternating
 history providers reject.
 
+**Searching everything is `core/memory/find.py`, and bm25 is a shortlist, not a
+score.** FTS5 ranks messages against each other well and against nothing else:
+its numbers are negative, corpus-dependent and unbounded, so putting one beside
+"this fact contains two of your three words" gives an order that shifts as the
+archive grows and cannot be explained to whoever is reading it. MATCH picks
+which messages are worth looking at, its rank is discarded, and every candidate
+from all six stores is scored again by one function on one scale.
+
+**SQL is broad, Python is strict.** `LIKE '%ai%'` matches "said" and FTS5 folds
+"Café" to "cafe" — both fine, because nothing is returned on the strength of a
+SQL match. The scorer re-checks each candidate on folded, word-boundary terms,
+so the stores cannot disagree about what matched. A zero score means SQL found
+it and the scorer did not agree, and those are dropped: a search that returns
+rubbish is worse than one that returns nothing, because you stop trusting the
+good results too.
+
 **`clock.was`, not `clock.say`, for anything from the archive.** `say` is
 written for things that have not happened, so it renders a sentence spoken this
 morning as "later today at 3pm", which reads as Jarvis losing track of which way

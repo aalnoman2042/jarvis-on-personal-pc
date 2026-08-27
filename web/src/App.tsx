@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatSheet } from "./hud/ChatSheet";
+import { Search } from "./hud/Search";
 import { Whisper } from "./hud/Whisper";
 import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
@@ -29,7 +30,7 @@ const CONN_TEXT: Record<string, string> = {
 function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   const jarvis = useVondo(token);
   const { canInstall, install } = useInstall();
-  const [open, setOpen] = useState<"none" | "chat" | "settings">("none");
+  const [open, setOpen] = useState<"none" | "chat" | "settings" | "search">("none");
   const [talkback, setTalkback] = useState(speech.enabled);
 
   // Something said out loud goes straight to Jarvis. Held in a ref because the
@@ -115,6 +116,10 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
         )}
         {/* Muting is one tap and it is remembered. Jarvis reading answers aloud
             is the point on a phone and an ambush in a quiet room. */}
+        <button className="gear" onClick={() => setOpen("search")}
+                aria-label="Search everything">
+          <span aria-hidden>&#8981;</span>
+        </button>
         {speech.available() && (
           <button
             className={`gear speaker${talkback ? "" : " speaker-off"}`}
@@ -157,6 +162,9 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
 
       {open === "chat" && (
         <ChatSheet jarvis={jarvis} voice={voice} token={token} onClose={() => setOpen("none")} />
+      )}
+      {open === "search" && (
+        <Search token={token} onClose={() => setOpen("none")} />
       )}
       {open === "settings" && (
         <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />

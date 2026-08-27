@@ -344,6 +344,51 @@ try:
           contains="must survive a sleeping app")
 
     print("")
+    print("")
+    print("=== 8b2. searching everything, in one place ===")
+    #
+    # The index was wired for the MODEL months before it was wired for Rohan:
+    # Jarvis could search his history and he could not.
+    from core.memory import find as find_mod  # noqa: E402
+    from core.memory import store as store_mod  # noqa: E402
+    from core.memory import contacts as c_mod  # noqa: E402
+    from core.memory import tasks as t_mod  # noqa: E402
+
+    agenda.cancel("all")
+    store_mod.add_turn("my supervisor wants CNN vs LSTM for NILM", "Noted.")
+    memory.add_fact("Rohan researches NILM at CUET")
+    reminders.schedule("18 sept", "NILM paper deadline")
+    t_mod.add("write the NILM methodology", t_mod.HIGH)
+    c_mod.remember("Dr Rahman", "01711111111", note="NILM supervisor")
+
+    r = httpx.get(f"{BASE}/search?q=NILM", headers=hdr, timeout=60)
+    check("search needs a token", httpx.get(f"{BASE}/search?q=x").status_code, 401)
+    check("it answers", r.status_code, 200)
+    kinds = {h["kind"] for h in r.json()["results"]}
+    check("  reaches the conversation", "message" in kinds, True)
+    check("  the remembered facts", "fact" in kinds, True)
+    check("  the diary", "diary" in kinds, True)
+    check("  the to-do list", "task" in kinds, True)
+    check("  and the people", "person" in kinds, True)
+
+    # A concentrated match beats a passing mention, or a one-word search
+    # returns everything tied and ordered by nothing.
+    top = r.json()["results"][0]
+    check("the best match is first", top["score"] >= r.json()["results"][-1]["score"], True)
+
+    # A search that returns rubbish is worse than one that returns nothing:
+    # you stop trusting the good results too.
+    empty = httpx.get(f"{BASE}/search?q=helicopter", headers=hdr, timeout=60).json()
+    check("nothing irrelevant comes back", empty["total"], 0)
+    check("an empty query is not a search", 
+          httpx.get(f"{BASE}/search?q=", headers=hdr, timeout=60).json()["total"], 0)
+
+    c_mod.forget("Dr Rahman")
+    for t in t_mod.open_tasks(50):
+        t_mod.drop(t["id"])
+    agenda.cancel("all")
+
+
     print("=== 8c. getting your data out, and back ===")
     #
     # Everything lived in one hosted database with no export and no second copy.

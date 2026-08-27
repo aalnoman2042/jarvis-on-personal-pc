@@ -682,6 +682,53 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- searching everything ---------- */
+.search-sheet { grid-template-rows: auto auto 1fr; }
+.search-box {
+  margin: var(--s3) var(--s4) 0;
+  padding: var(--s2) var(--s3);
+}
+.search-box input {
+  width: 100%;
+  color: var(--ink-strong);
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 16px;   /* stops iOS zooming the page on focus */
+}
+.hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+}
+.hits li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 2px var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--panel-2);
+}
+.hit-kind { font-size: 0.5rem; align-self: start; }
+/* Which store it came from, at a glance. "Where do I know this from?" is most
+   of what you are asking when you search your own life. */
+.hit-fact { border-color: var(--good); color: var(--good); }
+.hit-diary, .hit-task { border-color: var(--accent); color: var(--accent); }
+.hit-person { border-color: var(--warn); color: var(--warn); }
+.hit-title { color: var(--ink-strong); font-size: 0.9rem; overflow-wrap: anywhere; }
+.hit-body {
+  grid-column: 2 / -1;
+  color: var(--dim);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.hit-when { font-size: 0.62rem; color: var(--idle); white-space: nowrap; }
+
 /* ---------- things to do ---------- */
 .task-add {
   display: grid;

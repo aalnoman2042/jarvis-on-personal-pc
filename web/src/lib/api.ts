@@ -219,6 +219,22 @@ export async function dropTask(token: string, id: number) {
   return res.json();
 }
 
+/** Search everything: conversation, facts, diary, tasks, people, actions. */
+export async function searchAll(token: string, q: string) {
+  const res = await fetch(`${apiBase()}/search?q=${encodeURIComponent(q)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Search failed");
+  return res.json() as Promise<{
+    query: string;
+    total: number;
+    results: {
+      kind: string; id: number; when: number;
+      title: string; body: string; score: number;
+    }[];
+  }>;
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

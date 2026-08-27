@@ -51,6 +51,7 @@ from core import phone
 from core import reminders
 from core.memory import agenda as agenda_store
 from core.memory import backup as backup_store
+from core.memory import find as find_store
 from core.memory import contacts as contacts_store
 from core.memory import tasks as task_store
 from core.memory import store
@@ -382,6 +383,22 @@ async def drop_task(task_id: int, device: dict = Depends(caller)):
     return {"dropped": dropped,
             "tasks": [{**t, "said": task_store.describe(t)}
                       for t in task_store.open_tasks(15)]}
+
+
+@app.get("/search")
+async def search_everything(q: str = "", limit: int = 25,
+                            device: dict = Depends(caller)):
+    """Everything Jarvis knows, searched in one place.
+
+    The index was wired for the MODEL months before it was wired for Rohan —
+    Jarvis could search his history and he could not. Costs no API call: it is
+    SQL and string comparison.
+    """
+    query = (q or "").strip()[:200]
+    if not query:
+        return {"query": "", "results": [], "total": 0}
+    results = await run_in_threadpool(find_store.search, query, max(1, min(50, limit)))
+    return {"query": query, "results": results, "total": len(results)}
 
 
 @app.get("/agenda")
