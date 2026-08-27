@@ -231,6 +231,13 @@ differences are the whole distinction. Without it, "write the methodology"
 either became a reminder at an invented hour or was lost, and "what should I
 work on now?" had nothing to answer from.
 
+**`source` is what stops follow-through becoming nagging.** `asked` is a task
+Rohan put on the list; `noticed` is one Jarvis inferred from "I'll finish the
+draft tonight". Only `noticed` ones get chased, once, two days later, in the
+briefing — and `asked_at` is what makes it once. Chasing the same commitment
+every morning is how a helpful assistant becomes a thing you close. Something
+explicitly put on the list does not need chasing; it needs doing.
+
 **Open tasks sort by deadline before priority.** A normal thing due tomorrow
 beats an important thing with no date, because the deadline is the part that
 stops being possible. A due of 0 means none and must sort last, not first.

@@ -109,6 +109,15 @@ def compose(pc_online: bool = False, spoken: bool = False) -> str:
             f"Still outstanding: {_join([i['message'] for i in stale[:3]])}."
         )
 
+    # The thing that makes this an assistant rather than a list: asking about
+    # something you said you would do, unprompted, because it remembered on its
+    # own. Phrased as a question and marked asked, so it happens exactly once —
+    # chasing the same commitment every morning is how a helpful assistant
+    # becomes a thing you close.
+    for job in tasks.noticed_to_chase():
+        lines.append(f"You mentioned you'd {job['text']} — did that happen?")
+        tasks.mark_asked(job["id"])
+
     if not spoken and not pc_online:
         lines.append("Your PC is asleep — I'll use your phone for anything that needs opening.")
 

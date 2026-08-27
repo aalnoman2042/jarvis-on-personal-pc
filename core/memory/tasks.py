@@ -155,6 +155,44 @@ def done_since(since: float) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def noticed_to_chase(older_than: float = 2 * 86400.0, limit: int = 3) -> list[dict]:
+    """Commitments Jarvis inferred, old enough to ask about, not yet asked.
+
+    Only `source='noticed'` — things Rohan said he would do, which Jarvis
+    recorded on its own rather than being told to. Those are a guess and have to
+    be raised as one; something he explicitly put on the list does not need
+    chasing, it needs doing.
+
+    `asked_at` is why this asks ONCE. Chasing the same commitment every morning
+    is how a helpful assistant becomes a thing you close.
+    """
+    conn = store.connect()
+    if conn is None:
+        return []
+    cutoff = clock.now() - older_than
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE done = 0 AND source = 'noticed' "
+            "AND created <= ? AND asked_at = 0 "
+            "ORDER BY created ASC LIMIT ?", (cutoff, limit)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
+
+
+def mark_asked(task_id: int) -> None:
+    """Note that it has been raised, so it is not raised again."""
+    conn = store.connect()
+    if conn is None:
+        return
+    try:
+        conn.execute("UPDATE tasks SET asked_at = ? WHERE id = ?",
+                     (round(clock.now(), 1), int(task_id)))
+        conn.commit()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def counts() -> dict:
     conn = store.connect()
     empty = {"open": 0, "overdue": 0, "high": 0}

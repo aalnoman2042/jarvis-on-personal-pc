@@ -215,6 +215,40 @@ check("the prompt carries the open list", task_store.block(), contains="email su
 for t in task_store.open_tasks(50):
     task_store.drop(t["id"])
 
+print("")
+print("=== 3f. following through on what you said you would do ===")
+#
+# The difference between a list and an assistant. A list holds what you put on
+# it. Someone helping notices you said you would do something and asks, once,
+# how it went — without having been asked to track it.
+from core import brief as brief_mod  # noqa: E402
+
+for t in task_store.open_tasks(50):
+    task_store.drop(t["id"])
+
+noticed = task_store.add("finish the NILM draft", source="noticed")
+task_store.add("buy milk", source="asked")
+# Backdate it: a commitment made an hour ago is not yet worth asking about.
+store_conn = __import__("core.memory.store", fromlist=["store"]).connect()
+store_conn.execute("UPDATE tasks SET created = ? WHERE id = ?",
+                   (clock.now() - 3 * 86400, noticed))
+store_conn.commit()
+
+check("something said an hour ago is not chased yet",
+      [t["id"] for t in task_store.noticed_to_chase()], contains=str(noticed))
+first = brief_mod.compose()
+check("the briefing asks about it", first, contains="did that happen")
+check("  as a question, using their own words", first, contains="NILM draft")
+check("something they ASKED for is never chased", first.count("buy milk"), 0)
+
+# Once. Chasing the same commitment every morning is how a helpful assistant
+# becomes a thing you close.
+check("it does not ask a second time",
+      "did that happen" in brief_mod.compose(), False)
+
+for t in task_store.open_tasks(50):
+    task_store.drop(t["id"])
+
 print("\n=== 4. the tools a brain reaches for ===")
 agenda.cancel("all")
 check("remind", llm_tools.DISPATCH["remind"]("in 20 minutes", "call dad"),

@@ -281,6 +281,22 @@ def add_task(text: str, priority: str = "normal", due: str = "") -> str:
     return said + "."
 
 
+def note_commitment(text: str) -> str:
+    """Quietly record something the user said they WOULD do, unprompted.
+
+    Use when they mention an intention rather than asking you to track it —
+    "I'll finish the draft tonight", "I need to email my supervisor", "I should
+    start revising". They did not ask you to remember it; you noticed.
+
+    Say nothing more than a word of acknowledgement afterwards. Announcing that
+    you have written it down turns a passing remark into an interrogation.
+    Jarvis will ask how it went, once, in a day or two.
+    """
+    if task_store.add(text, task_store.NORMAL, source="noticed") is None:
+        return ""
+    return "Noted."
+
+
 def my_tasks() -> str:
     """What is still to do. Use for "what's on my list", "what should I do"."""
     items = task_store.open_tasks()
@@ -395,7 +411,7 @@ TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
-    add_task, my_tasks, finish_task,
+    add_task, my_tasks, finish_task, note_commitment,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
     get_time, get_date, system_info, control_volume, media_control,
@@ -544,6 +560,12 @@ OPENAI_TOOLS = [
            "priority": _STR("high, normal or someday"),
            "due": _STR("Optional deadline in their words, e.g. 'Friday'")},
           ["text"]),
+    _tool("note_commitment",
+          "Quietly record something the user said they WOULD do, unprompted — "
+          "'I'll finish the draft tonight', 'I need to email my supervisor'. "
+          "They did not ask you to track it; you noticed. Acknowledge briefly "
+          "and do not make a fuss about having written it down.",
+          {"text": _STR("What they said they would do, in a few words")}, ["text"]),
     _tool("my_tasks", "What is still to do. Use for 'what's on my list'."),
     _tool("finish_task", "Tick something off when they say it is done.",
           {"fragment": _STR("A word or two identifying the task")}, ["fragment"]),
