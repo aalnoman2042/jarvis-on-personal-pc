@@ -913,6 +913,14 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   padding: var(--s3);
   text-align: left;
   animation: whisper-in 0.22s ease;
+  /* Springs back when a swipe does not go far enough. Overridden inline while
+     a finger is actually down, so dragging tracks the finger exactly. */
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  cursor: pointer;
+  /* Horizontal drags belong to this, vertical ones to the board scrolling
+     underneath — taking both would make the page feel stuck. */
+  touch-action: pan-y;
+  user-select: none;
 }
 @keyframes whisper-in {
   from { transform: translateY(10px); opacity: 0; }
@@ -932,10 +940,26 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 .whisper-thinking {
   color: var(--warn);
 }
+.whisper-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
 .whisper-more {
   color: var(--idle);
   font-size: 0.54rem;
 }
+/* For anything without a touchscreen, where "swipe it away" is not an option. */
+.whisper-x {
+  padding: 0 4px;
+  color: var(--dim);
+  background: none;
+  border: none;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.whisper-x:hover { color: var(--accent); }
 
 /* ---------- the machine, idling ----------
    Something behind the conversation that reads as switched-on. Three cheap
