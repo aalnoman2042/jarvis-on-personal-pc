@@ -242,8 +242,8 @@ explicitly put on the list does not need chasing; it needs doing.
 beats an important thing with no date, because the deadline is the part that
 stops being possible. A due of 0 means none and must sort last, not first.
 
-**Finished, never deleted.** What got done is worth knowing, and it is what a
-weekly look back would be built on.
+**Finished, never deleted.** What got done is worth knowing, and it is what the
+weekly look back is built on — see below.
 
 **Parsing happens in Python, not in the model.** Asking a brain for an ISO
 timestamp is tempting and unreliable — it invents the year, forgets the
@@ -438,6 +438,45 @@ them and mean nothing across a restore. Running it twice adds nothing.
 credentials for specific browsers, useless anywhere else, and a backup is a
 thing people email to themselves. `test_reminders.py` section 8c checks that
 they are absent rather than trusting it.
+
+## The week, looked back on (phase 10)
+
+`core/weekly.py` answers "what has actually been happening", which is the
+question you cannot answer for yourself — a week is exactly long enough to
+misremember and short enough to feel certain about. `/weekly` serves it,
+`web/src/hud/Weekly.tsx` shows it under the briefing, `my_week` is the tool.
+
+**Every figure is counted, never estimated.** Tasks finished, tasks added, what
+is still open, how much was said — all of it is `SELECT COUNT(*)` over rows that
+already exist. That is what makes it safe to sit on the board beside the gauges,
+which follow the same rule.
+
+**The closing observation is arithmetic, not a model.** Six added against two
+finished says the list is growing; anything overdue says do those first. Every
+line it can produce is something the numbers beside it already show, so it can be
+argued with. A model asked to comment on someone's week will eventually
+congratulate them on a bad one, and a report that flatters is a report you stop
+reading. It also means the whole thing works with every free tier exhausted,
+which is the same reason `brief.py` is composed rather than generated.
+
+**Topics are a word count over Rohan's own messages.** Never the replies:
+counting both ranks the assistant's vocabulary, and "reminder" would come top of
+every week. Counted once per message, so saying "NILM" six times in one sentence
+is one mention. This is the whole of the "learn from my data" idea that is worth
+having — the expensive part of an assistant should be the reasoning, never the
+remembering.
+
+**Weekly means weekly.** `is_new_week` compares ISO weeks in Rohan's timezone
+rather than counting elapsed days, so it lands on the same day each week instead
+of drifting an hour later every time. The seen-marker is per device, like the
+briefing's: reading it on the phone must not silence it on the desktop.
+
+**A quiet week says nothing at all**, rather than rendering a page of zeroes.
+Same rule as the briefing and the board.
+
+**The offline brain answers it too**, and matches tightly — `"what have I got on
+this week"` is a question about the diary and must not be answered with a look
+back. A rule-based brain's failure mode is a wrong answer delivered confidently.
 
 ## Mail (phase 08)
 

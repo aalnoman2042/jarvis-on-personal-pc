@@ -148,6 +148,31 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** The week that has actually happened. `fresh` says it is the first look at a
+    new one, so the board can offer it once and then stay out of the way. */
+export async function weekly(token: string): Promise<{
+  text: string;
+  fresh: boolean;
+  figures: {
+    finished: string[];
+    added: number;
+    still_open: number;
+    overdue: number;
+    conversations: number;
+  };
+}> {
+  const res = await fetch(apiBase() + "/weekly", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't load the week");
+  return res.json();
+}
+
+/** Mark it read, so it does not reappear until next week. */
+export function weeklySeen(token: string) {
+  return post("/weekly/seen", {}, token);
+}
+
 /** The inboxes, ranked. Nothing is fetched until this is called: it is an IMAP
     round-trip per account, which is too slow to do on every board load. */
 export async function mail(token: string, days = 2) {

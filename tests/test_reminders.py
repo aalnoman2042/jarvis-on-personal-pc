@@ -463,6 +463,85 @@ try:
     check("/tick answers without a token", r.status_code, 200)
     check("  and says what it did", set(r.json()), {"ok", "delivered", "listening"})
 
+    print("\n=== 10. the week, counted rather than guessed ===")
+    from core import weekly  # noqa: E402
+    from core.memory import store as store_mod  # noqa: E402
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM tasks")
+    conn.execute("DELETE FROM messages")
+    conn.commit()
+
+    now = clock.now()
+    week_ago = now - 6 * 86400
+
+    # Two finished, six added, four still open. The figures are the whole point
+    # of the report, so they are pinned rather than sampled.
+    for text in ("write the methodology section", "email the supervisor"):
+        task_store.finish(task_store.add(text))
+    for text in ("book the train", "read the NILM paper",
+                 "renew the passport", "fix the bike"):
+        task_store.add(text)
+
+    for i, said in enumerate([
+            "how is the NILM disaggregation going",
+            "show me the NILM paper again",
+            "what did the supervisor say about NILM",
+            "remind me about the train",
+    ]):
+        conn.execute(
+            "INSERT INTO messages(ts, brain, device, user, assistant) "
+            "VALUES (?,?,?,?,?)",
+            (week_ago + i * 3600, "free", "test", said,
+             "Certainly. The disaggregation reminder is set."))
+    conn.commit()
+
+    figures = weekly.gather()
+    check("finished tasks are counted", len(figures["finished"]), 2)
+    check("open tasks are counted", figures["still_open"], 4)
+    check("added tasks are counted", figures["added"], 6)
+    check("conversations are counted", figures["conversations"], 4)
+
+    # The topic count must read Rohan's words, never Jarvis's. "disaggregation"
+    # appears in all four REPLIES and only one question — if it ranks at all,
+    # the report is describing the assistant's vocabulary rather than his week.
+    topics = dict(figures["topics"])
+    check("what he talked about is counted from his own words",
+          topics.get("nilm"), 3)
+    check("  and not from the assistant's replies",
+          "disaggregation" in topics, False)
+    check("  and stopwords are not a topic", "about" in topics, False)
+
+    text = weekly.compose()
+    check("the report names what was finished", text,
+          contains="write the methodology section")
+    check("  and how much is left", text, contains="4 still to do")
+    check("  and what it was mostly about", text, contains="nilm")
+
+    # Six added against two finished: the observation is arithmetic, so it has
+    # to say the list grew. A report that congratulates you on a bad week is
+    # worse than no report at all.
+    check("the closing line follows the figures", text,
+          contains="growing faster than it is shrinking")
+
+    check("a week already reported is not new",
+          weekly.is_new_week(now - 3600), False)
+    check("  last week is", weekly.is_new_week(now - 9 * 86400), True)
+    check("  and never having seen one is", weekly.is_new_week(None), True)
+
+    r = httpx.get(f"{BASE}/weekly", headers=hdr, timeout=30)
+    check("/weekly answers", r.status_code, 200)
+    check("  offering it on the first open of the week", r.json()["fresh"], True)
+    httpx.post(f"{BASE}/weekly/seen", headers=hdr, timeout=30)
+    check("  and going quiet once it has been read",
+          httpx.get(f"{BASE}/weekly", headers=hdr, timeout=30).json()["fresh"], False)
+
+    # Nothing to report must read as nothing, not as a page of zeroes.
+    conn.execute("DELETE FROM tasks")
+    conn.execute("DELETE FROM messages")
+    conn.commit()
+    check("an empty week says nothing at all", weekly.compose(), "")
+
 finally:
     server.should_exit = True
     time.sleep(0.3)

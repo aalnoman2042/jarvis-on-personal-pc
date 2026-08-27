@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 
 import { brief, briefSeen } from "../lib/api";
 import * as speech from "../lib/speak";
+import { SpeakButton } from "./SpeakButton";
 
 export function Brief({ token, tick }: {
   token: string;
@@ -73,34 +74,7 @@ export function Brief({ token, tick }: {
       <div className="brief-top">
         <span className="label">{asked ? "Today" : "Your briefing"}</span>
         <div className="brief-acts">
-          {speech.available() && (
-            <button
-              className="linkish label"
-              onClick={async () => {
-                setVoiceNote("");
-                const spoke = await speech.speak(text);
-                // A button that does nothing and says nothing is the worst of
-                // both. If the device has no working voice, say so once.
-                if (!spoke) {
-                  const inApp = Boolean(
-                    (window as unknown as {
-                      Capacitor?: { isNativePlatform?: () => boolean };
-                    }).Capacitor?.isNativePlatform?.(),
-                  );
-                  setVoiceNote(
-                    inApp
-                      ? "This app build cannot speak — Android's WebView has no "
-                        + "speech engine of its own. Install the newest APK; "
-                        + "screens update themselves, this part cannot."
-                      : "No speech voice on this device. Android: Settings → "
-                        + "Accessibility → Text-to-speech.",
-                  );
-                }
-              }}
-            >
-              Read it
-            </button>
-          )}
+          <SpeakButton text={text} onNote={setVoiceNote} />
           <button className="linkish label" onClick={dismiss}>Dismiss</button>
         </div>
       </div>

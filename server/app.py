@@ -41,6 +41,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from core import brief
+from core import weekly
 from core import config
 from core import ears
 from core import eyes
@@ -478,6 +479,30 @@ async def brief_seen(device: dict = Depends(caller)):
     """Mark today's briefing as read, so it does not reappear all day."""
     await run_in_threadpool(
         store.meta_set, f"brief_seen_{device['id']}", str(clock_now()))
+    return {"ok": True}
+
+
+@app.get("/weekly")
+async def weekly_report(device: dict = Depends(caller)):
+    """The week that has actually happened.
+
+    `fresh` is true only once per ISO week, so the board can offer it on the
+    first open of a new week and then stay quiet. Same per-device marker as the
+    briefing: reading it on the phone should not silence it on the desktop.
+    """
+    key = f"weekly_seen_{device['id']}"
+    last = await run_in_threadpool(store.meta_get, key, "")
+    fresh = weekly.is_new_week(float(last) if last else None)
+    data = await run_in_threadpool(weekly.gather)
+    text = await run_in_threadpool(weekly.compose, None, data)
+    return {"text": text, "fresh": fresh, "figures": data}
+
+
+@app.post("/weekly/seen")
+async def weekly_seen(device: dict = Depends(caller)):
+    """Mark this week's report as read, so it does not reappear all week."""
+    await run_in_threadpool(
+        store.meta_set, f"weekly_seen_{device['id']}", str(clock_now()))
     return {"ok": True}
 
 

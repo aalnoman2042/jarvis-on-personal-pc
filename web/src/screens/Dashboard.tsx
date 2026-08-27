@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { Brief } from "../hud/Brief";
+import { Weekly } from "../hud/Weekly";
 import { Dial } from "../hud/Dial";
 import { Mail } from "../hud/Mail";
 import { Tasks } from "../hud/Tasks";
@@ -156,6 +157,7 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
       )}
 
       <Brief token={token} tick={answers} />
+      <Weekly token={token} />
 
       <section className="hero">
         <div className="hero-reactor">

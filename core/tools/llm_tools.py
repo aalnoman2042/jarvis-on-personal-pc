@@ -18,6 +18,7 @@ from core import phone
 from core.memory import contacts
 from core.memory import tasks as task_store
 from core import reminders
+from core import weekly
 
 
 def _pc_then_phone(on_pc, target: str) -> str:
@@ -297,6 +298,18 @@ def note_commitment(text: str) -> str:
     return "Noted."
 
 
+def my_week() -> str:
+    """How the last week actually went — what got done, what did not, what
+    was talked about.
+
+    Use for "how was my week", "what did I get done", "how am I doing". It is
+    counted from the record, not estimated, so read the figures back as given
+    rather than rounding them into a compliment.
+    """
+    text = weekly.compose()
+    return text or "Not enough has happened this week to look back on yet."
+
+
 def my_tasks() -> str:
     """What is still to do. Use for "what's on my list", "what should I do"."""
     items = task_store.open_tasks()
@@ -411,7 +424,7 @@ TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
-    add_task, my_tasks, finish_task, note_commitment,
+    add_task, my_tasks, finish_task, note_commitment, my_week,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
     get_time, get_date, system_info, control_volume, media_control,
@@ -567,6 +580,11 @@ OPENAI_TOOLS = [
           "and do not make a fuss about having written it down.",
           {"text": _STR("What they said they would do, in a few words")}, ["text"]),
     _tool("my_tasks", "What is still to do. Use for 'what's on my list'."),
+    _tool("my_week",
+          "How the last week actually went — what got finished, what is still "
+          "open, what they talked about. Use for 'how was my week', 'what did "
+          "I get done', 'how am I doing'. The figures are counted from the "
+          "record, so read them back as given."),
     _tool("finish_task", "Tick something off when they say it is done.",
           {"fragment": _STR("A word or two identifying the task")}, ["fragment"]),
     _tool("check_agenda",

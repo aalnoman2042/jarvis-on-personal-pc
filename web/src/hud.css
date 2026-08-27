@@ -682,6 +682,35 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- the week, looked back on ----------
+   Sits under the briefing and behaves the same way, but arrives once a week.
+   A quieter edge than the briefing's on purpose: today is what you act on,
+   last week is what you think about, and the board should not shout both. */
+.weekly {
+  border-left-color: var(--idle);
+}
+.weekly-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--idle);
+}
+.weekly-figures b {
+  color: var(--ink-strong);
+  font-size: 0.95rem;
+  margin-right: 0.25em;
+}
+.weekly-late b {
+  color: var(--warn);
+}
+.speak-note {
+  flex-basis: 100%;
+}
+
 /* ---------- searching everything ---------- */
 .search-sheet { grid-template-rows: auto auto 1fr; }
 .search-box {

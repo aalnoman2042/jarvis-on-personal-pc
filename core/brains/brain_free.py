@@ -104,6 +104,20 @@ class FreeBrain:
                 mins = n
             return actions.set_reminder(mins, msg)
 
+        # --- The week, looked back on ---
+        # Worth having here specifically because this brain is the one still
+        # answering when the free tiers are gone: the report is composed from
+        # counted rows, so it is exactly as good offline as it is online.
+        #
+        # Matched tightly. "what have I got this week" is a question about the
+        # diary and must not be answered with a look-back — a wrong answer
+        # delivered confidently is the failure mode of a rule-based brain.
+        if (("how was" in t or "how has" in t) and "week" in t) or any(
+                p in t for p in ("what did i get done", "what have i got done",
+                                 "what did i do this week", "weekly report",
+                                 "how am i doing", "my week been")):
+            return llm_tools.my_week()
+
         # --- Time / date ---
         if "time" in t:
             return actions.get_time()
