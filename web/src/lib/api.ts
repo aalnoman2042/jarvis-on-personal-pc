@@ -163,6 +163,44 @@ export async function mail(token: string, days = 2) {
   }>;
 }
 
+/** Download everything Jarvis knows as one file.
+ *
+ * Fetched with the token and handed to the browser as a blob rather than
+ * linked: a plain <a href> cannot carry an Authorization header, and making
+ * the endpoint public to work around that would put a year of someone's
+ * conversation behind a guessable URL. */
+export async function downloadBackup(token: string): Promise<number> {
+  const res = await fetch(apiBase() + "/export", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not build the backup");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `jarvis-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoked on a delay: revoking immediately can cancel the save on some
+  // browsers, which fails as a file that never appears.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return blob.size;
+}
+
+export async function backupSummary(token: string) {
+  const res = await fetch(apiBase() + "/export/summary", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not read the backup size");
+  return res.json() as Promise<Record<string, number>>;
+}
+
+/** Put a backup back. Merges — it never deletes anything already here. */
+export async function restoreBackup(token: string, payload: unknown) {
+  return post("/restore", { payload }, token);
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

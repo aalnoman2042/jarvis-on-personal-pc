@@ -35,7 +35,7 @@ import time
 from fastapi import (Depends, FastAPI, File, Header, HTTPException, Request,
                      UploadFile, WebSocket, WebSocketDisconnect)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -50,6 +50,7 @@ from core import memory
 from core import phone
 from core import reminders
 from core.memory import agenda as agenda_store
+from core.memory import backup as backup_store
 from core.memory import contacts as contacts_store
 from core.memory import store
 from server import agents, auth, nudges, push
@@ -545,6 +546,53 @@ async def push_seen(body: SeenIn):
     """
     await nudges.mark_seen(body.id)
     return {"ok": True}
+
+
+class RestoreIn(BaseModel):
+    payload: dict
+
+
+@app.get("/export")
+async def export_everything(device: dict = Depends(caller)):
+    """Everything Jarvis knows, as one file you keep.
+
+    There was no way to get any of this out until now: it all lived in one
+    hosted database with no export and no second copy. A lapsed free tier or a
+    lost login and a year of someone's life would be gone.
+
+    Plain JSON rather than a database dump, so it is readable in ten years by
+    something that is not this program — and readable by Rohan, who should be
+    able to open it and see his own sentences.
+
+    Devices and push subscriptions are NOT included: they are credentials for
+    specific browsers, useless anywhere else, and a backup is a thing people
+    email themselves.
+    """
+    text = await run_in_threadpool(backup_store.as_json)
+    stamp = __import__("core.clock", fromlist=["clock"]).local().strftime("%Y-%m-%d")
+    return Response(
+        content=text,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="jarvis-{stamp}.json"'},
+    )
+
+
+@app.get("/export/summary")
+async def export_summary(device: dict = Depends(caller)):
+    """How much there is, for a screen that offers to save it."""
+    return await run_in_threadpool(backup_store.summary)
+
+
+@app.post("/restore")
+async def restore_backup(body: RestoreIn, device: dict = Depends(caller)):
+    """Put a backup back. Merges — it never deletes anything already here.
+
+    A restore that wipes the present to recover the past is a worse accident
+    than the one it is fixing, so rows that already exist are left alone and
+    running it twice adds nothing the second time.
+    """
+    added = await run_in_threadpool(backup_store.restore, body.payload)
+    return {"added": added, "total": sum(added.values())}
 
 
 @app.post("/tick")

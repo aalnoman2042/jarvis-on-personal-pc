@@ -381,6 +381,27 @@ resort rather than only the last one's.
 Failure puts a brain on cooldown (5 min ordinary, 30 min for quota) so a dead
 free tier is not re-paid on every question — see `brain_fallback.py`.
 
+## Getting the data out (phase 09)
+
+`core/memory/backup.py`. Until this existed there was no export and no second
+copy anywhere: every conversation, the diary and everybody's phone number lived
+in one hosted database, with `jarvis.history.jsonl` frozen at the migration as
+the only fallback.
+
+**Plain JSON, not a database dump.** It has to be readable in ten years by
+something that is not this program, and readable by Rohan — he should be able
+to open the file and see his own sentences.
+
+**Restore merges and never deletes.** A restore that wipes the present to
+recover the past is a worse accident than the one it is fixing. Rows are
+matched on content, never on id: ids are assigned by whichever database wrote
+them and mean nothing across a restore. Running it twice adds nothing.
+
+**Devices and push subscriptions are deliberately excluded.** They are
+credentials for specific browsers, useless anywhere else, and a backup is a
+thing people email to themselves. `test_reminders.py` section 8c checks that
+they are absent rather than trusting it.
+
 ## Mail (phase 08)
 
 `core/mail.py` reads Rohan's inboxes over IMAP. Standard library only —

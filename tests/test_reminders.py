@@ -309,6 +309,42 @@ try:
           [i["message"] for i in agenda.ready()],
           contains="must survive a sleeping app")
 
+    print("")
+    print("=== 8c. getting your data out, and back ===")
+    #
+    # Everything lived in one hosted database with no export and no second copy.
+    # A backup you cannot restore is half a backup, so both halves are checked.
+    from core.memory import backup as backup_mod  # noqa: E402
+    from core.memory import contacts as contacts_mod  # noqa: E402
+
+    agenda.cancel("all")
+    contacts_mod.remember("backup-test-person", "01700000000")
+    reminders.schedule("18 sept", "backup test exam")
+    dump = httpx.get(f"{BASE}/export", headers=hdr, timeout=60)
+    check("export needs a token", httpx.get(f"{BASE}/export").status_code, 401)
+    check("it downloads", dump.status_code, 200)
+    check("  as a file, not a page", dump.headers.get("content-disposition", ""),
+          contains="attachment")
+    saved = dump.json()
+    check("  in plain readable JSON", saved.get("format"), 1)
+    check("  with the conversation in it", len(saved["tables"]["messages"]) > 0, True)
+    check("  and the diary", len(saved["tables"]["reminders"]) > 0, True)
+    check("  and the people", len(saved["tables"]["contacts"]) > 0, True)
+
+    # Credentials must never travel in a file people email to themselves.
+    check("no device tokens in the backup", "devices" in saved["tables"], False)
+    check("no push subscriptions either",
+          "push" in json.dumps(saved).lower().replace("pushed", ""), False)
+
+    # Restoring what is already here must change nothing at all.
+    again = httpx.post(f"{BASE}/restore", headers=hdr, json={"payload": saved},
+                       timeout=60).json()
+    check("restoring an existing backup adds nothing", again["total"], 0)
+    check("  and deletes nothing", contacts_mod.find("backup-test-person") is not None, True)
+    contacts_mod.forget("backup-test-person")
+    agenda.cancel("all")
+
+
     print("\n=== 9. the wake-up call a sleeping free tier needs ===")
     r = httpx.post(f"{BASE}/tick")
     check("/tick answers without a token", r.status_code, 200)

@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { Backup } from "../hud/Backup";
 import { Notifications } from "../hud/Notifications";
 import { VoicePicker } from "../hud/VoicePicker";
 import { forgetFact, me } from "../lib/api";
@@ -198,6 +199,8 @@ export function Settings({ token, onClose, onSignOut }: {
             ))}
           </ul>
         </section>
+
+        <Backup token={token} />
 
         <button className="danger" onClick={onSignOut}>Sign out of this device</button>
 
