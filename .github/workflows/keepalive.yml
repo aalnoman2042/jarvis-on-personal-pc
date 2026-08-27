@@ -1,0 +1,50 @@
+# Keep the cloud core awake.
+#
+# **This file lives on `main` because GitHub only runs scheduled workflows from
+# the repository's default branch.** It sat on the development branch for weeks
+# and never fired once — which is why the first message after a quiet spell was
+# always slow, and why voice hit cold-start 502s. The code being correct was
+# never the problem; the branch was.
+#
+# Render's free tier spins a service down after about fifteen minutes without
+# traffic, and waking it takes thirty to fifty seconds. This pings /tick, which
+# wakes it AND has it look at the diary while it is up — a sleeping server has
+# no timers, so nothing notices a reminder has come due.
+#
+# Every ten minutes, around the clock. The free allowance is 750 instance-hours
+# a month and a month is 744, so this spends nearly all of it deliberately:
+# always-warm is the thing being bought. Narrow the hours below if the
+# allowance ever runs short before month end.
+#
+# Two things worth knowing:
+#   * GitHub disables scheduled workflows on a repository with no commits for
+#     sixty days. If the server starts sleeping again after a long quiet
+#     period, look here first.
+#   * Scheduled runs are best-effort and are often several minutes late under
+#     load. That is fine for keeping a server warm, and it is why reminders on
+#     the phone are held by the phone rather than depending on this.
+
+name: keep the core awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the core and sweep the diary
+        env:
+          # The address is public — it is baked into the APK and printed in the
+          # README — so it is a plain default rather than a secret. It used to
+          # require a secret that was never set, which made the whole job a
+          # silent no-op even where it did run.
+          URL: ${{ secrets.VONDO_URL || 'https://vondo-core.onrender.com' }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 -X POST "$URL/tick")
+          echo "POST $URL/tick -> $code"
+          # A wake-up can take a minute and may answer 502 on the way up. That
+          # is the ping doing its job, not a failure worth a red cross.
+          if [ "$code" = "200" ]; then echo "awake"; else echo "woke it (or it is starting)"; fi
