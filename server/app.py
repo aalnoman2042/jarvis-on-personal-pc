@@ -52,6 +52,7 @@ from core import reminders
 from core.memory import agenda as agenda_store
 from core.memory import backup as backup_store
 from core.memory import contacts as contacts_store
+from core.memory import tasks as task_store
 from core.memory import store
 from server import agents, auth, nudges, push
 
@@ -309,6 +310,8 @@ async def me(device: dict = Depends(caller)):
         # Names and whether there is a number — never the numbers themselves.
         # A screen that lists them is useful; shipping a dozen phone numbers to
         # every device on every board load is not.
+        "tasks": [{**t, "said": task_store.describe(t)}
+                  for t in task_store.open_tasks(15)],
         "people": [{"name": p["name"], "phone": bool(p["phone"]),
                     "email": bool(p["email"])}
                    for p in contacts_store.everyone(30)],
@@ -345,6 +348,40 @@ class RemindIn(BaseModel):
     when: str = Field(min_length=1, max_length=120)
     message: str = Field(min_length=1, max_length=500)
     warn: str = Field(default="", max_length=60)
+
+
+class TaskIn(BaseModel):
+    text: str = Field(min_length=1, max_length=300)
+    priority: int = Field(default=1, ge=0, le=2)
+    due: str = Field(default="", max_length=120)
+
+
+@app.post("/tasks")
+async def add_task(body: TaskIn, device: dict = Depends(caller)):
+    """Add one from a form rather than a conversation."""
+    from core import clock as _clock
+    when = 0.0
+    if body.due.strip():
+        parsed, _ = await run_in_threadpool(_clock.parse_when, body.due)
+        when = parsed or 0.0
+    await run_in_threadpool(task_store.add, body.text, body.priority, when)
+    return {"tasks": [{**t, "said": task_store.describe(t)}
+                      for t in task_store.open_tasks(15)]}
+
+
+@app.post("/tasks/{task_id}/done")
+async def finish_task(task_id: int, device: dict = Depends(caller)):
+    await run_in_threadpool(task_store.finish, task_id)
+    return {"tasks": [{**t, "said": task_store.describe(t)}
+                      for t in task_store.open_tasks(15)]}
+
+
+@app.delete("/tasks/{task_id}")
+async def drop_task(task_id: int, device: dict = Depends(caller)):
+    dropped = await run_in_threadpool(task_store.drop, task_id)
+    return {"dropped": dropped,
+            "tasks": [{**t, "said": task_store.describe(t)}
+                      for t in task_store.open_tasks(15)]}
 
 
 @app.get("/agenda")

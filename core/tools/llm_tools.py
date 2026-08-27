@@ -16,6 +16,7 @@ from core import mail
 from core import memory
 from core import phone
 from core.memory import contacts
+from core.memory import tasks as task_store
 from core import reminders
 
 
@@ -255,6 +256,51 @@ def check_mail(days: str = "1") -> str:
     return mail.summary(days=window)
 
 
+def add_task(text: str, priority: str = "normal", due: str = "") -> str:
+    """Put something on the to-do list — work with no fixed time.
+
+    Use for "I need to write the methodology", "remind me to email my
+    supervisor", "add finishing the draft to my list". Anything that has to get
+    DONE rather than happens AT a time; use `remind` for the latter.
+
+    'priority' is "high", "normal" or "someday". 'due' is an optional deadline
+    in the user's own words ("Friday", "the 20th") — pass the phrase through.
+    """
+    from core import clock
+    level = {"high": task_store.HIGH, "someday": task_store.LOW,
+             "low": task_store.LOW}.get(priority.strip().lower(), task_store.NORMAL)
+    when = 0.0
+    if due.strip():
+        parsed, _ = clock.parse_when(due)
+        when = parsed or 0.0
+    if task_store.add(text, level, when) is None:
+        return "I couldn't write that down just now."
+    said = f"On the list: {text}"
+    if when:
+        said += f", due {clock.say(when)}"
+    return said + "."
+
+
+def my_tasks() -> str:
+    """What is still to do. Use for "what's on my list", "what should I do"."""
+    items = task_store.open_tasks()
+    if not items:
+        return "Nothing on the list."
+    return "; ".join(task_store.describe(t) for t in items) + "."
+
+
+def finish_task(fragment: str) -> str:
+    """Tick something off. Use when they say a thing is done or finished."""
+    found = task_store.find(fragment)
+    if not found:
+        return f"I don't have anything open matching '{fragment}'."
+    if len(found) > 1:
+        return ("More than one of those: "
+                + "; ".join(t["text"] for t in found[:4]) + ". Which one?")
+    task_store.finish(found[0]["id"])
+    return f"Done: {found[0]['text']}."
+
+
 def check_agenda() -> str:
     """See what is coming up: reminders, deadlines, appointments, events.
 
@@ -349,6 +395,7 @@ TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
+    add_task, my_tasks, finish_task,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
     get_time, get_date, system_info, control_volume, media_control,
@@ -490,6 +537,16 @@ OPENAI_TOOLS = [
           "Look at the user's email and say what is worth their attention. "
           "Use for 'any important mail', 'check my inbox', 'did X reply'.",
           {"days": _STR("How many days back to look, default 1")}),
+    _tool("add_task",
+          "Put something on the to-do list — work with no fixed time. Use for "
+          "anything that has to get DONE rather than happens AT a time.",
+          {"text": _STR("What needs doing"),
+           "priority": _STR("high, normal or someday"),
+           "due": _STR("Optional deadline in their words, e.g. 'Friday'")},
+          ["text"]),
+    _tool("my_tasks", "What is still to do. Use for 'what's on my list'."),
+    _tool("finish_task", "Tick something off when they say it is done.",
+          {"fragment": _STR("A word or two identifying the task")}, ["fragment"]),
     _tool("check_agenda",
           "See what is coming up. Use for 'what's coming up', 'what do I have "
           "tomorrow', 'when is my exam'."),

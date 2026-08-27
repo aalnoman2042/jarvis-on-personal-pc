@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from core import clock, config
 from core.memory import agenda
+from core.memory import tasks
 
 # How far ahead "today" reaches. Something at 1am tomorrow is tonight's problem,
 # not tomorrow morning's.
@@ -84,6 +85,21 @@ def compose(pc_online: bool = False, spoken: bool = False) -> str:
             + (f", and {len(soon) - 1} other thing{'s' if len(soon) > 2 else ''}."
                if len(soon) > 1 else ".")
         )
+
+    # What is on the list, because "today" is not only appointments. Overdue
+    # first: a deadline that has passed is the one thing that stops being
+    # fixable, and a briefing that omits it is being polite at your expense.
+    todo = tasks.open_tasks(12)
+    if todo:
+        late = [t for t in todo if t.get("due") and t["due"] < now]
+        big = [t for t in todo if t.get("priority") == tasks.HIGH and t not in late]
+        if late:
+            lines.append(f"Overdue: {_join([t['text'] for t in late[:3]])}.")
+        if big:
+            lines.append(f"Top of the list: {_join([t['text'] for t in big[:2]])}.")
+        rest = len(todo) - len(late[:3]) - len(big[:2])
+        if rest > 0:
+            lines.append(f"{rest} other thing{'s' if rest != 1 else ''} to do.")
 
     # Overdue is worth saying out loud, because the whole point of a diary is
     # that nothing silently rots in it.

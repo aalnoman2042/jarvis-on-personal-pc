@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Brief } from "../hud/Brief";
 import { Dial } from "../hud/Dial";
 import { Mail } from "../hud/Mail";
+import { Tasks } from "../hud/Tasks";
 import { Reactor } from "../hud/Reactor";
 import { Vision } from "../hud/Vision";
 import { dropAgenda, me } from "../lib/api";
@@ -272,6 +273,12 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
             Settings →
           </button>
         </section>
+
+        <Tasks
+          token={token}
+          items={info?.tasks ?? []}
+          onChange={(next) => setInfo((prev) => (prev ? { ...prev, tasks: next } : prev))}
+        />
 
         <Mail token={token} />
 

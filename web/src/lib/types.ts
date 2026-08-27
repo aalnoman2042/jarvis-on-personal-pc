@@ -46,6 +46,16 @@ export interface MailMessage {
   why: string;
 }
 
+/** Something to do, as opposed to something that happens at a time. */
+export interface Task {
+  id: number;
+  text: string;
+  priority: number;
+  due: number;
+  done: number;
+  said: string;
+}
+
 /** Frames the server sends down /ws/client. */
 export type ServerFrame =
   | { type: "status"; state: string; brain?: string; pc_online?: boolean }
@@ -92,6 +102,7 @@ export interface Me {
   pc: { name: string; last_seen: number; telemetry: Telemetry }[];
   devices: { id: string; name: string; kind: string; last_seen: number; revoked: number }[];
   upcoming: AgendaItem[];
+  tasks: Task[];
   /** Names only — the numbers stay on the server. */
   people: { name: string; phone: boolean; email: boolean }[];
 }

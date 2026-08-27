@@ -34,6 +34,7 @@ from core.memory import facts as _facts_mod
 from core.memory import migrate as _migrate
 from core.memory import recall as _recall_mod
 from core.memory import store
+from core.memory import tasks as _tasks_mod
 
 # --- storage, re-exported -------------------------------------------------
 add_turn = store.add_turn
@@ -60,6 +61,9 @@ recalled_for = _recall_mod.describe   # what was recalled, for the screen
 people = _contacts_mod.everyone
 contacts_block = _contacts_mod.block
 contacts_count = _contacts_mod.count
+open_tasks = _tasks_mod.open_tasks
+task_counts = _tasks_mod.counts
+tasks_block = _tasks_mod.block
 upcoming = _agenda_mod.upcoming
 schedule_count = _agenda_mod.count
 agenda_block = _agenda_mod.block
@@ -105,6 +109,7 @@ def system_prompt(about: str = "") -> str:
             + facts_block()
             + agenda_block()
             + contacts_block()
+            + tasks_block()
             + (_recall_mod.block(about, skip_recent=config.MEMORY_TURNS)
                if about else ""))
 

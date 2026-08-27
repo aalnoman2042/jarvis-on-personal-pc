@@ -201,6 +201,24 @@ export async function restoreBackup(token: string, payload: unknown) {
   return post("/restore", { payload }, token);
 }
 
+/** Add something to the to-do list without going through a brain. */
+export function addTask(token: string, text: string, priority = 1, due = "") {
+  return post("/tasks", { text, priority, due }, token);
+}
+
+export function finishTask(token: string, id: number) {
+  return post(`/tasks/${id}/done`, {}, token);
+}
+
+export async function dropTask(token: string, id: number) {
+  const res = await fetch(`${apiBase()}/tasks/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not remove that");
+  return res.json();
+}
+
 /** What is coming up. */
 export async function agenda(token: string) {
   const res = await fetch(apiBase() + "/agenda", {

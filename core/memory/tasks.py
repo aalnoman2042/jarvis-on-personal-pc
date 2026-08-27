@@ -1,0 +1,202 @@
+"""Things to do, as opposed to things that happen.
+
+The diary holds what happens at a time: a class, an exam, a train. This holds
+what has to get done, which is a different shape and is why it is a different
+table — a task has no required date and does have a finished state, and those
+two differences are the whole distinction.
+
+Without it there was nowhere to put "write the methodology section". Said to
+Jarvis, it either became a reminder at an invented time or was lost, and
+"what should I work on now?" had nothing to answer from.
+
+**`source` separates what was asked for from what was noticed.** When Rohan
+says "add a task", that is an instruction. When he says "I need to finish the
+draft this week", that is Jarvis inferring — a guess, and it has to be raised as
+one. Treating the two identically is how an assistant starts nagging about
+things nobody actually committed to.
+
+Same contract as the rest of the package: nothing here raises into a
+conversation.
+"""
+from __future__ import annotations
+
+from core import clock
+from core.memory import store
+
+MAX_TEXT = 300
+
+# 2 high, 1 normal, 0 someday. Three is enough — a five-point scale is a thing
+# people spend time adjusting rather than doing.
+HIGH, NORMAL, LOW = 2, 1, 0
+
+_WORDS = {HIGH: "high", NORMAL: "", LOW: "someday"}
+
+
+def _clean(text: str) -> str:
+    return " ".join((text or "").split())[:MAX_TEXT]
+
+
+def add(text: str, priority: int = NORMAL, due: float = 0.0,
+        minutes: int = 0, tag: str = "", source: str = "asked") -> int | None:
+    """Put something on the list. Returns its id."""
+    conn = store.connect()
+    text = _clean(text)
+    if conn is None or not text:
+        return None
+    try:
+        # The same thing said twice is one task. Someone repeating themselves is
+        # emphasis, not a second job.
+        existing = conn.execute(
+            "SELECT id FROM tasks WHERE done = 0 AND lower(text) = ? LIMIT 1",
+            (text.lower(),)).fetchone()
+        if existing:
+            if priority != NORMAL:
+                conn.execute("UPDATE tasks SET priority = ? WHERE id = ?",
+                             (int(priority), existing["id"]))
+                conn.commit()
+            return int(existing["id"])
+        cursor = conn.execute(
+            "INSERT INTO tasks(text, created, priority, due, minutes, tag, source) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (text, round(clock.now(), 1), int(priority), float(due or 0),
+             int(minutes or 0), _clean(tag)[:40], source))
+        conn.commit()
+        return cursor.lastrowid
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def open_tasks(limit: int = 30) -> list[dict]:
+    """What is still to do, most pressing first.
+
+    Ordered by deadline before priority: a normal thing due tomorrow beats an
+    important thing with no date, because the deadline is the part that will
+    stop being possible.
+    """
+    conn = store.connect()
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE done = 0 "
+            # A due date of 0 means none, and must sort last rather than first.
+            "ORDER BY CASE WHEN due > 0 THEN due ELSE 1e12 END ASC, "
+            "priority DESC, created ASC LIMIT ?",
+            (limit,)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
+
+
+def find(fragment: str) -> list[dict]:
+    conn = store.connect()
+    fragment = _clean(fragment).lower()
+    if conn is None or not fragment:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE done = 0 AND lower(text) LIKE ? "
+            "ORDER BY created ASC LIMIT 5", (f"%{fragment}%",)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
+
+
+def finish(task_id: int) -> bool:
+    """Mark it done. Kept, not deleted — what got done is worth knowing."""
+    conn = store.connect()
+    if conn is None:
+        return False
+    try:
+        conn.execute("UPDATE tasks SET done = 1, done_at = ? WHERE id = ?",
+                     (round(clock.now(), 1), int(task_id)))
+        conn.commit()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def reopen(task_id: int) -> bool:
+    conn = store.connect()
+    if conn is None:
+        return False
+    try:
+        conn.execute("UPDATE tasks SET done = 0, done_at = 0 WHERE id = ?",
+                     (int(task_id),))
+        conn.commit()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def drop(task_id: int) -> bool:
+    conn = store.connect()
+    if conn is None:
+        return False
+    try:
+        cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (int(task_id),))
+        conn.commit()
+        return bool(cursor.rowcount)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def done_since(since: float) -> list[dict]:
+    """What was finished recently — for a weekly look back."""
+    conn = store.connect()
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE done = 1 AND done_at >= ? "
+            "ORDER BY done_at DESC LIMIT 50", (float(since),)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
+
+
+def counts() -> dict:
+    conn = store.connect()
+    empty = {"open": 0, "overdue": 0, "high": 0}
+    if conn is None:
+        return empty
+    try:
+        now = clock.now()
+        row = conn.execute(
+            "SELECT COUNT(*) AS open_n, "
+            "SUM(CASE WHEN due > 0 AND due < ? THEN 1 ELSE 0 END) AS overdue_n, "
+            "SUM(CASE WHEN priority = 2 THEN 1 ELSE 0 END) AS high_n "
+            "FROM tasks WHERE done = 0", (now,)).fetchone()
+    except Exception:  # noqa: BLE001
+        return empty
+    if not row:
+        return empty
+    return {"open": int(row["open_n"] or 0),
+            "overdue": int(row["overdue_n"] or 0),
+            "high": int(row["high_n"] or 0)}
+
+
+# ---------------------------------------------------------------------------
+# Wording
+# ---------------------------------------------------------------------------
+
+def describe(task: dict, base: float | None = None) -> str:
+    bits = [task["text"]]
+    mark = _WORDS.get(int(task.get("priority", NORMAL)), "")
+    if mark:
+        bits.append(f"({mark})")
+    if task.get("due"):
+        when = clock.say(task["due"], False, base)
+        overdue = task["due"] < (clock.now() if base is None else base)
+        bits.append(f"— {'overdue, was ' if overdue else 'due '}{when}")
+    return " ".join(bits)
+
+
+def block(limit: int = 8) -> str:
+    """The open list, for the system prompt."""
+    items = open_tasks(limit)
+    if not items:
+        return ""
+    lines = "\n".join(f"- {describe(t)}" for t in items)
+    return ("\n\nStill to do (mention only if relevant or asked; use "
+            "finish_task when they say something is done):\n" + lines)

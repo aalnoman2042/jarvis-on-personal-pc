@@ -208,6 +208,20 @@ in the cloud, `web/src/lib/notify.ts` mirrors it onto the phone.
 python tests/test_reminders.py    # 45 checks, real server, real socket, temp DB
 ```
 
+**A task is not a reminder, and that is why there are two tables.** The diary
+holds what happens at a time; `core/memory/tasks.py` holds what has to get
+done. A task has no required date and does have a finished state — those two
+differences are the whole distinction. Without it, "write the methodology"
+either became a reminder at an invented hour or was lost, and "what should I
+work on now?" had nothing to answer from.
+
+**Open tasks sort by deadline before priority.** A normal thing due tomorrow
+beats an important thing with no date, because the deadline is the part that
+stops being possible. A due of 0 means none and must sort last, not first.
+
+**Finished, never deleted.** What got done is worth knowing, and it is what a
+weekly look back would be built on.
+
 **Parsing happens in Python, not in the model.** Asking a brain for an ISO
 timestamp is tempting and unreliable — it invents the year, forgets the
 timezone, and the rule-based brain cannot do it at all. The `remind` tool takes

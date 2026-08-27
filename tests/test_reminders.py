@@ -181,6 +181,40 @@ check("  and never the numbers", "345678" in people_block, False)
 contacts.forget("dad")
 check("forgetting works", contacts.find("dad"), None)
 
+print("")
+print("=== 3e. things to do, as opposed to things that happen ===")
+#
+# The diary holds what happens at a time; this holds what has to get done. A
+# task has no required date and does have a finished state, which is the whole
+# distinction and the reason it is a separate table.
+from core.memory import tasks as task_store  # noqa: E402
+
+check("adding one", llm_tools.DISPATCH["add_task"]("write the methodology", "high"),
+      contains="on the list")
+llm_tools.DISPATCH["add_task"]("email supervisor", "normal", "friday")
+llm_tools.DISPATCH["add_task"]("write the methodology", "high")   # said twice
+check("saying it twice is still one task", task_store.counts()["open"], 2)
+
+# A deadline outranks importance: the dated thing is the one that stops being
+# possible, however important the undated one is.
+order = [t["text"] for t in task_store.open_tasks()]
+check("a deadline sorts above a priority", order[0], contains="email supervisor")
+
+check("listing them", llm_tools.DISPATCH["my_tasks"](), contains="methodology")
+check("ticking one off", llm_tools.DISPATCH["finish_task"]("methodology"),
+      contains="done")
+check("  and it leaves the list", task_store.counts()["open"], 1)
+check("something not there is said so, not guessed",
+      llm_tools.DISPATCH["finish_task"]("washing up"), contains="don't have anything")
+
+# Finished, not deleted: what got done is worth knowing.
+check("finished work is kept", len(task_store.done_since(0)), 1)
+
+# And the model is told what is outstanding, every turn.
+check("the prompt carries the open list", task_store.block(), contains="email supervisor")
+for t in task_store.open_tasks(50):
+    task_store.drop(t["id"])
+
 print("\n=== 4. the tools a brain reaches for ===")
 agenda.cancel("all")
 check("remind", llm_tools.DISPATCH["remind"]("in 20 minutes", "call dad"),
