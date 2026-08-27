@@ -271,15 +271,45 @@ export async function test(): Promise<string> {
 
   const api = await plugin();
   if (!api) {
+    // In the app with no plugin, no browser API is going to help: say the one
+    // thing that does.
+    if (isNative()) {
+      return "This app build has no alarm support. Uninstall Jarvis and install "
+        + "the newest APK — screens update themselves, this part cannot.";
+    }
     if (typeof Notification === "undefined") return "This browser cannot show notifications.";
+
+    // Through the service worker, NOT `new Notification(...)`.
+    //
+    // Chrome on Android forbids the constructor outright — "Illegal
+    // constructor, use ServiceWorkerRegistration.showNotification() instead" —
+    // while desktop Chrome allows it. So the constructor is the one API that
+    // cannot work on the device this feature exists for, and using it produced
+    // "the browser refused to show it" on a phone that was perfectly willing.
+    try {
+      const reg = await navigator.serviceWorker?.ready;
+      if (reg) {
+        await reg.showNotification("Jarvis", {
+          body: "Test reminder — this is what they will look like.",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: "vondo-test",
+        });
+        return "Sent. In a browser these only arrive while this tab is open — "
+          + "install the app for reminders that arrive with it closed.";
+      }
+    } catch {
+      /* fall through to the desktop path */
+    }
     try {
       new Notification("Jarvis", {
-        body: "This is a test. Reminders will look like this.",
+        body: "Test reminder — this is what they will look like.",
         icon: "/icon-192.png",
       });
       return "Sent. In a browser it only shows while this tab is open.";
     } catch {
-      return "The browser refused to show it.";
+      return "This browser will not show notifications from a page. Install the "
+        + "app, where the phone itself holds the reminder.";
     }
   }
 
