@@ -11,7 +11,7 @@
  * Bump CACHE when anything about the caching rules changes. The old cache is
  * deleted on activate, so a bad deploy is one version bump away from gone.
  */
-const CACHE = "vondo-v2";
+const CACHE = "vondo-v3";
 
 // The shell: enough to render something the moment the app opens offline.
 // Hashed asset filenames are NOT listed — they change every build, so they are
@@ -21,6 +21,12 @@ const SHELL = [
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png",
+  // The three faces the first screen paints with. Fetched here so the very
+  // first offline launch has its typography rather than falling back to
+  // system fonts and reflowing when the network returns.
+  "/fonts/Barlow-400.woff2",
+  "/fonts/ChakraPetch-600.woff2",
+  "/fonts/JetBrainsMono-400.woff2",
 ];
 
 /* What may be cached — an allow-list, not a list of exceptions.
@@ -67,17 +73,31 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navigations: try the network so a deploy is picked up, fall back to the
-  // cached shell so opening the app in a tunnel still works.
+  // Navigations: answer from cache immediately and refresh behind it.
+  //
+  // Network-first was correct and slow. Every cold launch waited on a round
+  // trip to a free-tier server that may have been asleep — up to a minute of
+  // blank screen for a shell that had not changed. Cache-first shows the app at
+  // once and picks the new one up on the next launch, which is the trade every
+  // installed app makes.
+  //
+  // The asset names carry a build hash, so a stale shell referencing a new
+  // build cannot happen: index.html changes whenever the assets do, and the
+  // copy written here is the new one.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put("/", copy));
-          return response;
-        })
-        .catch(() => caches.match("/").then((hit) => hit || Response.error())),
+      caches.match("/").then((hit) => {
+        const fresh = fetch(request)
+          .then((response) => {
+            if (response && response.ok) {
+              const copy = response.clone();
+              caches.open(CACHE).then((cache) => cache.put("/", copy));
+            }
+            return response;
+          })
+          .catch(() => hit || Response.error());
+        return hit || fresh;
+      }),
     );
     return;
   }

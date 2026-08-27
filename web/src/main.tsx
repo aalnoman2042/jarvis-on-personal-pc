@@ -46,8 +46,33 @@ if (nativeShell()) {
  */
 if (!bundledShell() && "serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.warn("[vondo] service worker did not register:", err);
-    });
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => {
+        // The shell is served from cache first now, so a new build is on the
+        // device an entire launch before it is on screen. Reloading once the
+        // replacement has taken over closes that gap without the jarring
+        // mid-session refresh that reloading immediately would cause.
+        reg.addEventListener("updatefound", () => {
+          const next = reg.installing;
+          if (!next) return;
+          next.addEventListener("statechange", () => {
+            if (next.state === "installed" && navigator.serviceWorker.controller) {
+              // Only when the page is out of sight: reloading under someone
+              // mid-sentence is worse than showing them yesterday's build for
+              // another minute.
+              document.addEventListener("visibilitychange", () => {
+                if (document.hidden) location.reload();
+              }, { once: true });
+            }
+          });
+        });
+        // Look for one on every launch rather than trusting the browser's own
+        // schedule, which can be a day.
+        reg.update().catch(() => {});
+      })
+      .catch((err) => {
+        console.warn("[vondo] service worker did not register:", err);
+      });
   });
 }

@@ -17,6 +17,33 @@
  */
 const KEY = "vondo.speak";
 
+/* Measured rather than brisk. 1.05 was a shade quick for a voice you listen to
+   with the screen away, and a briefing read fast is a briefing you re-read. */
+const RATE = 0.88;
+const PITCH = 0.92;
+
+/* Picking a male voice, which is a surprisingly awkward thing to ask a device.
+ *
+ * There is no gender field on a voice — only a name — so this is name matching,
+ * and the first trap is that "female" CONTAINS "male". Anything checking for
+ * "male" naively selects exactly the wrong half of the list.
+ *
+ * After that it is a list of the names Android, Windows and iOS actually ship.
+ * A miss is not a failure: no match simply leaves the platform default, which
+ * is better than refusing to speak because the preferred voice is absent. */
+const MALE_NAMES = new RegExp(
+  "\\b(david|daniel|alex|fred|george|james|mark|thomas|oliver|arthur|"
+  + "aaron|eddy|reed|rishi|ravi|hemant|prabhat|guy|christopher|roger|steffan|"
+  + "liam|jorge|diego|male)\\b",
+  "i",
+);
+
+function soundsMale(name: string): boolean {
+  const n = (name || "").toLowerCase();
+  if (/\bfemale\b/.test(n)) return false;  // "female" contains "male"
+  return MALE_NAMES.test(n);
+}
+
 /* Android's WebView does not implement the Web Speech API's synthesis half.
  *
  * `window.speechSynthesis` is present — which is why the Read It button
@@ -118,15 +145,36 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return voicesReady;
 }
 
-/** The most natural English voice this device has, preferring a local one. */
+/** The best English voice this device has: male if it has one, local if it can. */
 function pickFrom(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (!voices.length) return null;
   const english = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
   const pool = english.length ? english : voices;
+  const male = pool.filter((v) => soundsMale(v.name));
+  const wanted = male.length ? male : pool;
   // A local voice does not need the network and does not stall on a bad
   // connection, which is exactly when you are most likely to be listening
   // rather than reading.
-  return pool.find((v) => v.localService) || pool[0];
+  return wanted.find((v) => v.localService) || wanted[0];
+}
+
+/** The index of a male English voice in the plugin's list, or -1 for default. */
+let nativeVoiceIndex: number | undefined;
+
+async function nativeVoice(tts: NativeTts): Promise<number> {
+  if (nativeVoiceIndex !== undefined) return nativeVoiceIndex;
+  nativeVoiceIndex = -1;
+  try {
+    const list = (await tts.getSupportedVoices()).voices || [];
+    const english = list
+      .map((v, i) => ({ v, i }))
+      .filter(({ v }) => (v.lang || "").toLowerCase().startsWith("en"));
+    const male = english.find(({ v }) => soundsMale(v.name || ""));
+    if (male) nativeVoiceIndex = male.i;
+  } catch {
+    /* the platform default is a perfectly good answer */
+  }
+  return nativeVoiceIndex;
 }
 
 export async function speak(text: string): Promise<boolean> {
@@ -138,13 +186,15 @@ export async function speak(text: string): Promise<boolean> {
   if (tts) {
     try {
       await tts.stop();          // never two voices at once
+      const chosen = await nativeVoice(tts);
       await tts.speak({
         text: words,
         lang: "en-US",
-        rate: 1.05,
-        pitch: 0.95,
+        rate: RATE,
+        pitch: PITCH,
         volume: 1.0,
         category: "playback",
+        ...(chosen >= 0 ? { voice: chosen } : {}),
       });
       return true;
     } catch {
@@ -172,8 +222,8 @@ export async function speak(text: string): Promise<boolean> {
   }
   // Slightly quick and slightly low. Jarvis is composed, not chirpy, and the
   // default rate reads long answers at a pace that invites skipping.
-  utterance.rate = 1.05;
-  utterance.pitch = 0.95;
+  utterance.rate = RATE;
+  utterance.pitch = PITCH;
 
   // Did it actually start? `speak()` returning is not evidence of anything —
   // the WebView accepts the utterance and may never make a sound, which is the

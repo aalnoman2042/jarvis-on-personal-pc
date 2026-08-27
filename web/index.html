@@ -4,12 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#05080d" />
+    <meta name="theme-color" content="#060d16" />
     <title>VONDO</title>
 
     <meta name="description" content="Jarvis — a personal assistant with a HUD on every screen." />
 
     <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- The three faces the first screen actually paints with. Discovered
+         otherwise only after the CSS parses, which is a whole round trip late
+         and shows as text reflowing under your eyes on a slow connection.
+         crossorigin is required even same-origin: a font request is CORS-mode,
+         and without it the preload is fetched twice. -->
+    <link rel="preload" href="/fonts/Barlow-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ChakraPetch-600.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/JetBrainsMono-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <!-- iOS ignores the manifest for these two. Harmless on Android. -->
