@@ -1,7 +1,7 @@
 {
-  "name": "VONDO \u2014 Jarvis",
+  "name": "Jarvis",
   "short_name": "Jarvis",
-  "description": "A personal assistant with a HUD on every screen.",
+  "description": "Jarvis \u2014 a personal assistant with a HUD on every screen.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

@@ -83,7 +83,10 @@ try:
     print("\n=== 2. the core serves it ===")
     page = httpx.get(f"{BASE}/")
     check("GET / returns the HUD", page.status_code, 200)
-    check("  it is the right page", page.text, contains="<title>VONDO</title>")
+    # The mount point rather than the title. A title is a label and labels
+    # change — this one went from VONDO to Jarvis and broke a test that was
+    # never really about naming. The root div is what makes it the HUD.
+    check("  it is the right page", page.text, contains='<div id="root">')
     check("  and it is dark by default", page.text, contains='data-theme="jarvis"')
 
     print("\n=== 3. every asset the page asks for resolves ===")
