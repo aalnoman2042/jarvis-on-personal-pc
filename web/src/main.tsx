@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import { bundledShell, nativeShell } from "./lib/endpoint";
+import { goFullscreen, keepFullscreen } from "./lib/fullscreen";
 import { trackViewport } from "./lib/viewport";
 import "./fonts.css";
 import "./theme.css";
@@ -11,6 +12,11 @@ import "./hud.css";
 // Before first paint, so the shell is never laid out against a height that is
 // about to change.
 trackViewport();
+
+// The whole screen, in the app. Done before render so the first frame is
+// already the right size rather than resizing under the boot sequence.
+goFullscreen();
+keepFullscreen();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

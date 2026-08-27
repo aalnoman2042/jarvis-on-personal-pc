@@ -65,8 +65,15 @@ const config: CapacitorConfig = {
       // The HUD paints its own dark ground; the bar should disappear into it
       // rather than sitting as a light strip above a black app.
       style: "DARK",
-      backgroundColor: "#05080d",
-      overlaysWebView: false,
+      backgroundColor: "#060d16",
+      // TRUE, and this is what fullscreen actually means here: the WebView is
+      // laid out behind the status bar rather than starting underneath it.
+      // With this false the system kept its own strip and the app could never
+      // reach the top of the screen no matter what the web manifest said —
+      // the manifest governs the installed PWA and has no say over the APK.
+      // The layout is already written against env(safe-area-inset-*), so
+      // nothing ends up under the notch.
+      overlaysWebView: true,
     },
   },
 };

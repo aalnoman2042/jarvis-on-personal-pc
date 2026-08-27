@@ -1500,7 +1500,11 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   /* Sit clear of the notch and the gesture bar. Without this the composer ends
      up under the home indicator and the top bar under the status bar. */
   .hud {
-    padding-top: env(safe-area-inset-top);
+    /* max(), not the bare inset. With the status bar hidden a phone without a
+       notch reports zero, and the wordmark would sit hard against the top edge
+       — which reads as clipped rather than as fullscreen. A notch still wins,
+       because it is larger. */
+    padding-top: max(var(--s2), env(safe-area-inset-top));
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: max(var(--s2), env(safe-area-inset-left));
     padding-right: max(var(--s2), env(safe-area-inset-right));
