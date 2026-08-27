@@ -11,7 +11,7 @@
  * Bump CACHE when anything about the caching rules changes. The old cache is
  * deleted on activate, so a bad deploy is one version bump away from gone.
  */
-const CACHE = "vondo-v3";
+const CACHE = "vondo-v4";
 
 // The shell: enough to render something the moment the app opens offline.
 // Hashed asset filenames are NOT listed — they change every build, so they are
@@ -136,16 +136,32 @@ self.addEventListener("push", (event) => {
     payload.body = event.data ? event.data.text() : "";
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
+    (async () => {
+      await self.registration.showNotification(payload.title, {
       body: payload.body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       tag: payload.tag,
       // Reminders should survive being missed: without this a notification that
       // arrives while the phone is face-down can auto-dismiss unseen.
-      requireInteraction: payload.tag === "reminder",
-      data: { url: payload.url || "/" },
-    }),
+        requireInteraction: String(payload.tag || "").startsWith("reminder"),
+        data: { url: payload.url || "/", id: payload.id || 0 },
+      });
+      // Only NOW is it delivered — a notification that was shown, not a push
+      // that was accepted. Same rule the websocket keeps: the server marks
+      // nothing on the strength of a send.
+      if (payload.id) {
+        try {
+          await fetch("/push/seen", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: payload.id }),
+          });
+        } catch {
+          /* offline: it stays pending and comes round again, which is right */
+        }
+      }
+    })(),
   );
 });
 

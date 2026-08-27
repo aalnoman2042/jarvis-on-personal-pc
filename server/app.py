@@ -51,7 +51,7 @@ from core import phone
 from core import reminders
 from core.memory import agenda as agenda_store
 from core.memory import store
-from server import agents, auth, nudges
+from server import agents, auth, nudges, push
 
 log = logging.getLogger("vondo")
 
@@ -486,6 +486,58 @@ async def look(clip: UploadFile = File(...),
     await run_in_threadpool(
         memory.add_turn, question.strip() or "[showed Jarvis an image]", said, "gemini")
     return {"said": said}
+
+
+class PushIn(BaseModel):
+    subscription: dict
+
+
+@app.get("/push/key")
+async def push_key(device: dict = Depends(caller)):
+    """The public half of the VAPID pair, which the browser subscribes against.
+
+    Generated once on first use and kept in the database. Regenerating it would
+    silently invalidate every existing subscription, so it is never rotated
+    casually — the browser signed up against this exact key.
+    """
+    return {"key": await run_in_threadpool(push.public_key),
+            "available": await run_in_threadpool(push.available),
+            "subscribers": await run_in_threadpool(push.count)}
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(body: PushIn, device: dict = Depends(caller)):
+    """Remember where to reach this browser when the app is closed."""
+    ok = await run_in_threadpool(push.subscribe, body.subscription, device.get("name", ""))
+    return {"ok": ok, "subscribers": await run_in_threadpool(push.count)}
+
+
+@app.post("/push/test")
+async def push_test(device: dict = Depends(caller)):
+    """Send one, so "is this working?" has an answer before it matters."""
+    sent = await run_in_threadpool(push.send, {
+        "title": "Jarvis",
+        "body": "Test — this is how a reminder will arrive with the app closed.",
+        "tag": "vondo-test",
+    })
+    return {"sent": sent, "subscribers": await run_in_threadpool(push.count)}
+
+
+class SeenIn(BaseModel):
+    id: int
+
+
+@app.post("/push/seen")
+async def push_seen(body: SeenIn):
+    """A service worker confirming it actually showed a notification.
+
+    Unauthenticated on purpose, for the same reason /tick is: a service worker
+    has no bearer token to send. The only thing this can do is mark a reminder
+    as seen, which an anonymous caller gains nothing from and cannot use to
+    read anything.
+    """
+    await nudges.mark_seen(body.id)
+    return {"ok": True}
 
 
 @app.post("/tick")

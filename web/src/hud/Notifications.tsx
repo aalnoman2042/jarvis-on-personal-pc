@@ -11,15 +11,22 @@
  */
 import { useEffect, useState } from "react";
 
-import { askPermission, fixExact, state, test, type NotifyState } from "../lib/notify";
+import {
+  askPermission, enablePush, fixExact, pushState, state, test, testPush,
+  type NotifyState,
+} from "../lib/notify";
 
-export function Notifications() {
+export function Notifications({ token }: { token: string }) {
   const [info, setInfo] = useState<NotifyState | null>(null);
+  const [web, setWeb] = useState<{
+    supported: boolean; subscribed: boolean; available: boolean; subscribers: number;
+  } | null>(null);
   const [said, setSaid] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
     setInfo(await state());
+    if (!info?.native) setWeb(await pushState(token));
   }
 
   useEffect(() => {
@@ -112,6 +119,59 @@ export function Notifications() {
           RECHECK
         </button>
       </div>
+
+      {/* The web app has no alarms of its own — no process, no way to wake
+          itself — so push is the ONLY thing that reaches it when closed. It is
+          therefore the whole feature here, not an extra. */}
+      {web && !info.native && (
+        <>
+          <div className="chip-row">
+            <span className={`chip ${web.subscribed ? "chip-good" : "chip-warn"}`}>
+              {web.subscribed ? "PUSH ON" : "PUSH OFF"}
+            </span>
+            {web.subscribers > 0 && (
+              <span className="chip chip-quiet">{web.subscribers} DEVICE
+                {web.subscribers === 1 ? "" : "S"}</span>
+            )}
+          </div>
+          <p className="muted small">
+            {web.subscribed
+              ? "Reminders arrive even with Jarvis closed — the browser wakes for them."
+              : web.supported
+                ? "Turn this on and reminders arrive with Jarvis closed. Without it they can only appear while this tab is open."
+                : "This browser cannot receive push. Chrome or Edge on Android can."}
+          </p>
+          <div className="chip-row">
+            {web.supported && !web.subscribed && (
+              <button
+                className="chip chip-hot"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setSaid(await enablePush(token));
+                  await refresh();
+                  setBusy(false);
+                }}
+              >
+                TURN ON
+              </button>
+            )}
+            {web.subscribed && (
+              <button
+                className="chip chip-quiet"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setSaid(await testPush(token));
+                  setBusy(false);
+                }}
+              >
+                TEST FROM SERVER
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {said && <p className="muted small notify-said">{said}</p>}
 

@@ -20,6 +20,7 @@
  * notification system whose only test is missing something important is not a
  * system anyone can trust, and it was one until now.
  */
+import { apiBase } from "./endpoint";
 import type { AgendaItem } from "./types";
 
 /** Our alarms occupy an id space of their own; OS ids are global. */
@@ -243,6 +244,125 @@ export async function state(): Promise<NotifyState> {
   }
 
   return { native, permission, scheduled, exact, channel, problem };
+}
+
+/* ---------------------------------------------------------------------------
+ * Web Push — the only thing that reaches a CLOSED progressive web app.
+ *
+ * The Android build held its own alarms, so a closed app was never a problem
+ * there. A PWA has no process, no alarms and no way to wake itself: without
+ * push, a reminder can only arrive while the tab is already open, which is
+ * exactly when you least need telling.
+ *
+ * No Firebase and no account. The server generates a VAPID pair, the browser
+ * hands out an endpoint of its own accord, and the two are introduced here.
+ * ------------------------------------------------------------------------- */
+
+/** The base64url key the browser wants as raw bytes.
+ *
+ * Typed as BufferSource rather than Uint8Array: TypeScript's lib now types a
+ * Uint8Array's buffer as ArrayBufferLike, which includes SharedArrayBuffer and
+ * therefore does not satisfy applicationServerKey's ArrayBuffer. The bytes are
+ * identical; only the type needs to be honest about what the API accepts. */
+function urlBase64ToBytes(base64: string): BufferSource {
+  const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4))
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const raw = atob(padded);
+  const buffer = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < raw.length; i += 1) view[i] = raw.charCodeAt(i);
+  return buffer;
+}
+
+export async function pushSupported(): Promise<boolean> {
+  return (
+    typeof window !== "undefined"
+    && "serviceWorker" in navigator
+    && "PushManager" in window
+  );
+}
+
+/** How many browsers the server can currently reach, and whether it can at all. */
+export async function pushState(token: string): Promise<{
+  supported: boolean;
+  subscribed: boolean;
+  available: boolean;
+  subscribers: number;
+}> {
+  const supported = await pushSupported();
+  let subscribed = false;
+  if (supported) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      subscribed = Boolean(await reg.pushManager.getSubscription());
+    } catch {
+      /* no worker yet */
+    }
+  }
+  try {
+    const res = await fetch(`${apiBase()}/push/key`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    return { supported, subscribed, available: Boolean(data.available),
+             subscribers: data.subscribers || 0 };
+  } catch {
+    return { supported, subscribed, available: false, subscribers: 0 };
+  }
+}
+
+/** Sign this browser up, so reminders arrive with the app closed. */
+export async function enablePush(token: string): Promise<string> {
+  if (!(await pushSupported())) {
+    return "This browser cannot receive push. Chrome or Edge on Android can.";
+  }
+  if (!(await askPermission())) {
+    return "Permission was refused, so nothing can arrive.";
+  }
+  try {
+    const res = await fetch(`${apiBase()}/push/key`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { key, available } = await res.json();
+    if (!available || !key) {
+      return "Push isn't set up on the server yet.";
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    // userVisibleOnly is required by Chrome and is a promise about behaviour:
+    // every push shows a notification. Which is exactly what these are for.
+    const sub = existing || await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToBytes(key),
+    });
+    const saved = await fetch(`${apiBase()}/push/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json",
+                 Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    if (!saved.ok) return "The server would not take the subscription.";
+    return "Done. Reminders will arrive even with Jarvis closed.";
+  } catch (err) {
+    return `Couldn't subscribe: ${err instanceof Error ? err.message : "unknown"}`;
+  }
+}
+
+/** Fire one now, so "does this work?" has an answer before it matters. */
+export async function testPush(token: string): Promise<string> {
+  try {
+    const res = await fetch(`${apiBase()}/push/test`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { sent, subscribers } = await res.json();
+    if (!subscribers) return "No browser is subscribed yet — turn it on first.";
+    if (!sent) return "The push service would not take it. Try subscribing again.";
+    return "Sent from the server. Close Jarvis and it should still arrive.";
+  } catch {
+    return "Couldn't reach the core.";
+  }
 }
 
 /** Open the Android page where exact alarms can be switched on. */

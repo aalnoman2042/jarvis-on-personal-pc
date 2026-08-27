@@ -126,7 +126,7 @@ export function Settings({ token, onClose, onSignOut }: {
           )}
         </section>
 
-        <Notifications />
+        <Notifications token={token} />
 
         <VoicePicker />
 

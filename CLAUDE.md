@@ -238,6 +238,18 @@ exam warning and go back to sleep — it waits, and arrives when the app opens.
 `test_reminders.py` section 8 is exactly this regression. The desktop's
 `sweep()` still marks immediately, because speaking out loud *is* delivery.
 
+**A closed PWA is reached by Web Push and nothing else.** It has no process, no
+alarms and no way to wake itself, so without push a reminder can only arrive
+while the tab is already open — which is exactly when you least need telling.
+`server/push.py` needs **no Firebase and no account**: the VAPID pair is
+generated on first use and kept in `settings`, and the browser hands out its own
+endpoint. Never rotate those keys casually — every existing subscription is
+signed against that exact public key.
+
+The service worker acknowledges the notification it actually *showed*, via
+`/push/seen`. Same rule as the socket: a push the service accepted is not a
+push a person saw, and nothing is marked delivered on the strength of a send.
+
 **Phones schedule their own alarms.** `notify.ts` mirrors the diary into
 Capacitor local notifications, so the OS fires them with the app closed, the
 phone offline and the server asleep. Push was the obvious answer and the wrong

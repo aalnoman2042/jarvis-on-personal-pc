@@ -28,6 +28,7 @@ import logging
 from starlette.concurrency import run_in_threadpool
 
 from core import reminders
+from server import push
 
 log = logging.getLogger("vondo.nudges")
 
@@ -106,10 +107,30 @@ async def deliver_due() -> int:
         return 0
     sent = 0
     for item in items:
-        if await listeners.send(_frame(item)):
+        frame = _frame(item)
+        live = await listeners.send(frame)
+        if live:
+            sent += 1
+            continue
+
+        # Nobody has it open. Web Push is the only thing that can reach a
+        # closed PWA — it has no process, no alarms and no way to wake itself,
+        # so without this a reminder can only arrive while you are already
+        # looking, which is exactly when you least need telling.
+        pushed = await run_in_threadpool(push.send, {
+            "title": "Jarvis",
+            "body": frame["text"],
+            "tag": f"reminder-{item['id']}",
+            "id": item["id"],
+        })
+        if pushed:
+            # A push that the service ACCEPTED is not one a person has seen —
+            # same rule as the socket. The client acknowledges from its own
+            # notification handler, and until then the row stays pending.
+            log.info("pushed to %d subscriber(s): %s", pushed, item["message"][:50])
             sent += 1
     if not sent and items:
-        log.info("%d reminder(s) waiting for someone to be listening", len(items))
+        log.info("%d reminder(s) waiting for somewhere to go", len(items))
     return sent
 
 
