@@ -25,6 +25,13 @@ export function VoicePicker() {
   const [chosen, setChosen] = useState(speech.chosenVoice);
   const [playing, setPlaying] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [speed, setSpeed] = useState(speech.rate);
+  const [waking, setWaking] = useState(false);
+
+  async function load() {
+    setList(await speech.voices());
+    setLoaded(true);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -37,6 +44,18 @@ export function VoicePicker() {
       alive = false;
     };
   }, []);
+
+  /* Chrome on Android often reports no voices until something has actually
+     been spoken — the engine starts lazily and on a user gesture. So the way
+     out of an empty list is to say one word and ask again, which is what this
+     does rather than leaving a blank panel and no explanation. */
+  async function wake() {
+    setWaking(true);
+    await speech.speak("Ready.");
+    speech.forgetVoices();
+    await load();
+    setWaking(false);
+  }
 
   async function preview(name: string) {
     speech.silence();
@@ -53,11 +72,49 @@ export function VoicePicker() {
     <section className="panel bracket">
       <span className="label">Voice</span>
 
+      {/* Speed is a real control and the one worth having. Pitch deliberately
+          is not: most engines shift pitch by resampling after synthesis, which
+          degrades the voice — it was set to 0.92 and making things worse. */}
+      <div className="speed">
+        <span className="label">Speed</span>
+        <input
+          type="range"
+          min={0.6}
+          max={1.3}
+          step={0.02}
+          value={speed}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setSpeed(v);
+            speech.setRate(v);
+          }}
+          onPointerUp={() => speech.speak(SAMPLE)}
+          aria-label="Reading speed"
+        />
+        <span className="mono speed-value">{speed.toFixed(2)}×</span>
+      </div>
+
       {list.length === 0 ? (
-        <p className="muted small">
-          This device has no speech voices installed. On Android: Settings →
-          Accessibility → Text-to-speech.
-        </p>
+        <>
+          <p className="muted small">
+            No voices listed yet. On a phone the speech engine often starts only
+            once something has been spoken — tap below and it should appear.
+          </p>
+          <div className="chip-row">
+            <button className="chip chip-hot" onClick={wake} disabled={waking}>
+              {waking ? "…" : "WAKE THE ENGINE"}
+            </button>
+            <button
+              className="chip chip-quiet"
+              onClick={() => {
+                speech.forgetVoices();
+                load();
+              }}
+            >
+              RECHECK
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <p className="muted small">

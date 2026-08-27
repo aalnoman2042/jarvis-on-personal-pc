@@ -17,11 +17,41 @@
  */
 const KEY = "vondo.speak";
 
-/* Measured rather than brisk. 1.05 was a shade quick for a voice you listen to
-   with the screen away, and a briefing read fast is a briefing you re-read. */
-const RATE = 0.88;
-const PITCH = 0.92;
+/* Pitch is left ALONE, and that is the single biggest thing for smoothness.
+ *
+ * Most engines implement a pitch change as a resample after synthesis rather
+ * than by synthesising differently — so shifting it away from 1.0 degrades the
+ * voice and adds precisely the metallic edge it was meant to remove. 0.92 was
+ * making the voice more robotic, not less. A neural voice at its own pitch
+ * sounds like a person; the same voice shifted sounds like a machine trying to.
+ *
+ * Rate is a genuine control and is left adjustable — see `rate()`. The default
+ * is gently under natural: slow enough to follow with the screen away, not so
+ * slow that it drags, which is its own kind of unnatural. */
+const PITCH = 1.0;
+const DEFAULT_RATE = 0.94;
+const RATE_KEY = "vondo.rate";
 const VOICE_KEY = "vondo.voice";
+
+/** How fast it reads, 0.6 to 1.3. Kept per device like the mute toggle. */
+export function rate(): number {
+  try {
+    const saved = Number(localStorage.getItem(RATE_KEY));
+    if (saved >= 0.6 && saved <= 1.3) return saved;
+  } catch {
+    /* fall through to the default */
+  }
+  return DEFAULT_RATE;
+}
+
+export function setRate(value: number): void {
+  const clamped = Math.max(0.6, Math.min(1.3, value));
+  try {
+    localStorage.setItem(RATE_KEY, String(clamped));
+  } catch {
+    /* the setting simply does not persist */
+  }
+}
 
 /* Which voices actually sound like a person.
  *
@@ -146,7 +176,14 @@ export function setEnabled(on: boolean): void {
 let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
 
 function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  // Only a NON-EMPTY answer is cached, and that distinction is the whole bug.
+  // Chrome on Android reports no voices until its engine has initialised, so
+  // the first call resolves empty — and caching that meant the list stayed
+  // empty for the rest of the session no matter how long the engine took. The
+  // picker showed nothing on a phone and everything on a desktop for exactly
+  // this reason.
   if (voicesReady) return voicesReady;
+
   voicesReady = new Promise((resolve) => {
     const now = window.speechSynthesis.getVoices();
     if (now.length) {
@@ -154,18 +191,35 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
       return;
     }
     let settled = false;
-    const done = () => {
+    let waited = 0;
+    const done = (list: SpeechSynthesisVoice[]) => {
       if (settled) return;
       settled = true;
-      window.speechSynthesis.removeEventListener("voiceschanged", done);
-      resolve(window.speechSynthesis.getVoices());
+      window.speechSynthesis.removeEventListener("voiceschanged", heard);
+      window.clearInterval(timer);
+      // An empty result is not worth keeping: let the next caller try again,
+      // by which time the engine may well be up.
+      if (!list.length) voicesReady = null;
+      resolve(list);
     };
-    window.speechSynthesis.addEventListener("voiceschanged", done);
-    // Some engines never fire the event; speaking with no chosen voice still
-    // works, so a timeout is a usable answer rather than a failure.
-    window.setTimeout(done, 2000);
+    const heard = () => done(window.speechSynthesis.getVoices());
+    window.speechSynthesis.addEventListener("voiceschanged", heard);
+
+    // Polled as well as listened for. Several engines populate the list
+    // without ever firing the event, which is not something to discover from a
+    // silent button.
+    const timer = window.setInterval(() => {
+      waited += 250;
+      const list = window.speechSynthesis.getVoices();
+      if (list.length || waited >= 4000) done(list);
+    }, 250);
   });
   return voicesReady;
+}
+
+/** Forget the cached list, so the next read asks the engine again. */
+export function forgetVoices(): void {
+  voicesReady = null;
 }
 
 /** The best English voice this device has, or the one that was chosen by hand. */
@@ -274,7 +328,7 @@ export async function speak(text: string): Promise<boolean> {
       await tts.speak({
         text: words,
         lang: "en-US",
-        rate: RATE,
+        rate: rate(),
         pitch: PITCH,
         volume: 1.0,
         category: "playback",
@@ -306,7 +360,7 @@ export async function speak(text: string): Promise<boolean> {
   }
   // Slightly quick and slightly low. Jarvis is composed, not chirpy, and the
   // default rate reads long answers at a pace that invites skipping.
-  utterance.rate = RATE;
+  utterance.rate = rate();
   utterance.pitch = PITCH;
 
   // Did it actually start? `speak()` returning is not evidence of anything —

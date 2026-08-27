@@ -896,6 +896,23 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 }
 
 /* ---------- choosing a voice ---------- */
+.speed {
+  display: grid;
+  grid-template-columns: 3.6em minmax(0, 1fr) 3em;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s2) 0;
+}
+.speed input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  background: transparent;
+}
+.speed-value {
+  font-size: 0.7rem;
+  text-align: right;
+  color: var(--ink);
+}
 .voices {
   list-style: none;
   margin: var(--s2) 0;
