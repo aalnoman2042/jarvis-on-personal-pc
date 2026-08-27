@@ -21,6 +21,29 @@ const KEY = "vondo.speak";
    with the screen away, and a briefing read fast is a briefing you re-read. */
 const RATE = 0.88;
 const PITCH = 0.92;
+const VOICE_KEY = "vondo.voice";
+
+/* Which voices actually sound like a person.
+ *
+ * The first version preferred LOCAL voices, on the reasoning that they do not
+ * need the network. That is true and it is exactly backwards for quality: the
+ * on-device voices are the robotic ones, and the natural-sounding ones are
+ * network-backed neural models. A voice that stalls occasionally beats one that
+ * sounds like a railway announcement every time.
+ *
+ * Android is the hard case. If the phone's engine is Pico TTS — still the
+ * default on some devices — everything it offers sounds synthetic and no amount
+ * of picking helps; the fix is installing Google's engine, which is why the
+ * picker says so rather than leaving you to wonder. */
+const GOOD_VOICE = /(natural|neural|wavenet|studio|enhanced|premium|online|google)/i;
+const POOR_VOICE = /(espeak|pico|compact|monotone)/i;
+
+function quality(name: string): number {
+  const n = (name || "").toLowerCase();
+  if (POOR_VOICE.test(n)) return -2;
+  if (GOOD_VOICE.test(n)) return 2;
+  return 0;
+}
 
 /* Picking a male voice, which is a surprisingly awkward thing to ask a device.
  *
@@ -145,17 +168,67 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return voicesReady;
 }
 
-/** The best English voice this device has: male if it has one, local if it can. */
+/** The best English voice this device has, or the one that was chosen by hand. */
 function pickFrom(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (!voices.length) return null;
+  const saved = savedVoice();
+  if (saved) {
+    const exact = voices.find((v) => v.name === saved);
+    if (exact) return exact;      // a choice outranks any ranking
+  }
   const english = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
   const pool = english.length ? english : voices;
-  const male = pool.filter((v) => soundsMale(v.name));
-  const wanted = male.length ? male : pool;
-  // A local voice does not need the network and does not stall on a bad
-  // connection, which is exactly when you are most likely to be listening
-  // rather than reading.
-  return wanted.find((v) => v.localService) || wanted[0];
+  // Sounding human first, male second. A robotic male voice is a worse answer
+  // to "I prefer male" than a natural one of either kind, and quality is the
+  // thing people actually notice.
+  const ranked = [...pool].sort((a, b) =>
+    (quality(b.name) - quality(a.name))
+    || (Number(soundsMale(b.name)) - Number(soundsMale(a.name))));
+  return ranked[0] || null;
+}
+
+function savedVoice(): string {
+  try {
+    return localStorage.getItem(VOICE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+/** Every voice that could read to you here, best first. */
+export async function voices(): Promise<{ name: string; lang: string; good: boolean }[]> {
+  const tts = await native();
+  if (tts) {
+    try {
+      const list = (await tts.getSupportedVoices()).voices || [];
+      return list
+        .filter((v) => (v.lang || "").toLowerCase().startsWith("en"))
+        .map((v) => ({ name: v.name || "", lang: v.lang || "", good: quality(v.name || "") > 0 }))
+        .sort((a, b) => Number(b.good) - Number(a.good));
+    } catch {
+      return [];
+    }
+  }
+  if (!("speechSynthesis" in window)) return [];
+  const list = await loadVoices();
+  return list
+    .filter((v) => v.lang.toLowerCase().startsWith("en"))
+    .map((v) => ({ name: v.name, lang: v.lang, good: quality(v.name) > 0 }))
+    .sort((a, b) => Number(b.good) - Number(a.good));
+}
+
+export function chosenVoice(): string {
+  return savedVoice();
+}
+
+export function chooseVoice(name: string): void {
+  try {
+    if (name) localStorage.setItem(VOICE_KEY, name);
+    else localStorage.removeItem(VOICE_KEY);
+  } catch {
+    /* the choice simply does not persist */
+  }
+  nativeVoiceIndex = undefined;   // re-resolve against the new preference
 }
 
 /** The index of a male English voice in the plugin's list, or -1 for default. */
@@ -166,11 +239,22 @@ async function nativeVoice(tts: NativeTts): Promise<number> {
   nativeVoiceIndex = -1;
   try {
     const list = (await tts.getSupportedVoices()).voices || [];
+    const saved = savedVoice();
+    if (saved) {
+      const exact = list.findIndex((v) => (v.name || "") === saved);
+      if (exact >= 0) {
+        nativeVoiceIndex = exact;
+        return nativeVoiceIndex;
+      }
+    }
     const english = list
       .map((v, i) => ({ v, i }))
       .filter(({ v }) => (v.lang || "").toLowerCase().startsWith("en"));
-    const male = english.find(({ v }) => soundsMale(v.name || ""));
-    if (male) nativeVoiceIndex = male.i;
+    // Sounding human first, male second — see pickFrom.
+    english.sort((a, b) =>
+      (quality(b.v.name || "") - quality(a.v.name || ""))
+      || (Number(soundsMale(b.v.name || "")) - Number(soundsMale(a.v.name || ""))));
+    if (english.length) nativeVoiceIndex = english[0].i;
   } catch {
     /* the platform default is a perfectly good answer */
   }

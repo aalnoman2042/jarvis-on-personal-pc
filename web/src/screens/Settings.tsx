@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 
 import { Notifications } from "../hud/Notifications";
+import { VoicePicker } from "../hud/VoicePicker";
 import { forgetFact, me } from "../lib/api";
 import type { Me } from "../lib/types";
 
@@ -126,6 +127,8 @@ export function Settings({ token, onClose, onSignOut }: {
         </section>
 
         <Notifications />
+
+        <VoicePicker />
 
         <section className="panel bracket">
           <span className="label">Your PC</span>
