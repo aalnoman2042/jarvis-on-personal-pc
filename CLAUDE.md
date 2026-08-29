@@ -289,6 +289,22 @@ remember to cancel — and a slow link produces fewer frames rather than a queue
 that grows. Same rule as everywhere else: nothing runs while nothing is
 happening.
 
+**On a phone the problem is precision, not size.** A 1600x900 desktop drawn
+360 pixels wide puts four and a half desktop pixels behind every phone pixel, so
+a fingertip covers about two hundred of them — wider than most buttons. No
+amount of "make it bigger" fixes that on a phone-sized screen, so `Screen.tsx`
+pinches to zoom and pans, and asks for a *sharper frame as you zoom in*, because
+magnifying a 640-pixel JPEG shows larger blur rather than more detail.
+
+**Two fingers move the view, one finger touches the PC.** No mode to remember
+and no toggle to get wrong — and a pinch can never be mistaken for a drag across
+the desktop. A second finger going down cancels whatever the first was about to
+do, or starting a pinch also clicks wherever that finger happened to land.
+
+The CSS transform is on the `<img>` itself, not a wrapper, because
+`getBoundingClientRect` reports the box *after* transform — so the
+fraction-of-the-picture arithmetic keeps working at any zoom with no correction.
+
 **Coordinates travel as fractions of the screen**, so the phone never needs to
 know the PC's resolution and a frame scaled down for the wire still points at
 the right pixel. `width` and `quality` are clamped in `screen_frame` rather than
