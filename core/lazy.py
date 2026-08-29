@@ -37,6 +37,11 @@ PC_FUNCTIONS = frozenset({
     "take_screenshot", "lock_screen", "control_volume", "media_control",
     "power_control", "set_autostart", "system_info",
     "set_power_state", "power_state_on", "autostart_enabled",
+    # Remote control. `screen_frame` is read-only and behaves like the
+    # screenshot beside it; `screen_input` is the one entry point for every
+    # click, scroll and keystroke, which is what gives the agent a single place
+    # to ask permission for the whole capability rather than eight.
+    "screen_frame", "screen_size", "screen_input",
 })
 
 # Set by server.agents.install_hook. Signature: (name, kwargs) -> str.

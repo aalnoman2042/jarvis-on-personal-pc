@@ -260,6 +260,40 @@ python tests/test_agent.py    # 17 checks, real agent, real server, temp everyth
 something the agent forgot about". It is an allow-list on purpose: a block-list
 would have to anticipate every dangerous thing, this has to anticipate nothing.
 
+**Remote control is the one capability the allow-list cannot protect, so it
+has its own gate.** `screen_frame` / `screen_size` / `screen_input` in
+`core/actions.py` give the phone the PC's screen and its mouse and keyboard.
+Rohan asked for that knowing the trade: a cursor is every action at once, so an
+allow-list of named functions means nothing when one of them is "click here",
+and a per-action dialog would ask fifty times a minute. So `guard.py` asks
+**once per run of the agent, for the whole capability** — and remembers a *no*
+as firmly as a yes, because a gate that re-asks is one that gets clicked
+through. Restarting the agent is what re-opens the question. Watching is not
+driving: `screen_frame` is read-only and no more revealing than
+`take_screenshot`, which has never asked, so only input is gated.
+
+**Frames are pulled, never pushed.** The viewer asks for the next one when it
+has drawn the last. That is what makes closing the sheet sufficient to stop
+everything — no timer on the PC, no subscription on the server, nothing to
+remember to cancel — and a slow link produces fewer frames rather than a queue
+that grows. Same rule as everywhere else: nothing runs while nothing is
+happening.
+
+**Coordinates travel as fractions of the screen**, so the phone never needs to
+know the PC's resolution and a frame scaled down for the wire still points at
+the right pixel. `width` and `quality` are clamped in `screen_frame` rather than
+trusted — they arrive from a phone over the internet, and a 30,000-pixel request
+is a way to make the desktop spend a minute on one call.
+
+**pyautogui's corner failsafe is left ON deliberately.** It is the only physical
+override: shove the real mouse into a corner and the next remote action raises
+instead of landing. For a feature that hands a phone the keyboard, an escape
+hatch needing no software is worth the rare misfire of a genuine click at the
+very top-left.
+
+**Every remote click is written to the action log.** "What did it do while I was
+not looking" needs an answer for this most of all.
+
 **Destructive actions ask again, here.** Shutdown, restart and force-closing a
 named app pop a `MessageBoxTimeoutW` on the desk (30s, "No" focused, timeout
 means no). The cloud's confirm gate is code on a server; if that server were

@@ -148,6 +148,27 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** One frame of the PC's screen. Pulled: the viewer asks for the next when it
+    has drawn the last, so closing the viewer stops the work with nothing to
+    cancel. */
+export async function screenFrame(token: string, width: number, quality: number) {
+  const res = await fetch(`${apiBase()}/screen?width=${width}&quality=${quality}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "Couldn't see your PC");
+  return data as { image: string; size: string };
+}
+
+/** Click, scroll, type or press a key on the PC. Coordinates are fractions of
+    the screen, so this end never needs to know the PC's resolution. */
+export async function screenInput(
+  token: string, kind: string, x = 0, y = 0, data = "",
+) {
+  return post("/screen/input", { kind, x, y, data }, token) as
+    Promise<{ ok: boolean; said: string }>;
+}
+
 /** Rename a device so the list can be told apart. */
 export function nameDevice(token: string, id: string, name: string) {
   return post(`/devices/${id}/name`, { name }, token);

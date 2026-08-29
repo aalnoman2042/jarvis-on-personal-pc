@@ -682,6 +682,63 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- the PC's screen, on the phone ----------
+   Grid rows are explicit for the reason the chat sheet's are: left on auto, the
+   picture grows with the frame and pushes the keyboard row off the bottom. */
+.screen-sheet {
+  grid-template-rows: auto 1fr auto auto auto;
+}
+.screen-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: var(--s2);
+  background: #000;
+  overflow: hidden;
+}
+.screen-picture {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  /* The browser's own gestures have to be off, or a tap meant for the PC pans
+     and zooms this page instead of reaching the desktop. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: crosshair;
+}
+.screen-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+}
+.screen-keys .chip {
+  cursor: pointer;
+}
+.screen-typing {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0 var(--s3);
+  padding: var(--s2) var(--s3);
+}
+.screen-typing input {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-strong);
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 16px;   /* stops the page zooming on focus */
+}
+.screen-note {
+  margin: 0 var(--s3) var(--s3);
+}
+
 /* ---------- devices ----------
    "Sure?" is coloured like the danger it is, and only for the moment it is
    asking. A button that looks alarming all the time stops being read. */

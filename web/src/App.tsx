@@ -16,6 +16,7 @@ import { useVondo } from "./lib/socket";
 import * as speech from "./lib/speak";
 import { useVoice } from "./lib/voice";
 import { useWakeWord } from "./lib/listen";
+import { Screen } from "./hud/Screen";
 import { clearToken, readToken, writeToken } from "./lib/store";
 import { Dashboard } from "./screens/Dashboard";
 import { Pin } from "./screens/Pin";
@@ -31,7 +32,7 @@ const CONN_TEXT: Record<string, string> = {
 function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   const jarvis = useVondo(token);
   const { canInstall, install } = useInstall();
-  const [open, setOpen] = useState<"none" | "chat" | "settings" | "search">("none");
+  const [open, setOpen] = useState<"none" | "chat" | "settings" | "search" | "screen">("none");
   const [talkback, setTalkback] = useState(speech.enabled);
 
   // Something said out loud goes straight to Jarvis. Held in a ref because the
@@ -135,6 +136,14 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
                 aria-label="Search everything">
           <span aria-hidden>&#8981;</span>
         </button>
+        {/* Only while the PC is connected. A button that can only fail is
+            worse than one that is not there. */}
+        {jarvis.pcOnline && (
+          <button className="gear" onClick={() => setOpen("screen")}
+                  aria-label="See and control your PC" title="Your PC's screen">
+            <span aria-hidden>&#128421;</span>
+          </button>
+        )}
         {speech.available() && (
           <button
             className={`gear speaker${talkback ? "" : " speaker-off"}`}
@@ -203,6 +212,9 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
       )}
       {open === "settings" && (
         <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />
+      )}
+      {open === "screen" && (
+        <Screen token={token} onClose={() => setOpen("none")} />
       )}
     </div>
   );

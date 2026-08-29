@@ -16,6 +16,17 @@ that gate is exactly as trustworthy as the thing that failed. So shutting down,
 restarting, or force-killing an app also has to get past a dialog box on the
 desk. It costs one click, and it means nothing irreversible happens to this PC
 without something on this PC agreeing.
+
+**Remote control is the exception the other two rules cannot cover, so it gets
+its own.** A mouse and a keyboard are every action at once: an allow-list of
+named functions means nothing when one of those functions is "click here", and
+a per-action dialog would ask fifty times a minute. So permission is asked once
+per run of this agent, for the whole capability, in the same box — and refusing
+is remembered too, so a "no" cannot be worn down by asking again. Restarting
+the agent is what re-opens the question.
+
+Watching is not driving. `screen_frame` is read-only and no more revealing than
+`take_screenshot`, which has never asked, so only input is gated.
 """
 from __future__ import annotations
 
@@ -40,6 +51,31 @@ _MB_TOPMOST = 0x00040000
 _IDYES = 6
 
 _dialog_lock = threading.Lock()
+
+# Remote control, decided once per run of this agent. None means not yet asked.
+# A refusal sticks: a gate that re-asks every thirty seconds is one that gets
+# clicked through eventually, which is the opposite of a gate.
+_remote_allowed: bool | None = None
+_remote_lock = threading.Lock()
+
+
+def remote_control_allowed() -> bool | None:
+    """What was decided this run, or None if it has not come up yet."""
+    return _remote_allowed
+
+
+def _ask_about_remote_control() -> bool:
+    global _remote_allowed
+    with _remote_lock:
+        if _remote_allowed is not None:
+            return _remote_allowed
+        _remote_allowed = _ask_on_screen(
+            "Jarvis wants to CONTROL THIS PC from your phone.\n\n"
+            "It will be able to click, type and drag exactly as you can, "
+            "without asking again.\n\n"
+            "Allow until this agent is restarted?"
+        )
+    return _remote_allowed
 
 
 class Refused(Exception):
@@ -98,6 +134,14 @@ def check(tool: str, args: list, kwargs: dict) -> None:
     """Raise Refused unless this call may go ahead."""
     if tool not in ALLOWED:
         raise Refused(f"This PC doesn't allow {tool!r}.")
+
+    # Asked once for the whole capability rather than once per click. Handled
+    # before the table below because it is a different shape of question: not
+    # "is this action dangerous" but "is this phone allowed to be the mouse".
+    if tool == "screen_input" and not _ask_about_remote_control():
+        raise Refused(
+            "Remote control isn't allowed on this PC. Say yes to the box on "
+            "the desk, or restart the agent to be asked again.")
 
     question = _needs_local_confirmation(tool, args, kwargs)
     if not question:

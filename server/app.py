@@ -49,6 +49,7 @@ from core import mail
 from core.brains import factory
 from core import memory
 from core import phone
+from core import lazy
 from core import reminders
 from core.memory import agenda as agenda_store
 from core.memory import backup as backup_store
@@ -661,6 +662,68 @@ async def push_seen(body: SeenIn):
 
 class RestoreIn(BaseModel):
     payload: dict
+
+
+# ---------------------------------------------------------------------------
+# Seeing and driving the PC
+#
+# Deliberately NOT routed through a brain. A frame is wanted forty times a
+# minute while the viewer is open and a click has to land in under a second;
+# putting either behind the turn lock would queue them behind whatever Jarvis
+# is thinking about, and burn a model call on "give me a picture".
+# ---------------------------------------------------------------------------
+
+class ScreenInputIn(BaseModel):
+    kind: str = Field(min_length=1, max_length=12)
+    # Fractions of the screen, so the phone never needs to know the PC's
+    # resolution and a frame scaled down for the wire still points at the right
+    # place. `y` doubles as the amount for a scroll.
+    x: float = 0.0
+    y: float = 0.0
+    data: str = Field(default="", max_length=2000)
+
+
+@app.get("/screen")
+async def screen(width: int = 900, quality: int = 45,
+                 device: dict = Depends(caller)):
+    """One frame of the PC's screen, as a data URI.
+
+    Pulled, never pushed: the viewer asks for the next one when it has finished
+    drawing the last. That is what makes closing the viewer sufficient to stop
+    the whole thing — there is no timer anywhere to remember to switch off, and
+    a slow link produces fewer frames rather than a growing queue.
+    """
+    if not agents.registry.online():
+        raise HTTPException(status_code=503, detail="Your PC is offline.")
+    frame = await run_in_threadpool(
+        lazy.actions.screen_frame, int(width), int(quality))
+    if not frame or frame.startswith("error:") or " " in frame[:40]:
+        # The agent returns a sentence when something went wrong, and a sentence
+        # rendered as an image is a broken picture with no explanation in it.
+        raise HTTPException(status_code=502, detail=frame or "No frame.")
+    return {"image": f"data:image/jpeg;base64,{frame}",
+            "size": await run_in_threadpool(lazy.actions.screen_size)}
+
+
+@app.post("/screen/input")
+async def screen_input(body: ScreenInputIn, device: dict = Depends(caller)):
+    """Click, scroll, type or press a key on the PC.
+
+    The first of these in an agent's life puts a box on the desk asking whether
+    this is allowed at all; see agent/guard.py. Everything here just forwards.
+    """
+    if not agents.registry.online():
+        raise HTTPException(status_code=503, detail="Your PC is offline.")
+    said = await run_in_threadpool(
+        lazy.actions.screen_input, body.kind, body.x, body.y, body.data)
+    # Logged like every other thing done to the PC, because "what did it do
+    # while I was not looking" has to have an answer for this most of all.
+    await run_in_threadpool(
+        memory.log_action, "screen_input",
+        f"{body.kind} {body.x:.3f},{body.y:.3f}"
+        + (f" {body.data[:40]}" if body.data else ""),
+        said, said == "ok", device.get("id", ""))
+    return {"ok": said == "ok", "said": said}
 
 
 @app.get("/documents")

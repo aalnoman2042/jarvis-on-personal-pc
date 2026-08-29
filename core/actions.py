@@ -6,8 +6,10 @@ so PC control behaves identically in either mode.
 """
 from __future__ import annotations
 
+import base64
 import datetime
 import html
+import io
 import json
 import os
 import re
@@ -599,6 +601,145 @@ def take_screenshot() -> str:
     path = os.path.join(folder, f"vondo_screenshot_{stamp}.png")
     pyautogui.screenshot(path)
     return f"Screenshot saved to your Pictures folder."
+
+
+# ---------------------------------------------------------------------------
+# Seeing and driving this machine from somewhere else
+#
+# Rohan asked for AnyDesk-shaped remote control and chose it knowing the trade:
+# a mouse and a keyboard are every action at once, so the allow-list and the
+# confirm gates that protect everything else here cannot protect this. What can
+# still be true is that it never starts without somebody at the desk agreeing
+# (see agent/guard.py) and that it never runs when nobody is watching.
+#
+# **Frames are PULLED, never pushed.** The viewer asks for the next one when it
+# has finished drawing the last, which means: no timer on this machine, no
+# stream left running when the phone's screen locks, and a slow link produces
+# fewer frames rather than a growing queue. Closing the viewer stops the work
+# by simply not asking again — there is nothing to remember to switch off.
+# ---------------------------------------------------------------------------
+
+# Sent as base64 inside an ordinary JSON result, so the wire format needed no
+# change. It does mean a frame costs a third more than the bytes it carries,
+# which is the price of not inventing a second protocol.
+SCREEN_MAX_WIDTH = 1280
+SCREEN_MIN_WIDTH = 240
+
+
+def screen_size() -> str:
+    """This PC's screen, as "1920x1080"."""
+    try:
+        width, height = pyautogui.size()
+        return f"{int(width)}x{int(height)}"
+    except Exception as exc:  # noqa: BLE001
+        return f"unknown ({exc})"
+
+
+def screen_frame(width: int = 900, quality: int = 45) -> str:
+    """One JPEG of the whole screen, base64, scaled to `width` pixels across.
+
+    JPEG rather than PNG: a screenshot of a text editor is mostly flat colour
+    and PNG would win on size, but a screenshot of anything else — a browser, a
+    video, a photo — is three to five times larger as PNG, and this has to be
+    sized for the worst case rather than the best.
+
+    Both numbers are clamped here rather than trusted. They arrive from a phone
+    over the internet, and a request for a 30,000-pixel-wide frame at quality
+    100 is a way to make this machine spend a minute and a gigabyte on one call.
+    """
+    try:
+        from PIL import ImageGrab
+    except Exception:  # noqa: BLE001
+        return "error: this PC has no screen grabber installed."
+
+    width = max(SCREEN_MIN_WIDTH, min(SCREEN_MAX_WIDTH, int(width or 900)))
+    quality = max(15, min(85, int(quality or 45)))
+    try:
+        shot = ImageGrab.grab()
+        if shot.width > width:
+            height = max(1, round(shot.height * width / shot.width))
+            # BILINEAR, not LANCZOS. On a 4K desktop the better filter costs
+            # more time than the JPEG encode does, every single frame, for a
+            # difference nobody can see on a phone.
+            shot = shot.resize((width, height), 1)
+        if shot.mode != "RGB":
+            shot = shot.convert("RGB")
+        buffer = io.BytesIO()
+        shot.save(buffer, format="JPEG", quality=quality, optimize=False)
+    except Exception as exc:  # noqa: BLE001
+        return f"error: couldn't capture the screen. ({exc})"
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _to_pixels(x: float, y: float) -> tuple[int, int]:
+    """Fractions of the screen to real coordinates.
+
+    The phone sends 0..1 rather than pixels so it never has to know this
+    machine's resolution, and so a frame scaled down for the wire still points
+    at the right place. Clamped, because a fraction slightly outside the frame
+    is a rounding error at the edge of a tap, not a request to leave the screen.
+    """
+    width, height = pyautogui.size()
+    px = int(round(min(1.0, max(0.0, float(x))) * (width - 1)))
+    py = int(round(min(1.0, max(0.0, float(y))) * (height - 1)))
+    return px, py
+
+
+def screen_input(kind: str, x: float = 0.0, y: float = 0.0, data: str = "") -> str:
+    """Drive this machine: click, scroll, type, or press a key.
+
+    One entry point rather than eight, so the allow-list has one name to reason
+    about and the agent has one place to ask permission.
+
+    pyautogui's corner failsafe is deliberately LEFT ON. It is the only physical
+    override there is — shove the real mouse into a corner and the next remote
+    action raises instead of landing — and for a feature that hands a phone the
+    keyboard, an escape hatch that needs no software is worth the rare misfire
+    of a genuine click at the very top-left.
+    """
+    kind = (kind or "").strip().lower()
+    try:
+        if kind in ("click", "left"):
+            pyautogui.click(*_to_pixels(x, y))
+        elif kind == "double":
+            pyautogui.doubleClick(*_to_pixels(x, y))
+        elif kind == "right":
+            pyautogui.rightClick(*_to_pixels(x, y))
+        elif kind == "middle":
+            pyautogui.middleClick(*_to_pixels(x, y))
+        elif kind == "move":
+            pyautogui.moveTo(*_to_pixels(x, y))
+        elif kind == "scroll":
+            # y carries the amount here, not a position: a scroll has a
+            # direction and a distance and no place on the screen.
+            pyautogui.scroll(int(float(y or 0)))
+        elif kind == "drag":
+            # "x1,y1" in data is where the drag started; x, y is where it ended.
+            start = [float(v) for v in (data or "0,0").split(",")[:2]]
+            pyautogui.moveTo(*_to_pixels(start[0], start[1]))
+            pyautogui.dragTo(*_to_pixels(x, y), duration=0.25, button="left")
+        elif kind == "type":
+            # interval, not a burst: a few applications drop characters typed
+            # faster than a person could, and a dropped character in a password
+            # field is a puzzle rather than an error.
+            pyautogui.write(str(data or ""), interval=0.01)
+        elif kind == "key":
+            parts = [p.strip().lower() for p in str(data or "").split("+") if p.strip()]
+            if not parts:
+                return "No key given."
+            if len(parts) == 1:
+                pyautogui.press(parts[0])
+            else:
+                pyautogui.hotkey(*parts)
+        else:
+            return f"I don't know how to do {kind!r} on this PC."
+    except Exception as exc:  # noqa: BLE001
+        name = type(exc).__name__
+        if "FailSafe" in name:
+            return ("The mouse is in a screen corner, which is this PC's manual "
+                    "override. Move it away and try again.")
+        return f"That didn't work on your PC. ({exc})"
+    return "ok"
 
 
 def lock_screen() -> str:

@@ -41,6 +41,16 @@ BASE = f"http://127.0.0.1:{PORT}"
 passed = failed = 0
 
 
+def _refused(fn) -> bool:
+    """True if the guard turned this away."""
+    from agent import guard as _g
+    try:
+        fn()
+        return False
+    except _g.Refused:
+        return True
+
+
 def check(label, got, want=None, contains=None):
     global passed, failed
     if contains is not None:
@@ -68,7 +78,14 @@ for _ in range(100):
 
 try:
     print("\n=== 1. the guard, before anything is connected ===")
-    check("allow-list matches the cloud's routed set", len(guard.ALLOWED), 18)
+    # The identity, not the count. A number here says nothing about whether the
+    # two lists agree — it only fails when either changes, which is exactly the
+    # case where somebody is already looking. `ALLOWED is PC_FUNCTIONS` is the
+    # property that matters: the agent must never carry a second copy that can
+    # drift into "the server can ask for something this PC forgot about".
+    from core.lazy import PC_FUNCTIONS  # noqa: E402
+    check("allow-list IS the cloud's routed set, not a copy of it",
+          guard.ALLOWED is PC_FUNCTIONS, True)
     try:
         guard.check("eval_python", ["import os"], {})
         check("refuses a tool that is not on the list", "allowed it", "refused")
@@ -144,6 +161,57 @@ try:
                    json={"message": "what is my system status"}, timeout=40)
     check("and answers instead of hanging", r.json()["reply"], contains="offline")
     print(f"         -> {r.json()['reply'][:80]!r}")
+
+    print("\n=== 7. remote control: refused until the desk says yes ===")
+    from agent import guard  # noqa: E402
+
+    # A mouse and a keyboard are every action at once, so the allow-list cannot
+    # protect this one — the dialog on the PC is the whole gate. These checks
+    # are what stop it being quietly removed.
+    guard._remote_allowed = None
+    asked = []
+    real_ask = guard._ask_on_screen
+    guard._ask_on_screen = lambda question: (asked.append(question), False)[1]
+    try:
+        try:
+            guard.check("screen_input", ["click"], {})
+            refused = False
+        except guard.Refused:
+            refused = True
+        check("a click is refused when the desk says no", refused, True)
+        check("  and the question named remote control",
+              asked and "CONTROL THIS PC" in asked[0], True)
+
+        # A refusal has to stick. A gate that asks again every few seconds is a
+        # gate that gets clicked through eventually.
+        before = len(asked)
+        try:
+            guard.check("screen_input", ["click"], {})
+        except guard.Refused:
+            pass
+        check("  and it is not asked twice", len(asked), before)
+
+        # Watching is not driving, and take_screenshot has never asked.
+        guard.check("screen_frame", [900, 45], {})
+        check("seeing the screen needs no permission", len(asked), before)
+
+        # Now allow it, and it stays allowed for the run.
+        guard._remote_allowed = None
+        asked.clear()
+        guard._ask_on_screen = lambda question: (asked.append(question), True)[1]
+        guard.check("screen_input", ["click"], {})
+        guard.check("screen_input", ["type"], {})
+        guard.check("screen_input", ["key"], {})
+        check("once allowed, it asks once for the whole session", len(asked), 1)
+    finally:
+        guard._ask_on_screen = real_ask
+        guard._remote_allowed = None
+
+    check("the allow-list carries the screen functions",
+          {"screen_frame", "screen_input", "screen_size"} <= guard.ALLOWED, True)
+    check("  and still refuses anything not on it",
+          _refused(lambda: guard.check("eval", [], {})), True)
+
 
 finally:
     server.should_exit = True
