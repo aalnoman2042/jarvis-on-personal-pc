@@ -867,6 +867,20 @@ async def read_passage(doc_id: int, chunk_id: int, device: dict = Depends(caller
     return got
 
 
+@app.post("/brains/check")
+async def check_brains(device: dict = Depends(caller)):
+    """Ask every configured brain one question and report who answered.
+
+    A POST rather than a GET because it costs a real API call per brain, and a
+    thing with a cost should not be reachable by something merely following
+    links. On demand only — never on a timer, which is the rule everywhere
+    else here.
+    """
+    from core.brains import factory as brain_factory
+    results = await run_in_threadpool(brain_factory.health)
+    return {"chain": getattr(get_brain(), "name", ""), "brains": results}
+
+
 @app.get("/training")
 async def training_data(device: dict = Depends(caller)):
     """Everything worth training something small on, as plain JSON.

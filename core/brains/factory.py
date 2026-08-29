@@ -33,6 +33,80 @@ def make(choice: str | None = None):
     return memory.wrap(confirm.wrap(build(choice)))
 
 
+# Small, cheap, and answerable by anything that works. Not "hello", which some
+# models answer with a paragraph; a sum has one short right answer and a wrong
+# one is as informative as an error.
+HEALTH_QUESTION = "Reply with only the number: what is 2 plus 2?"
+
+
+def _groq_maker():
+    def start():
+        from core.brains.brain_groq import GroqBrain
+        return GroqBrain()
+    return start
+
+
+def _gemini_maker():
+    def start():
+        from core.brains.brain_gemini import GeminiBrain
+        return GeminiBrain()
+    return start
+
+
+def _extra_maker(name, url, key, model):
+    def start():
+        from core.brains.brain_openai import OpenAIBrain
+        return OpenAIBrain(name, url, key, model)
+    return start
+
+
+def health() -> list[dict]:
+    """Ask every configured brain one question, and report who actually answers.
+
+    Being in the chain proves the key was present and the client was built. It
+    does NOT prove the key is valid, the model still exists, or that the
+    provider supports tool calling — all of which fail at the first real
+    question, which by definition is the moment the brain before it ran out.
+    Finding that out then is finding out at the worst possible time.
+
+    Makes a real API call per brain, so it is on demand only and never on a
+    timer. The offline brain is skipped: it always works, which is its whole
+    job, and asking costs a web search.
+    """
+    import time
+
+    from core import config
+
+    checks = [("groq", _groq_maker()), ("gemini", _gemini_maker())]
+    for name, url, key, model in config.extra_brains():
+        checks.append((name, _extra_maker(name, url, key, model)))
+
+    out = []
+    for name, maker in checks:
+        started = time.time()
+        try:
+            brain = maker()
+        except Exception as exc:  # noqa: BLE001
+            out.append({"brain": name, "ok": False, "ms": 0,
+                        "why": f"could not start: {str(exc)[:120]}"})
+            continue
+        try:
+            said = str(brain.handle(HEALTH_QUESTION) or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            out.append({"brain": name, "ok": False,
+                        "ms": int((time.time() - started) * 1000),
+                        "why": f"{type(exc).__name__}: {str(exc)[:120]}"})
+            continue
+        # A brain that replies but gets it wrong is still reachable, and that
+        # is the thing being tested — so the answer is reported rather than
+        # graded. "4" is a working provider; a paragraph about arithmetic is a
+        # working provider with a chatty model.
+        out.append({"brain": name, "ok": True,
+                    "ms": int((time.time() - started) * 1000),
+                    "said": said[:120]})
+    return out
+
+
 def build(choice: str | None = None):
     """Build the brain itself, wrapped so it auto-drops to the offline brain if
     the AI service is ever rate-limited or unreachable."""
