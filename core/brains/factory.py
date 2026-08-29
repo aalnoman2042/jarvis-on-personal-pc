@@ -101,9 +101,11 @@ def health() -> list[dict]:
         # is the thing being tested — so the answer is reported rather than
         # graded. "4" is a working provider; a paragraph about arithmetic is a
         # working provider with a chatty model.
-        out.append({"brain": name, "ok": True,
+        out.append({"brain": name, "ok": bool(said),
                     "ms": int((time.time() - started) * 1000),
-                    "said": said[:120]})
+                    "said": said[:120],
+                    **({} if said else
+                       {"why": "reachable, but answered with nothing"})})
     return out
 
 

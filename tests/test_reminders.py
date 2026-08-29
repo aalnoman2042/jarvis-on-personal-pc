@@ -1197,6 +1197,41 @@ try:
     conn.commit()
 
 
+    print("\n=== 17. a brain that answers with nothing has failed ===")
+    from core.brains.brain_fallback import FallbackBrain  # noqa: E402
+
+    # Measured, not imagined. A real free model on OpenRouter accepted the
+    # request, returned 200, and sent back an empty message — and because
+    # FallbackBrain only moves on when something RAISES, that empty string
+    # travelled all the way to the screen as silence. The backup existed for
+    # exactly this and never got the chance.
+    class Silent:
+        name = "silent"
+        def greeting(self): return ""
+        def handle(self, t): return "   "
+
+    class Backup:
+        name = "backup"
+        def greeting(self): return ""
+        def handle(self, t): return "the backup answered"
+
+    chain = FallbackBrain(Silent(), Backup())
+    check("silence moves on to the next brain",
+          chain.handle("what time is it"), "the backup answered")
+
+    # But an empty QUESTION legitimately gets an empty answer, and cascading
+    # that would spend an API call on every brain in the chain for nothing.
+    check("  an empty question does not cascade",
+          FallbackBrain(Silent(), Backup()).handle("").strip(), "")
+
+    class Fine:
+        name = "fine"
+        def greeting(self): return ""
+        def handle(self, t): return "a real answer"
+    check("  and a working brain is left alone",
+          FallbackBrain(Fine(), Backup()).handle("hello"), "a real answer")
+
+
 finally:
     server.should_exit = True
     time.sleep(0.3)

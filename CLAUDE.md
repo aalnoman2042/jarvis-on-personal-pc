@@ -692,6 +692,27 @@ resort rather than only the last one's.
 Failure puts a brain on cooldown (5 min ordinary, 30 min for quota) so a dead
 free tier is not re-paid on every question — see `brain_fallback.py`.
 
+**Silence counts as failure.** A provider can accept a request, answer 200 and
+send back an empty message — measured, on a real free model — and because the
+fallback only moved on when something *raised*, that empty string travelled all
+the way to the screen. The backup existed for exactly this and never got the
+chance. Only when something was actually asked: an empty question legitimately
+gets an empty answer, and cascading that would spend an API call on every brain
+in the chain for nothing.
+
+**A model that cannot use tools is asked again without them.** Forty tool
+schemas is the usual reason a small free model returns nothing at all, and a
+brain that can talk but not act is still far better than the rule-based one.
+Only if *that* is empty too does it raise.
+
+**`POST /brains/check` asks every configured brain one small sum** and reports
+who answered, how fast, and what they said. Being in the chain only proves a key
+was present and a client was built; it does not prove the key is valid, the
+model still exists, or that tools work — and the first real question is by
+definition the moment the brain before it ran out, which is the worst possible
+time to find out. A sum rather than "hello" because it has one short right
+answer. POST rather than GET because it costs an API call per brain.
+
 ## Getting the data out (phase 09)
 
 `core/memory/backup.py`. Until this existed there was no export and no second

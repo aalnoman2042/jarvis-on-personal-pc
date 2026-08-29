@@ -75,7 +75,21 @@ class OpenAIBrain:
             choice = reply.choices[0].message
             calls = getattr(choice, "tool_calls", None)
             if not calls:
-                return (choice.content or "").strip()
+                said = (choice.content or "").strip()
+                if said:
+                    return said
+                # Nothing at all, and nothing raised. Measured against a real
+                # free model: it accepted the request, returned 200, and sent
+                # back an empty message — which is the worst possible shape,
+                # because FallbackBrain only moves on when something RAISES, so
+                # an empty string travels all the way to the screen as silence.
+                #
+                # The usual cause is that the model does not do tool calling
+                # and has no idea what to make of forty tool schemas. A brain
+                # that can talk but not act is still far better than the
+                # rule-based one, so it is asked again with the tools removed
+                # rather than written off.
+                return self._without_tools(prompt, text)
 
             messages.append({
                 "role": "assistant",
@@ -98,6 +112,25 @@ class OpenAIBrain:
         # finished job and is how a truncated sequence goes unnoticed.
         return ("I got part-way through that and ran out of steps — ask me "
                 "again and I'll pick up where the useful part was.")
+
+    def _without_tools(self, prompt: str, text: str) -> str:
+        """Ask again with no tools at all, for a model that cannot use them.
+
+        Raises if this is empty too. Raising matters: it is the only thing that
+        makes the fallback chain move on, and a brain that returns silence
+        without complaining is worse than one that is plainly broken.
+        """
+        reply = self._client.chat.completions.create(
+            model=self._model,
+            messages=memory.as_openai(prompt, text),
+            max_tokens=800,
+        )
+        said = (reply.choices[0].message.content or "").strip()
+        if not said:
+            raise RuntimeError(
+                f"{self.name} returned an empty answer, with and without tools")
+        return said
+
 
     def _run(self, call) -> str:
         """One tool call. Never raises: a broken tool must not end the turn."""

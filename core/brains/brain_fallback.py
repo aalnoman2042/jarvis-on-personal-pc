@@ -38,7 +38,19 @@ class FallbackBrain:
             # Still cooling off — go straight to the backup, no waiting.
             return self._backup.handle(text)
         try:
-            return self._primary.handle(text)
+            said = self._primary.handle(text)
+            # Silence counts as a failure. A provider can accept a request,
+            # answer 200 and send back an empty message — measured, on a real
+            # free model — and because nothing raises, that empty string used
+            # to travel all the way to the screen. The backup exists for
+            # exactly this and never got the chance.
+            #
+            # Only when something was actually asked: an empty question gets an
+            # empty answer legitimately, and cascading that through every brain
+            # in the chain would spend five API calls on nothing.
+            if not (said or "").strip() and text.strip():
+                raise RuntimeError("answered with nothing at all")
+            return said
         except Exception as exc:  # noqa: BLE001  (any API/network failure)
             wait = QUOTA_COOLDOWN_SECONDS if _looks_like_quota(exc) else COOLDOWN_SECONDS
             self._skip_until = time.monotonic() + wait
