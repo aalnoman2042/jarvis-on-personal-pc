@@ -7,4 +7,12 @@
 websockets>=13.0           # the outbound link to the cloud
 psutil>=5.9.0              # CPU / RAM / battery telemetry for the HUD
 pyautogui>=0.9.54          # volume, media keys, screenshots
+pillow>=10.0.0             # screen capture, and pyautogui's screenshots
+
+# Pillow is listed EXPLICITLY rather than left to arrive with pyautogui, which
+# was the mistake. pyautogui declares pyscreeze, pyscreeze declares Pillow, and
+# on this machine the chain had not produced it: the venv had pyautogui and no
+# PIL, so `take_screenshot` failed with "unable to import pyscreeze" and the
+# remote view failed with "no screen grabber installed". A dependency you rely
+# on belongs in the file whether or not something else usually drags it in.
 python-dotenv>=1.0.0       # reads .env for VONDO_URL

@@ -244,10 +244,20 @@ fake it by chunking a finished string.
 ## The PC agent (phase 03)
 
 `agent/` is the only VONDO process on Rohan's machine and must stay small:
-`agent.py` (the loop), `guard.py` (what it will do), `pair.py` (one-time setup),
-`settings.py`. Four dependencies, no AI, no models, no speech, no window. If
-something here starts needing a heavyweight package, the work belongs in the
-cloud instead.
+`agent.py` (the loop), `guard.py` (what it will do), `login.py` (one-time
+setup), `settings.py`. Five dependencies, no AI, no models, no speech, no
+window. If something here starts needing a heavyweight package, the work
+belongs in the cloud instead.
+
+**Every dependency is listed, even the ones something else drags in.** Pillow
+was left implicit because pyautogui declares pyscreeze and pyscreeze declares
+Pillow — and on the real machine that chain had not produced it. The venv held
+pyautogui and no PIL, so `take_screenshot` failed with a message about pyscreeze
+and the remote screen view failed with "no screen grabber installed", both at
+the moment of use and both from a phone in another room. `start_agent.bat` now
+checks *everything* it lists rather than a sample of it: a startup check that
+passes and then does not work is worse than no check, because it moves the
+failure to the worst possible moment.
 
 ```
 link_pc.bat        # once — type your PIN

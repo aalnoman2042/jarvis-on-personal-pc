@@ -594,7 +594,12 @@ def media_control(action: str) -> str:
 
 
 def take_screenshot() -> str:
-    """Capture the screen and save it to the Pictures folder."""
+    """Capture the screen and save it to the Pictures folder.
+
+    Needs Pillow, via pyautogui's pyscreeze. That is not automatic — see
+    requirements/agent.txt — and when it is missing this fails with a message
+    about pyscreeze that says nothing about screenshots.
+    """
     folder = os.path.join(os.path.expanduser("~"), "Pictures")
     os.makedirs(folder, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -650,7 +655,11 @@ def screen_frame(width: int = 900, quality: int = 45) -> str:
     try:
         from PIL import ImageGrab
     except Exception:  # noqa: BLE001
-        return "error: this PC has no screen grabber installed."
+        # Naming the fix, not just the fault. "No screen grabber installed" is
+        # true and useless from a phone in another room.
+        return ("error: this PC is missing Pillow, which is what takes the "
+                "picture. On the PC run:  .venv\\Scripts\\python -m pip "
+                "install pillow   then restart the agent.")
 
     width = max(SCREEN_MIN_WIDTH, min(SCREEN_MAX_WIDTH, int(width or 900)))
     quality = max(15, min(85, int(quality or 45)))

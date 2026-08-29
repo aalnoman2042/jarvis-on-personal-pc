@@ -17,7 +17,12 @@ REM was even being used.
 set "PY=python"
 if exist ".venv\Scripts\python.exe" set "PY=.venv\Scripts\python.exe"
 
-"%PY%" -c "import psutil, websockets" 2>nul
+REM Everything the agent needs, not a sample of it. This checked psutil and
+REM websockets only, so a venv holding those two and nothing else sailed
+REM through -- and the agent then failed at the moment of use, from a phone in
+REM another room, with "this PC has no screen grabber installed". A startup
+REM check that passes and then does not work is worse than no check.
+"%PY%" -c "import psutil, websockets, pyautogui, dotenv; from PIL import ImageGrab" 2>nul
 if errorlevel 1 (
     echo.
     echo   Installing what the agent needs, once...

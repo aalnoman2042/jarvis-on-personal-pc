@@ -213,6 +213,51 @@ try:
           _refused(lambda: guard.check("eval", [], {})), True)
 
 
+    print("\n=== 8. the agent's dependencies are declared, not assumed ===")
+    import re as _re  # noqa: E402
+
+    # This section exists because of a real failure. pyautogui declares
+    # pyscreeze, pyscreeze declares Pillow, so Pillow was treated as "already
+    # there" and never listed. On the actual machine the chain had not produced
+    # it: the venv held pyautogui and no PIL, and BOTH take_screenshot and the
+    # remote screen view failed at the moment of use, from a phone in another
+    # room. A dependency you rely on belongs in the file whether or not
+    # something else usually drags it in.
+    req = open(os.path.join(ROOT, "requirements", "agent.txt"),
+               encoding="utf-8").read()
+    listed = {ln.split(">=")[0].split("==")[0].strip().lower()
+              for ln in req.splitlines()
+              if ln.strip() and not ln.strip().startswith("#")}
+    for needed in ("websockets", "psutil", "pyautogui", "pillow", "python-dotenv"):
+        check(f"  agent.txt lists {needed}", needed in listed, True)
+
+    # And the launcher must check everything it lists, or it passes and the
+    # agent fails later — which is worse than not checking at all.
+    launcher = open(os.path.join(ROOT, "start_agent.bat"),
+                    encoding="utf-8", errors="replace").read()
+    probe = _re.search(r'-c "([^"]+)"', launcher)
+    checked = probe.group(1) if probe else ""
+    check("the launcher verifies the imports before starting",
+          bool(probe), True)
+    for module in ("psutil", "websockets", "pyautogui", "PIL", "dotenv"):
+        check(f"  it checks {module}", module in checked, True)
+
+    # The screen functions must not merely exist — they must be reachable in
+    # whatever interpreter is running, and say something useful when they are
+    # not. Both were returning an error string that named the fault and not the
+    # remedy, which is no help at all from another room.
+    from core import actions as _actions  # noqa: E402
+    frame = _actions.screen_frame(320, 20)
+    if frame.startswith("error:"):
+        check("a failed capture names the fix, not just the fault",
+              frame, contains="pip install")
+    else:
+        import base64 as _b64
+        check("a frame is real JPEG data", _b64.b64decode(frame)[:2], b"\xff\xd8")
+        check("  and it is not enormous", len(frame) < 400_000, True)
+    check("a silly frame request is clamped rather than obeyed",
+          _actions.screen_frame(99999, 999).startswith("error:"), False)
+
 finally:
     server.should_exit = True
     time.sleep(0.3)
