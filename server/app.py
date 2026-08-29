@@ -238,6 +238,19 @@ async def list_devices(device: dict = Depends(caller)):
     return {"devices": auth.devices(), "you": device["id"]}
 
 
+class RenameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
+@app.post("/devices/{device_id}/name")
+async def name_device(device_id: str, body: RenameIn,
+                      device: dict = Depends(caller)):
+    """Rename a device, so the list can be told apart before revoking from it."""
+    if not await run_in_threadpool(auth.rename, device_id, body.name):
+        raise HTTPException(status_code=404, detail="no such device")
+    return {"ok": True, "name": body.name}
+
+
 @app.post("/devices/{device_id}/revoke")
 async def revoke_device(device_id: str, device: dict = Depends(caller)):
     if not auth.revoke(device_id):

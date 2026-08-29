@@ -694,6 +694,35 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
 .device-sure {
   color: var(--warn);
 }
+/* The name is a button but must not look like one — it is a label you can
+   correct, not an action. Only the pointer says otherwise. */
+.device-name {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--ink-strong);
+  text-align: left;
+  cursor: text;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-name-edit {
+  font: inherit;
+  color: var(--ink-strong);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  padding: 2px var(--s2);
+  min-width: 0;
+  flex: 1 1 6em;
+  /* 16px or Safari and Chrome on Android zoom the whole page on focus. */
+  font-size: 16px;
+}
+.devices li {
+  flex-wrap: wrap;
+}
 
 /* ---------- papers and notes ---------- */
 .papers-list {

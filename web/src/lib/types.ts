@@ -100,7 +100,8 @@ export interface Me {
   remembered: number;
   recent_actions: { ts: number; tool: string; args: string; result: string; ok: number }[];
   pc: { name: string; last_seen: number; telemetry: Telemetry }[];
-  devices: { id: string; name: string; kind: string; last_seen: number; revoked: number }[];
+  devices: { id: string; name: string; kind: string; paired_ts: number;
+             last_seen: number; revoked: number }[];
   upcoming: AgendaItem[];
   tasks: Task[];
   /** Names only — the numbers stay on the server. */

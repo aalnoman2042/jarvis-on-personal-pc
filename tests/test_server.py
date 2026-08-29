@@ -226,6 +226,25 @@ try:
     after = httpx.get(f"{BASE}/me", headers=auth_phone).json()["devices"]
     gone = [d for d in after if d["id"] == victim]
     check("a revoked device is still listed, marked revoked", len(gone), 1)
+    # Renaming exists because the auto-names collide: every browser sign-in
+    # registered as "phone" or "desktop", and a list you cannot tell apart is
+    # one you should not be revoking from.
+    live_one = [d for d in after if not d["revoked"]][0]
+    r = httpx.post(f"{BASE}/devices/{live_one['id']}/name",
+                   headers=auth_phone, json={"name": "Rohan's phone"})
+    check("a device can be renamed", r.status_code, 200)
+    named = httpx.get(f"{BASE}/me", headers=auth_phone).json()["devices"]
+    check("  and the new name sticks",
+          [d["name"] for d in named if d["id"] == live_one["id"]], ["Rohan's phone"])
+    check("  renaming something that isn't there is a 404",
+          httpx.post(f"{BASE}/devices/nope/name", headers=auth_phone,
+                     json={"name": "x"}).status_code, 404)
+    check("  and an empty name is refused before it reaches the database",
+          httpx.post(f"{BASE}/devices/{live_one['id']}/name", headers=auth_phone,
+                     json={"name": "   "}).status_code in (404, 422), True)
+    # The screen shows this to tell identical names apart, so it has to arrive.
+    check("every device says when it signed in",
+          all(isinstance(d.get("paired_ts"), (int, float)) for d in named), True)
     check("  and the mark is what the screen filters on", bool(gone[0]["revoked"]), True)
     check("  so the live list no longer holds it",
           victim in [d["id"] for d in after if not d["revoked"]], False)

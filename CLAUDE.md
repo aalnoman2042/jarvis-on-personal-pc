@@ -794,6 +794,16 @@ twice in place rather than opening a dialog, and it will not revoke the device
 you are holding — that is what Sign out is for. `revoked` is SQLite's integer,
 not a boolean; typing it as one in TypeScript compiles and is wrong.
 
+**Adding that button made the device NAMES a problem.** Every sign-in
+registered as literally `"phone"` or `"desktop"`, which was harmless while the
+list was read-only and dangerous the moment it had a button: three rows called
+"phone" and no way to know which one you are signing out. Three answers, and the
+third is the one that always works — new sign-ins carry browser and platform
+(`deviceName` in `lib/store.ts`, deliberately coarse: more precision would not
+help a person choose a row and is a fingerprint on a server), any device can be
+renamed (`/devices/{id}/name`), and every row shows the day it signed in. Two
+devices can share a name; they cannot share the moment they arrived.
+
 **Watch the mount order in `app.py`.** `StaticFiles` is mounted at `/` and must
 stay last; anywhere earlier it swallows `/chat` and `/health`. `test_hud.py`
 checks exactly that.

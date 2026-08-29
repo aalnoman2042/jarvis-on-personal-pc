@@ -148,6 +148,11 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** Rename a device so the list can be told apart. */
+export function nameDevice(token: string, id: string, name: string) {
+  return post(`/devices/${id}/name`, { name }, token);
+}
+
 /** Make a device's token useless. It can sign in again with the PIN. */
 export async function revokeDevice(token: string, id: string) {
   const res = await fetch(`${apiBase()}/devices/${id}/revoke`, {

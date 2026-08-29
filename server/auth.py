@@ -134,6 +134,22 @@ def revoke(device_id: str) -> bool:
     return bool(cur.rowcount)
 
 
+def rename(device_id: str, name: str) -> bool:
+    """Give a device a name a person would recognise.
+
+    Auto-generated names collide — two phones in the same browser produce the
+    same string — and a list you cannot tell apart is a list you should not be
+    revoking from.
+    """
+    conn = store.connect()
+    name = " ".join((name or "").split())[:40]
+    if conn is None or not name:
+        return False
+    cur = conn.execute("UPDATE devices SET name = ? WHERE id = ?", (name, device_id))
+    conn.commit()
+    return bool(cur.rowcount)
+
+
 def devices() -> list[dict]:
     conn = store.connect()
     if conn is None:
