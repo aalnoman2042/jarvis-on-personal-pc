@@ -343,6 +343,16 @@ reason, as belt and braces: if anything in between turns the refusal into an
 ordinary close, it still stops rather than re-asking a rejected question every
 few seconds for ever.
 
+**A second copy of the agent displaces the first, and the loser stops.**
+`Registry.add` used to forget the old connection without closing it, so two
+agent processes started by accident both stayed alive and replaced each other in
+the registry every few seconds. The PC then looked like it was reconnecting
+constantly while *both* connections were perfectly healthy — indistinguishable
+from a bad network, and nothing anywhere said "you have two of these running",
+because nothing knew. The old socket is now closed with **4409**, and the agent
+treats that code as terminal and says which window to close. Reconnecting on it
+would simply restart the fight.
+
 **Stopping cleanly is a feature, not tidiness.** `request_stop()` closes the
 websocket so the cloud marks the PC offline *at once*. Killing the process
 leaves the socket half-open, and until TCP notices, "open chrome" from the phone

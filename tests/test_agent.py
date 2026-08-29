@@ -30,6 +30,7 @@ os.environ["VONDO_URL"] = f"http://127.0.0.1:{PORT}"
 os.environ["VONDO_AGENT_NAME"] = "test-pc"
 
 import asyncio  # noqa: E402
+import json  # noqa: E402
 import httpx  # noqa: E402
 import uvicorn  # noqa: E402
 
@@ -257,6 +258,52 @@ try:
         check("  and it is not enormous", len(frame) < 400_000, True)
     check("a silly frame request is clamped rather than obeyed",
           _actions.screen_frame(99999, 999).startswith("error:"), False)
+
+    print("\n=== 9. a second copy of the agent must not fight the first ===")
+    from websockets.sync.client import connect as _ws_connect  # noqa: E402
+
+    # This is the failure that looked exactly like a bad network. Two agent
+    # processes were started by accident; each connection replaced the other in
+    # the registry every few seconds, so the PC appeared to reconnect
+    # constantly while BOTH connections were perfectly healthy. Nothing in the
+    # logs said "you have two of these running", because nothing knew.
+    #
+    # Now the newer connection displaces the older one explicitly, with a close
+    # code the loser understands and stops on — instead of both surviving and
+    # taking turns.
+    WS = BASE.replace("http://", "ws://")
+    first = _ws_connect(f"{WS}/ws/agent?token={token}")
+    first.send(json.dumps({"type": "telemetry", "cpu": 1, "memory": 1}))
+    time.sleep(0.4)
+    check("the first connection registers",
+          httpx.get(f"{BASE}/health").json()["pc_online"], True)
+
+    second = _ws_connect(f"{WS}/ws/agent?token={token}")
+    second.send(json.dumps({"type": "telemetry", "cpu": 2, "memory": 2}))
+    time.sleep(0.6)
+
+    # The first must have been closed, and told WHY.
+    closed_code = None
+    try:
+        first.recv(timeout=3)
+        first.recv(timeout=3)
+    except Exception as exc:  # noqa: BLE001
+        closed_code = getattr(exc, "rcvd", None)
+        closed_code = getattr(closed_code, "code", None)
+    check("the older connection is closed, not left running", closed_code, 4409)
+    check("  and the agent knows that code means 'stop, do not retry'",
+          pc_agent.REPLACED_CLOSE, 4409)
+
+    # And the newer one is the live agent, not a casualty of its own arrival.
+    check("the newer connection is the live one",
+          httpx.get(f"{BASE}/health").json()["pc_online"], True)
+    second.send(json.dumps({"type": "telemetry", "cpu": 42, "memory": 7}))
+    time.sleep(0.6)
+    live = httpx.get(f"{BASE}/status", headers=hdr).json()["pc"]
+    check("  and it is the one being heard",
+          live and live[0]["telemetry"].get("cpu"), 42)
+    second.close()
+
 
 finally:
     server.should_exit = True

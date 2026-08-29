@@ -695,6 +695,20 @@ class ScreenInputIn(BaseModel):
     data: str = Field(default="", max_length=2000)
 
 
+# Cached per PC connection. Cleared when the agent reconnects, because that is
+# exactly when a resolution could have changed.
+_screen_size_cache: dict[str, str] = {}
+
+
+async def _screen_size() -> str:
+    agent = agents.registry.any_agent()
+    key = f"{getattr(agent, 'device_id', '')}:{getattr(agent, 'connected_at', 0)}"
+    if key not in _screen_size_cache:
+        _screen_size_cache.clear()
+        _screen_size_cache[key] = await run_in_threadpool(lazy.actions.screen_size)
+    return _screen_size_cache[key]
+
+
 @app.get("/screen")
 async def screen(width: int = 900, quality: int = 45,
                  device: dict = Depends(caller)):
@@ -713,8 +727,11 @@ async def screen(width: int = 900, quality: int = 45,
         # The agent returns a sentence when something went wrong, and a sentence
         # rendered as an image is a broken picture with no explanation in it.
         raise HTTPException(status_code=502, detail=frame or "No frame.")
+    # The screen's resolution is asked ONCE per connection, not once per frame.
+    # It was a second round trip to the PC for every single picture — doubling
+    # the calls, for a number that changes when somebody buys a monitor.
     return {"image": f"data:image/jpeg;base64,{frame}",
-            "size": await run_in_threadpool(lazy.actions.screen_size)}
+            "size": await _screen_size()}
 
 
 @app.post("/screen/input")
@@ -958,7 +975,7 @@ async def ws_agent(websocket: WebSocket):
     await websocket.accept()
 
     agent = agents.Agent(device["id"], device["name"], websocket)
-    agents.registry.add(agent)
+    await agents.registry.add(agent)
     log.info("PC agent connected: %s", device["name"])
     try:
         while True:

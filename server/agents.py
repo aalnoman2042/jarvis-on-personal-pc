@@ -90,13 +90,34 @@ class Registry:
     def __init__(self) -> None:
         self._agents: dict[str, Agent] = {}
 
-    def add(self, agent: Agent) -> None:
+    REPLACED = 4409     # close code: a newer connection took this device over
+
+    async def add(self, agent: Agent) -> None:
+        """Register a PC, displacing any earlier connection for the same device.
+
+        The old socket is now CLOSED rather than merely forgotten, and that is
+        the important part. Forgetting it left two agents alive and neither
+        aware of the other: two processes started by accident, each replacing
+        the other in this dict every few seconds, so the PC looked like it was
+        reconnecting constantly when both connections were in fact perfectly
+        healthy. The symptom was indistinguishable from a bad network, and the
+        cause was a second window nobody had noticed was open.
+
+        Closing it with a distinct code lets the loser say what happened and
+        stop, instead of reconnecting and starting the fight again.
+        """
         old = self._agents.get(agent.device_id)
-        if old is not None:
-            # A reconnect after a network blip: the old socket is gone even if
-            # it has not noticed yet, so anything waiting on it is already lost.
-            old.fail_all("The connection to your PC dropped.")
         self._agents[agent.device_id] = agent
+        if old is None:
+            return
+        # A reconnect after a network blip: the old socket is gone even if it
+        # has not noticed yet, so anything waiting on it is already lost.
+        old.fail_all("The connection to your PC dropped.")
+        try:
+            await old.ws.close(code=self.REPLACED,
+                               reason="another connection took over")
+        except Exception:  # noqa: BLE001  (already gone, which is the usual case)
+            pass
 
     def remove(self, agent: Agent) -> None:
         if self._agents.get(agent.device_id) is agent:

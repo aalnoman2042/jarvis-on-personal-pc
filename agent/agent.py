@@ -148,6 +148,11 @@ async def _receive(ws, calls: set[asyncio.Task]) -> None:
 # one of these is asking the same rejected question every few seconds for ever.
 UNAUTHORISED_CLOSES = (4401, 4403, 1008)
 
+# The cloud closes an older connection with this when a newer one takes the
+# device over. Almost always it means a second copy of this agent is running —
+# started twice by accident, or a window nobody noticed was still open.
+REPLACED_CLOSE = 4409
+
 
 def _session_ended_unauthorised(code) -> bool:
     return code in UNAUTHORISED_CLOSES
@@ -159,7 +164,14 @@ async def _session(url: str) -> int | None:
     Returns the close code, because the caller has to tell a dead credential
     from a dead network and those look identical from the outside.
     """
-    async with connect(url, ping_interval=20, ping_timeout=20) as ws:
+    # Ping often, but be patient about the answer. The old 20/20 meant that if
+    # the cloud failed to pong within twenty seconds this end tore the
+    # connection down — and twenty seconds is not a long stall for one free-tier
+    # worker in Singapore that is also talking to Turso over HTTPS and running a
+    # brain in a thread. The ping still detects a genuinely dead link; it just
+    # no longer mistakes a busy server for a dead one, which cost a reconnect
+    # (and a few seconds of "PC offline") every time the core was thinking hard.
+    async with connect(url, ping_interval=20, ping_timeout=75) as ws:
         _say("connected to the cloud")
         calls: set[asyncio.Task] = set()
         telemetry = asyncio.create_task(_telemetry_loop(ws))
@@ -202,6 +214,15 @@ async def run() -> None:
             # handshake: if anything between here and the server turns that
             # refusal into an ordinary close, this still stops the loop rather
             # than reconnecting for ever with a dead credential.
+            if closed_with == REPLACED_CLOSE:
+                # Reconnecting here would restart the fight: both copies would
+                # take turns displacing each other for ever, and the PC would
+                # look like it was dropping constantly while both connections
+                # were healthy. The newest wins; this one bows out and says why.
+                _say("another copy of this agent has taken over — "
+                     "this one is stopping. (Close the extra window; you only "
+                     "need one.)")
+                return
             if _session_ended_unauthorised(closed_with):
                 _say("this PC is not authorised any more — sign in again:"
                      "  python -m agent.login   (or double-click link_pc.bat)")
