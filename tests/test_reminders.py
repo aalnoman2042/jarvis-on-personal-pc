@@ -651,6 +651,19 @@ try:
           len(recall_mod.find("what did I say about NILM")) >= 1, True)
     check("  and the sweep asks for nothing", vectors.backfill(5), 0)
 
+    # Nothing runs while nothing is happening. Once the archive is indexed,
+    # looking again every thirty seconds is two full scans over the network for
+    # ever, so a pass that finds nothing backs off.
+    import asyncio as _asyncio  # noqa: E402
+    nudges._next_catch_up = 0.0
+    vectors.available = lambda: False
+    _asyncio.run(nudges.catch_up())
+    check("an idle sweep backs off instead of rescanning",
+          nudges._next_catch_up > clock.now() + 60, True)
+    check("  but an explicit pass is still honoured",
+          _asyncio.run(nudges.catch_up(force=True)), 0)
+    nudges._next_catch_up = 0.0
+
     vectors.embed, vectors.available = real_embed, real_available
     conn.execute("DELETE FROM messages")
     conn.execute("DELETE FROM vectors")

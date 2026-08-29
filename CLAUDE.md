@@ -131,6 +131,11 @@ cosine. FTS5 is not replaced; the two find different things.
   pays for over HTTPS to Turso. Measured against float32 on the real archive it
   returns the same rows above the floor on every query tried; worst similarity
   error 0.006.
+- **A finished sweep stops sweeping.** Once everything is indexed there is
+  nothing to find, and looking anyway is two full scans over the network every
+  thirty seconds for ever. A pass that finds nothing waits five minutes before
+  looking again — same rule as the rest of the system: nothing runs while
+  nothing is happening.
 - `numpy` is the one dependency this added. Hand-rolling the float maths over a
   few thousand vectors costs about a second per question, which a turn does not
   have.

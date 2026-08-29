@@ -84,7 +84,16 @@ def _frame(item: dict) -> dict:
     }
 
 
-async def catch_up() -> int:
+# When the archive is fully indexed there is nothing to do, and looking anyway
+# is two full scans over the network every thirty seconds, for ever. So a pass
+# that finds nothing waits this long before looking again. New turns are the
+# only thing that can create work, and being a few minutes behind on embedding
+# one is invisible — `recent()` already puts it in front of the model.
+IDLE_GAP = 300.0
+_next_catch_up = 0.0
+
+
+async def catch_up(force: bool = False) -> int:
     """Give meaning-based recall a little more of the archive to work with.
 
     Deliberately here and not on the write path. Embedding inside `add_turn`
@@ -95,10 +104,21 @@ async def catch_up() -> int:
     One small batch per pass, in a worker thread because it is a blocking HTTP
     call and this loop shares an event loop with the sockets.
     """
+    global _next_catch_up
+    from core import clock
     from core.memory import vectors
-    if not vectors.available():
+
+    now = clock.now()
+    if not force and now < _next_catch_up:
         return 0
-    return await run_in_threadpool(vectors.backfill)
+    if not vectors.available():
+        # No key, no numpy, no quota. Nothing here will start working in the
+        # next half minute, so stop asking every half minute.
+        _next_catch_up = now + IDLE_GAP
+        return 0
+    done = await run_in_threadpool(vectors.backfill)
+    _next_catch_up = now + (0.0 if done else IDLE_GAP)
+    return done
 
 
 async def deliver_due() -> int:
