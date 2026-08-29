@@ -24,6 +24,7 @@ the mail itself is not copied anywhere.
 """
 from __future__ import annotations
 
+import html
 import email
 import email.utils
 import imaplib
@@ -431,6 +432,146 @@ def _fetch_box(account: Account, days: int, only_unread: bool) -> list[Message]:
             pass
         socket.setdefaulttimeout(None)
     return out
+
+
+# The most a body is allowed to be. A supervisor's request is three sentences;
+# past this it is a newsletter or a thread nobody is going to read on a phone.
+MAX_BODY = 6000
+
+# Where a reply stops being new writing and starts being the message it answers.
+_QUOTE_MARKERS = (
+    "-----original message-----",
+    "________________________________",
+    "--- forwarded message ---",
+    "sent from my ",
+)
+_QUOTE_LINE = ("on ", ">")
+
+
+def _pick_text_part(structure) -> tuple[str, str]:
+    """The part number and charset of the plain-text body, from BODYSTRUCTURE.
+
+    Asked for by PART, never as the whole message. The whole message includes
+    every attachment, and a 25MB PDF pulled into a 512MB box to read three
+    sentences is a real spike — on a free instance it is the difference between
+    an answer and a restart. text/plain is preferred over text/html because the
+    plain part is what somebody typed and the HTML part is what their client
+    made of it.
+
+    (The test for this greps the source, so the forbidden form is deliberately
+    not spelled out anywhere in this file — including in prose.)
+    """
+    flat = " ".join(str(structure).lower().split())
+    # A single-part text message has no numbered parts at all: fetch part 1.
+    if '"text" "plain"' not in flat and '"text" "html"' not in flat:
+        return ("1", "utf-8")
+    charset = "utf-8"
+    marker = flat.find('"charset" "')
+    if marker >= 0:
+        end = flat.find('"', marker + 11)
+        if end > 0:
+            charset = flat[marker + 11:end] or "utf-8"
+    # Multipart: part 1 is the plain alternative in every arrangement worth
+    # supporting (alternative, mixed, related). If the plain part is absent
+    # entirely, part 1 is the HTML one and _strip_html handles it.
+    return ("1", charset)
+
+
+def _strip_html(text: str) -> str:
+    import re as _re
+    text = _re.sub(r"(?is)<(script|style).*?</\1>", " ", text)
+    text = _re.sub(r"(?i)<br\s*/?>|</p>", "\n", text)
+    text = _re.sub(r"<[^>]+>", " ", text)
+    return html.unescape(text)
+
+
+def _without_the_quoted_tail(text: str) -> str:
+    """Everything up to where the reply starts quoting what it replies to.
+
+    The ask is almost always in the new writing at the top. Keeping the tail
+    means a three-line request arrives buried under a thread, which on a phone
+    is the same as not arriving.
+    """
+    lines = []
+    for line in (text or "").splitlines():
+        low = line.strip().lower()
+        if any(low.startswith(m) for m in _QUOTE_MARKERS):
+            break
+        # "On 12 March, X wrote:" and everything after it.
+        if low.startswith("on ") and low.rstrip().endswith("wrote:"):
+            break
+        if low.startswith(">"):
+            continue
+        lines.append(line.rstrip())
+    # Collapse the runs of blank lines that stripping leaves behind.
+    out, blank = [], 0
+    for line in lines:
+        if line.strip():
+            blank = 0
+            out.append(line)
+        elif not blank:
+            blank = 1
+            out.append("")
+    return "\n".join(out).strip()
+
+
+def body(account_label: str, uid: str) -> str:
+    """The readable text of ONE message. Never raises; "" when it cannot.
+
+    Read-only is enforced by code rather than intended: BODY.PEEK does not set
+    \\Seen, `select` is readonly, and no store/copy/expunge/append call exists
+    anywhere in this module. Deciding whether a message matters must not be
+    able to mark it read.
+    """
+    uid = "".join(ch for ch in str(uid or "") if ch.isdigit())
+    if not uid:
+        return ""
+    account = next((a for a in accounts() if a.label == account_label), None)
+    if account is None:
+        return ""
+    box = None
+    try:
+        socket.setdefaulttimeout(TIMEOUT)
+        box = imaplib.IMAP4_SSL(account.host, account.port)
+        box.login(account.user, account.password)
+        box.select("INBOX", readonly=True)
+
+        status, shape = box.uid("FETCH", uid, "(BODYSTRUCTURE)")
+        if status != "OK" or not shape:
+            return ""
+        part, charset = _pick_text_part(shape[0])
+
+        status, chunks = box.uid("FETCH", uid, f"(BODY.PEEK[{part}])")
+        if status != "OK":
+            return ""
+        raw = b""
+        for chunk in chunks:
+            if isinstance(chunk, tuple) and len(chunk) > 1 and isinstance(chunk[1], bytes):
+                raw = chunk[1]
+                break
+        if not raw:
+            return ""
+        for encoding in (charset, "utf-8", "latin-1"):
+            try:
+                text = raw.decode(encoding, "strict")
+                break
+            except Exception:  # noqa: BLE001
+                continue
+        else:
+            text = raw.decode("utf-8", "replace")
+        if "<html" in text.lower() or "<body" in text.lower() or "<div" in text.lower():
+            text = _strip_html(text)
+        return _without_the_quoted_tail(text)[:MAX_BODY]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read message %s: %s", uid, exc)
+        return ""
+    finally:
+        try:
+            if box is not None:
+                box.logout()
+        except Exception:  # noqa: BLE001
+            pass
+        socket.setdefaulttimeout(None)
 
 
 def inbox(days: int = 3, only_unread: bool = False, limit: int = 12) -> list[Message]:

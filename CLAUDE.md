@@ -415,6 +415,16 @@ explicitly put on the list does not need chasing; it needs doing.
 beats an important thing with no date, because the deadline is the part that
 stops being possible. A due of 0 means none and must sort last, not first.
 
+**A deadline can move, and the slips are counted.** Finishing and deleting were
+the only exits from an overdue task, which is why the briefing nagged for ever.
+Worse, the obvious workaround *lied*: `tasks.add` dedupes on lowered text and
+updated only the priority, so "the methodology is due Sunday now" was answered
+with "On the list, due Sunday" while the row kept its old date. A confirmation
+of something that did not happen is worse than a refusal. `reschedule()` now
+exists, `add` applies everything it was given, and `moved` counts the slips —
+said out loud from the third, because once is life and four times means the task
+is wrong rather than the date.
+
 **Finished, never deleted.** What got done is worth knowing, and it is what the
 weekly look back is built on — see below.
 
@@ -839,6 +849,22 @@ has saved nothing.
 
 **Nothing is stored.** No body reaches the database. Mail is fetched, ranked,
 shown and forgotten — the mail server is already the archive.
+
+**One body, on demand, fetched by PART.** `/mail` is a listing and sends no
+bodies: pulling every one to draw a list is an IMAP round trip per message for
+text nobody has said they want. `mail.body()` fetches a single message when
+asked, choosing the text part from BODYSTRUCTURE rather than taking the whole
+message — the whole message includes every attachment, and a 25MB PDF pulled
+into a 512MB box to read three sentences is the difference between an answer and
+a restart.
+
+**The quoted tail is dropped**, because the ask is always in the new writing at
+the top and keeping the thread means a three-line request arrives buried.
+
+**Read-only is pinned by a test that reads the source**, not by intention:
+`BODY.PEEK` present, the marking form absent, and no `store`/`copy`/`expunge`/
+`append` call anywhere. The property is structural — the module *cannot* mark
+mail read even if something asked it to.
 
 **One bad mailbox must not lose the rest.** Each account is fetched inside its
 own try/except and a failure is logged and skipped, so a wrong password on the

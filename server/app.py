@@ -440,6 +440,32 @@ async def drop_task(task_id: int, device: dict = Depends(caller)):
                       for t in task_store.open_tasks(15)]}
 
 
+class DueIn(BaseModel):
+    # 0 means "no deadline", which is a real answer rather than a missing one.
+    due: float = 0.0
+
+
+@app.post("/tasks/{task_id}/due")
+async def move_task_due(task_id: int, body: DueIn, device: dict = Depends(caller)):
+    """Move a task's deadline. Finishing and deleting were the only exits."""
+    if not await run_in_threadpool(task_store.reschedule, task_id, body.due):
+        raise HTTPException(status_code=404, detail="No such open task.")
+    return {"ok": True, "tasks": await run_in_threadpool(task_store.open_tasks)}
+
+
+@app.get("/mail/body")
+async def mail_body(account: str, uid: str, device: dict = Depends(caller)):
+    """One message's readable text, fetched on demand.
+
+    Not part of /mail: that is a listing, and pulling every body to draw a list
+    would be an IMAP round trip per message and a body nobody asked to read.
+    """
+    text = await run_in_threadpool(mail.body, account, uid)
+    if not text:
+        raise HTTPException(status_code=404, detail="Couldn't read that message.")
+    return {"text": text}
+
+
 @app.get("/search")
 async def search_everything(q: str = "", limit: int = 25,
                             device: dict = Depends(caller)):
@@ -585,6 +611,10 @@ async def read_mail(days: int = 2, device: dict = Depends(caller)):
         "messages": [
             {
                 "account": m.account,
+                # Needed to fetch this one message's body later. It is an IMAP
+                # sequence number, not a secret, and without it "open that one"
+                # would have to re-search the mailbox by subject.
+                "uid": m.uid,
                 "from": m.sender_name or m.sender,
                 "address": m.sender,
                 "subject": m.subject,

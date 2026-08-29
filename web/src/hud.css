@@ -749,6 +749,31 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   margin: 0 var(--s3) var(--s3);
 }
 
+/* ---------- reading one email ----------
+   `pre` rather than `p`: an email's own line breaks are how it was written,
+   and reflowing a three-line request into a paragraph loses the shape that
+   made it readable. Wraps, and scrolls rather than pushing the panel open. */
+.mail-acts {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--s3);
+}
+.mail-body {
+  grid-column: 1 / -1;
+  margin: var(--s2) 0 0;
+  padding: var(--s2) var(--s3);
+  max-height: 16em;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-strong);
+  background: var(--panel-2);
+  border-left: 2px solid var(--line);
+}
+
 /* ---------- devices ----------
    "Sure?" is coloured like the danger it is, and only for the moment it is
    asking. A button that looks alarming all the time stops being read. */

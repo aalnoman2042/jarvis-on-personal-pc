@@ -50,9 +50,25 @@ def add(text: str, priority: int = NORMAL, due: float = 0.0,
             "SELECT id FROM tasks WHERE done = 0 AND lower(text) = ? LIMIT 1",
             (text.lower(),)).fetchone()
         if existing:
+            # Everything that was actually given, not just the priority. This
+            # used to update priority alone and silently drop a new deadline —
+            # so "the methodology is due Sunday now" was answered with "On the
+            # list, due Sunday" while the row kept its old date. A confirmation
+            # of something that did not happen is worse than a refusal.
+            sets, values = [], []
             if priority != NORMAL:
-                conn.execute("UPDATE tasks SET priority = ? WHERE id = ?",
-                             (int(priority), existing["id"]))
+                sets.append("priority = ?")
+                values.append(int(priority))
+            if due:
+                sets.append("due = ?")
+                values.append(float(due))
+            if minutes:
+                sets.append("minutes = ?")
+                values.append(int(minutes))
+            if sets:
+                values.append(existing["id"])
+                conn.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id = ?",
+                             tuple(values))
                 conn.commit()
             return int(existing["id"])
         cursor = conn.execute(
@@ -135,6 +151,30 @@ def drop(task_id: int) -> bool:
         return False
     try:
         cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (int(task_id),))
+        conn.commit()
+        return bool(cursor.rowcount)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def reschedule(task_id: int, due: float) -> bool:
+    """Move a deadline. `due` of 0 removes it.
+
+    The only ways out of an overdue task used to be finishing it or deleting
+    it, so anything that slipped was nagged about for ever — which is how a
+    briefing stops being read. A deadline that can move is what makes an
+    honest one worth setting.
+
+    `moved` counts how often. A task that has been pushed four times is telling
+    you something a fifth date will not fix.
+    """
+    conn = store.connect()
+    if conn is None:
+        return False
+    try:
+        cursor = conn.execute(
+            "UPDATE tasks SET due = ?, moved = moved + 1 WHERE id = ? AND done = 0",
+            (float(due or 0), int(task_id)))
         conn.commit()
         return bool(cursor.rowcount)
     except Exception:  # noqa: BLE001
@@ -227,6 +267,11 @@ def describe(task: dict, base: float | None = None) -> str:
         when = clock.say(task["due"], False, base)
         overdue = task["due"] < (clock.now() if base is None else base)
         bits.append(f"— {'overdue, was ' if overdue else 'due '}{when}")
+    # Said out loud from the third slip. Once is life; repeatedly is the task
+    # being wrong rather than the date, and that is worth noticing out loud
+    # rather than quietly moving it a fourth time.
+    if int(task.get("moved") or 0) >= 3:
+        bits.append(f"(moved {int(task['moved'])} times)")
     return " ".join(bits)
 
 

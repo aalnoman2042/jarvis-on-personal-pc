@@ -350,6 +350,66 @@ def teach_me(when_i_say: str, i_mean: str) -> str:
     return corrections.teach(when_i_say, i_mean)
 
 
+def move_task(fragment: str, new_when: str) -> str:
+    """Move a task's deadline, or drop it. Use for "push X to Friday",
+    "the methodology is due Sunday now", "that has no deadline any more".
+
+    Moving a date is not the same as adding the task again — say the new date
+    back so a misheard one is caught now rather than when it fails to arrive.
+    """
+    from core import clock
+    found = task_store.find(fragment)
+    if not found:
+        return f"I don't have anything open matching '{fragment}'."
+    if len(found) > 1:
+        return ("More than one of those: "
+                + "; ".join(t["text"] for t in found[:4])
+                + ". Which one?")
+    task = found[0]
+    drop = new_when.strip().lower() in ("none", "no deadline", "never", "off", "")
+    when = 0.0
+    if not drop:
+        parsed, _ = clock.parse_when(new_when)
+        if not parsed:
+            return (f"I need a time I can pin down for '{task['text']}' — "
+                    f"'{new_when}' isn't one.")
+        when = parsed
+    if not task_store.reschedule(task["id"], when):
+        return "I couldn't change that just now."
+    if drop:
+        return f"{task['text']} has no deadline now."
+    return f"{task['text']} is now due {clock.say(when)}."
+
+
+def read_email(sender_or_subject: str) -> str:
+    """Read ONE email's actual text — use when they ask what a message SAYS.
+
+    "what did Dr Rahman want", "read me the one from the department", "what's
+    in that email about the deadline". The inbox listing gives subjects only,
+    and the request is never in the subject.
+    """
+    from core import mail
+    if not mail.configured():
+        return "No mail accounts are set up yet."
+    wanted = (sender_or_subject or "").strip().lower()
+    messages = mail.inbox(days=14, limit=40)
+    if not messages:
+        return "Nothing in the inbox to read."
+    match = next(
+        (m for m in messages
+         if wanted in (m.sender_name or "").lower()
+         or wanted in m.sender.lower()
+         or wanted in m.subject.lower()), None)
+    if match is None:
+        return f"I can't find a recent message matching '{sender_or_subject}'."
+    text = mail.body(match.account, match.uid)
+    if not text:
+        return (f"I found “{match.subject}” from {match.sender_name}, but "
+                f"couldn't read its text.")
+    who = match.sender_name or match.sender
+    return f"From {who}, “{match.subject}”:\n\n{text[:1800]}"
+
+
 def my_week() -> str:
     """How the last week actually went — what got done, what did not, what
     was talked about.
@@ -477,6 +537,7 @@ TOOL_FUNCTIONS = [
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
     add_task, my_tasks, finish_task, note_commitment, my_week, teach_me,
+    move_task, read_email,
     search_papers, my_documents,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
@@ -642,6 +703,20 @@ OPENAI_TOOLS = [
     _tool("my_documents",
           "List the documents that have been filed. Use for 'what papers do I "
           "have', 'what have I given you to read'."),
+    _tool("move_task",
+          "Move a task's deadline or remove it. Use for 'push X to Friday', "
+          "'the methodology is due Sunday now', 'that has no deadline any "
+          "more'. NOT for adding a task again — this changes the existing one.",
+          {"fragment": _STR("A word or two identifying the task"),
+           "new_when": _STR("The new deadline in their words, or 'none' to drop it")},
+          ["fragment", "new_when"]),
+    _tool("read_email",
+          "Read ONE email's actual text. Use when they ask what a message "
+          "SAYS — 'what did Dr Rahman want', 'read me the one about the "
+          "deadline'. check_mail lists subjects; the request is never in the "
+          "subject.",
+          {"sender_or_subject": _STR("Who it is from, or a word from the subject")},
+          ["sender_or_subject"]),
     _tool("teach_me",
           "Record what the user actually MEANS, when they tell you outright — "
           "'when I say move it, I mean change the time', 'if I say the paper I "

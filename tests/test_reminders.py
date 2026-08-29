@@ -928,6 +928,87 @@ try:
           corrections.block("move it to 4pm"), "")
 
 
+    print("\n=== 14. a deadline that can move, and an email you can read ===")
+    from core import mail as mail_mod  # noqa: E402
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM tasks")
+    conn.commit()
+
+    # The workaround used to LIE. tasks.add dedupes on lowered text and updated
+    # only priority, so "the methodology is due Sunday now" answered "On the
+    # list, due Sunday" and changed nothing at all. A confirmation of something
+    # that did not happen is worse than a refusal.
+    tid = task_store.add("write the methodology")
+    sunday = clock.now() + 3 * 86400
+    task_store.add("write the methodology", due=sunday)
+    check("re-adding with a deadline actually sets it",
+          task_store.open_tasks()[0]["due"], sunday)
+    check("  and does not make a second row", len(task_store.open_tasks()), 1)
+
+    friday = clock.now() + 5 * 86400
+    check("a deadline can be moved", task_store.reschedule(tid, friday), True)
+    check("  and it moved", task_store.open_tasks()[0]["due"], friday)
+    check("  the slips are counted", task_store.open_tasks()[0]["moved"], 1)
+    check("a deadline can be dropped entirely",
+          task_store.reschedule(tid, 0) and task_store.open_tasks()[0]["due"], 0)
+    check("moving something that is not there fails honestly",
+          task_store.reschedule(99999, friday), False)
+
+    # Said out loud from the third slip: once is life, four times means the task
+    # is wrong rather than the date.
+    for _ in range(2):
+        task_store.reschedule(tid, friday)
+    check("a task that keeps slipping says so",
+          task_store.describe(task_store.open_tasks()[0]), contains="moved")
+
+    said = llm_tools.DISPATCH["move_task"]("methodology", "next monday")
+    check("the tool reads the new date back", said, contains="monday")
+    check("  so a misheard one is caught now, not when it fails to arrive",
+          said, contains="methodology")
+    check("an unpinnable phrase is refused rather than guessed",
+          llm_tools.DISPATCH["move_task"]("methodology", "sometime"),
+          contains="isn't one")
+    check("and nothing matching says so",
+          llm_tools.DISPATCH["move_task"]("nonexistent thing", "friday"),
+          contains="don't have anything")
+
+    # --- reading one email ------------------------------------------------
+    # Read-only is enforced by CODE, not intention. Checked by reading the
+    # source, because a live IMAP server is not available here and the property
+    # that matters is structural: the module cannot mark mail read even if
+    # something asked it to.
+    source = open(os.path.join(ROOT, "core", "mail.py"), encoding="utf-8").read()
+    check("every fetch uses BODY.PEEK", "BODY.PEEK" in source, True)
+    check("  and never the form that marks mail read",
+          "BODY[" in source.replace("BODY.PEEK[", ""), False)
+    for forbidden in ("box.store(", "box.copy(", "box.expunge(", "box.append("):
+        check(f"  no {forbidden.split('.')[1][:-1]} call exists",
+              forbidden in source, False)
+    check("the body is fetched by PART, never as one unbounded blob",
+          "BODY.PEEK[TEXT]" in source, False)
+
+    # The quoted tail is where the value is: the ask is in the new writing at
+    # the top, and keeping the thread means it arrives buried.
+    threaded = (
+        "Dear Rohan,\n\nCould you send the methodology by Friday?\n\n"
+        "Best,\nHaque\n\nOn 12 March 2026, Rohan wrote:\n"
+        "> here is the draft\n-----Original Message-----\nold thread"
+    )
+    trimmed = mail_mod._without_the_quoted_tail(threaded)
+    check("the ask survives trimming", trimmed, contains="methodology by Friday")
+    check("  and the quoted thread does not", "old thread" in trimmed, False)
+    check("  nor the quoted lines", ">" in trimmed, False)
+    check("html mail becomes readable text",
+          mail_mod._strip_html("<p>Hi <b>Rohan</b></p><div>send it</div>"),
+          contains="send it")
+    check("  with the tags gone",
+          "<" in mail_mod._strip_html("<p>Hi</p>"), False)
+
+    conn.execute("DELETE FROM tasks")
+    conn.commit()
+
+
 finally:
     server.should_exit = True
     time.sleep(0.3)

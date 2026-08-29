@@ -37,6 +37,7 @@ export interface AgendaItem {
     end up double-checking. */
 export interface MailMessage {
   account: string;
+  uid: string;
   from: string;
   address: string;
   subject: string;

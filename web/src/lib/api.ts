@@ -169,6 +169,24 @@ export async function screenInput(
     Promise<{ ok: boolean; said: string }>;
 }
 
+/** One message's readable text. Fetched only when asked for: a listing that
+    pulled every body would be an IMAP round trip per message, for text nobody
+    has said they want to read. */
+export async function mailBody(token: string, account: string, uid: string) {
+  const res = await fetch(
+    `${apiBase()}/mail/body?account=${encodeURIComponent(account)}&uid=${encodeURIComponent(uid)}`,
+    { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "Couldn't read that message");
+  return data as { text: string };
+}
+
+/** Move a task's deadline. 0 means it no longer has one. */
+export function moveTaskDue(token: string, id: number, due: number) {
+  return post(`/tasks/${id}/due`, { due }, token) as
+    Promise<{ ok: boolean; tasks: unknown[] }>;
+}
+
 /** Unlearn a correction. A lesson learned wrongly must be removable. */
 export async function forgetCorrection(token: string, id: number) {
   const res = await fetch(`${apiBase()}/corrections/${id}`, {

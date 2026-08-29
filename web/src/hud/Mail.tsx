@@ -16,7 +16,7 @@
  */
 import { useState } from "react";
 
-import { mail } from "../lib/api";
+import { addTask, mail, mailBody } from "../lib/api";
 import type { MailMessage } from "../lib/types";
 
 function ago(ts: number): string {
@@ -30,6 +30,13 @@ function ago(ts: number): string {
 
 export function Mail({ token }: { token: string }) {
   const [items, setItems] = useState<MailMessage[] | null>(null);
+  // Which message is open, and what it says. One at a time: this is a panel on
+  // a board, not an inbox, and the question it answers is "what did that one
+  // actually ask me for".
+  const [openUid, setOpenUid] = useState("");
+  const [body, setBody] = useState("");
+  const [reading, setReading] = useState("");
+  const [kept, setKept] = useState("");
   const [said, setSaid] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -98,6 +105,50 @@ export function Mail({ token }: { token: string }) {
                 {ago(m.date)}
               </span>
               {m.why && <span className="mail-why label">{m.why}</span>}
+
+              <span className="mail-acts">
+                <button
+                  className="linkish label"
+                  disabled={reading === m.uid}
+                  onClick={async () => {
+                    if (openUid === m.uid) { setOpenUid(""); setBody(""); return; }
+                    setReading(m.uid);
+                    setOpenUid(m.uid);
+                    setBody("");
+                    setKept("");
+                    try {
+                      const got = await mailBody(token, m.account, m.uid);
+                      setBody(got.text);
+                    } catch (err) {
+                      setBody(err instanceof Error ? err.message : "Couldn't read it.");
+                    }
+                    setReading("");
+                  }}
+                >
+                  {reading === m.uid ? "Reading…"
+                    : openUid === m.uid ? "Close" : "Read"}
+                </button>
+                {/* The half an inbox cannot do: put the ask onto the list that
+                    the briefing and every system prompt already read from,
+                    without app-switching and retyping it. */}
+                <button
+                  className="linkish label"
+                  onClick={async () => {
+                    try {
+                      await addTask(token, `${m.subject} — from ${m.from}`);
+                      setKept(m.uid);
+                    } catch {
+                      setKept("");
+                    }
+                  }}
+                >
+                  {kept === m.uid ? "Kept ✓" : "Keep"}
+                </button>
+              </span>
+
+              {openUid === m.uid && body && (
+                <pre className="mail-body">{body}</pre>
+              )}
             </li>
           ))}
         </ul>

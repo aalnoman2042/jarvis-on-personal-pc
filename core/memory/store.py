@@ -123,7 +123,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     minutes  INTEGER NOT NULL DEFAULT 0,   -- estimate; 0 means unknown
     tag      TEXT NOT NULL DEFAULT '',
     source   TEXT NOT NULL DEFAULT 'asked',
-    asked_at REAL NOT NULL DEFAULT 0       -- when it was last chased
+    asked_at REAL NOT NULL DEFAULT 0,      -- when it was last chased
+    moved    INTEGER NOT NULL DEFAULT 0    -- how often the deadline has slipped
 );
 
 -- Papers, notes and drafts. The text is kept in PASSAGES rather than whole,
@@ -236,6 +237,7 @@ END;
 # error ignored — cheap, idempotent, and it works the same on Turso, which
 # raises its own error type rather than sqlite3's.
 _LATER_COLUMNS = (
+    ("tasks", "moved INTEGER NOT NULL DEFAULT 0"),
     ("reminders", "remind_at REAL NOT NULL DEFAULT 0"),
     ("reminders", "all_day INTEGER NOT NULL DEFAULT 0"),
     ("reminders", "kind TEXT NOT NULL DEFAULT 'reminder'"),
