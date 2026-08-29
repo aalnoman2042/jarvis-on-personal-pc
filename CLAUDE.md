@@ -775,6 +775,44 @@ of them.
 after a delete, so a vector outliving its passage would eventually be matched
 against a different document's text.
 
+## Learning from being wrong (phase 12)
+
+`core/memory/corrections.py`. Everything else in that package records what Rohan
+*said*; this records what he *meant* when Jarvis got it wrong. It exists because
+of one reported failure: he asked it to change a reminder he had already set, it
+made a second one, and nothing in the system learned anything from that.
+
+**Retrieval, not training.** A few thousand turns fine-tuned gives a worse model
+that sounds slightly more like him. The correction is stored as text and put
+back in front of the model when the same kind of request returns — costs
+nothing, works with every free tier exhausted, and cannot invent a lesson nobody
+taught.
+
+**A wrong correction is worse than a wrong recall.** A bad recall is noise in the
+prompt; a bad correction is an *instruction* the model follows over its own
+judgement. So detection requires an explicit opener — "no, I meant…", "not
+that", "that's not what I said" — anchored to the START of the sentence, because
+"no" mid-sentence is usually part of the request ("remind me no later than
+five"). **A rephrase alone is deliberately not trusted**: asking a closely
+related follow-up immediately is the most ordinary thing anybody does, and
+treating it as a correction fills the table with rubbish inside a day. The
+rephrase check only decides whether the earlier question is worth keeping as
+context.
+
+**Two ways in, and taught outranks noticed.** `teach()` is him saying outright
+what he means; `noticed()` is Jarvis inferring it. At equal overlap the one he
+said wins, because the other is a guess.
+
+**Only the relevant ones reach the prompt.** It already carries persona, date,
+facts, agenda, contacts, tasks and recall — all the lessons would crowd out the
+question. Matched on shared subject, not embeddings: these are short, there are
+few, and a set intersection needs no quota.
+
+**Everything learned is visible and deletable** in Settings. Something that
+silently changes the assistant's behaviour and cannot be inspected is not
+something anybody should have to live with — and unlike a fact, these are read
+as instructions.
+
 ## Mail (phase 08)
 
 `core/mail.py` reads Rohan's inboxes over IMAP. Standard library only —

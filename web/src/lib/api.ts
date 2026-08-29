@@ -169,6 +169,16 @@ export async function screenInput(
     Promise<{ ok: boolean; said: string }>;
 }
 
+/** Unlearn a correction. A lesson learned wrongly must be removable. */
+export async function forgetCorrection(token: string, id: number) {
+  const res = await fetch(`${apiBase()}/corrections/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't unlearn that");
+  return res.json();
+}
+
 /** Rename a device so the list can be told apart. */
 export function nameDevice(token: string, id: string, name: string) {
   return post(`/devices/${id}/name`, { name }, token);

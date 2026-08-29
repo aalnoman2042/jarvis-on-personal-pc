@@ -163,6 +163,20 @@ CREATE TABLE IF NOT EXISTS vectors (
     PRIMARY KEY (kind, ref_id)
 );
 
+-- What Jarvis got wrong, and what Rohan actually meant. Put back in front of
+-- the model when the same kind of request comes round again, which is
+-- retrieval rather than training: it costs nothing, survives an exhausted free
+-- tier, and cannot invent a lesson nobody taught. See core/memory/corrections.py.
+CREATE TABLE IF NOT EXISTS corrections (
+    id     INTEGER PRIMARY KEY,
+    asked  TEXT NOT NULL DEFAULT '',   -- what he said that went wrong
+    did    TEXT NOT NULL DEFAULT '',   -- what Jarvis did about it
+    meant  TEXT NOT NULL,              -- what he actually wanted
+    source TEXT NOT NULL DEFAULT 'noticed',   -- 'taught' | 'noticed'
+    ts     REAL NOT NULL,
+    hits   INTEGER NOT NULL DEFAULT 1  -- how many times this has come up
+);
+
 -- People, and how to reach them.
 --
 -- A number was a sentence in `facts` before, which meant "call dad" depended on

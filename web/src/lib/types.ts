@@ -100,6 +100,8 @@ export interface Me {
   remembered: number;
   recent_actions: { ts: number; tool: string; args: string; result: string; ok: number }[];
   pc: { name: string; last_seen: number; telemetry: Telemetry }[];
+  corrections: { id: number; asked: string; did: string; meant: string;
+                 source: string; ts: number; hits: number }[];
   devices: { id: string; name: string; kind: string; paired_ts: number;
              last_seen: number; revoked: number }[];
   upcoming: AgendaItem[];

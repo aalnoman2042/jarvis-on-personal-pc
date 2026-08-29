@@ -34,6 +34,7 @@ from core.memory import facts as _facts_mod
 from core.memory import migrate as _migrate
 from core.memory import recall as _recall_mod
 from core.memory import store
+from core.memory import corrections as _corrections_mod
 from core.memory import tasks as _tasks_mod
 
 # --- storage, re-exported -------------------------------------------------
@@ -119,6 +120,15 @@ def system_prompt(about: str = "") -> str:
             + agenda_block()
             + contacts_block()
             + tasks_block()
+            # Only the lessons relevant to THIS request. All of them would
+            # crowd out the thing being asked about, and a lesson about
+            # editing reminders helps nobody who is asking about the weather.
+            + (_corrections_mod.block(about) if about else "")
+            # And, when this very turn is a correction, say so outright. Rohan
+            # asked to be told what was learned; asking the model to acknowledge
+            # it reads like a person, where appending a fixed sentence reads
+            # like a form letter.
+            + _correcting
             + (_recall_mod.block(about, skip_recent=config.MEMORY_TURNS)
                if about else ""))
 
@@ -162,6 +172,67 @@ def as_openai(system: str, user: str, limit: int | None = None,
 
 
 # ---------------------------------------------------------------------------
+# Noticing a correction
+# ---------------------------------------------------------------------------
+
+# How long after an answer a rephrase still counts as a correction. Two minutes
+# is about as long as somebody stays annoyed enough to restate the same thing;
+# past that they have moved on and a similar sentence is a similar question.
+CORRECTION_WINDOW = 120.0
+
+# Set when the turn now being answered looks like a correction, so the prompt
+# can say so. Module state rather than a parameter because `system_prompt` is
+# called from inside each brain and threading it through five of them to carry
+# one flag would be worse than this.
+_correcting: str = ""
+
+
+def _note_any_correction(text: str) -> None:
+    """Record that Rohan is putting something right, if he plainly is.
+
+    Deliberately hard to trigger. A wrong correction is worse than a wrong
+    recall: a bad recall is noise in the prompt, a bad correction becomes an
+    instruction the model follows over its own judgement. So both signals have
+    to be reasonable, and neither alone is enough on its own to invent a lesson
+    out of an ordinary follow-up question.
+    """
+    global _correcting
+    _correcting = ""
+    said = (text or "").strip()
+    if not said:
+        return
+    try:
+        previous = recent(1)
+        if not previous:
+            return
+        last = previous[-1]
+        asked = (last.get("user") or "").strip()
+        did = (last.get("assistant") or "").strip()
+        if not asked or not did:
+            return
+        if clock.now() - float(last.get("ts") or 0) > CORRECTION_WINDOW:
+            return
+
+        # An explicit "no, I meant..." is REQUIRED. A rephrase on its own is
+        # not trusted, and that is a deliberate choice rather than a gap:
+        # asking a closely related follow-up immediately is the most ordinary
+        # thing anybody does in a conversation, and treating it as a correction
+        # would fill this table with rubbish inside a day — rubbish that then
+        # goes into the prompt as an instruction.
+        if not _corrections_mod.opens_like_a_correction(said):
+            return
+        # The rephrase check decides whether the earlier question is worth
+        # keeping as context. "No, I meant Tuesday" is about the thing just
+        # asked; "no, forget it, what's the weather" is not, and storing the
+        # old question against it would teach a lesson about the wrong subject.
+        about_the_same = _corrections_mod.looks_like_a_rephrase(asked, said)
+        _corrections_mod.noticed(asked if about_the_same else "", did, said)
+        _correcting = _corrections_mod.correcting_note(asked, did)
+    except Exception:  # noqa: BLE001  (never break a turn over this)
+        _correcting = ""
+
+
+# ---------------------------------------------------------------------------
 # Recording, without every brain having to know about it
 # ---------------------------------------------------------------------------
 
@@ -180,6 +251,12 @@ class RememberingBrain:
         return self._brain.greeting()
 
     def handle(self, text: str) -> str:
+        # Whether this looks like Rohan putting something right has to be
+        # decided BEFORE the brain answers, because the answer is what the
+        # correction should shape. It is also the last moment the previous
+        # exchange is still the most recent one in storage.
+        _note_any_correction(text)
+
         # Order matters: the brain reads history at the start of its own handle(),
         # and we only write once it has answered. Recording before the call would
         # show the model its own question twice.

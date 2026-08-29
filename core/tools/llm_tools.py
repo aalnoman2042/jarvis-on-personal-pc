@@ -338,6 +338,18 @@ def my_documents() -> str:
         f"{d['name']} ({d['passages']} passages)" for d in filed) + "."
 
 
+def teach_me(when_i_say: str, i_mean: str) -> str:
+    """Record what the user actually means, when they tell you outright.
+
+    Use when they are teaching you rather than asking for something: "when I
+    say move it, I mean change the time, not make a new one", "if I say the
+    paper, I mean the NILM one", "stop calling me sir". Not for facts about
+    them — that is `remember`. This is about how to interpret THEM.
+    """
+    from core.memory import corrections
+    return corrections.teach(when_i_say, i_mean)
+
+
 def my_week() -> str:
     """How the last week actually went — what got done, what did not, what
     was talked about.
@@ -464,7 +476,7 @@ TOOL_FUNCTIONS = [
     open_app, close_app, open_website, web_open_search, web_answer, read_webpage,
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
-    add_task, my_tasks, finish_task, note_commitment, my_week,
+    add_task, my_tasks, finish_task, note_commitment, my_week, teach_me,
     search_papers, my_documents,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
@@ -630,6 +642,14 @@ OPENAI_TOOLS = [
     _tool("my_documents",
           "List the documents that have been filed. Use for 'what papers do I "
           "have', 'what have I given you to read'."),
+    _tool("teach_me",
+          "Record what the user actually MEANS, when they tell you outright — "
+          "'when I say move it, I mean change the time', 'if I say the paper I "
+          "mean the NILM one'. This is about how to interpret them, not a fact "
+          "about them; use remember for facts.",
+          {"when_i_say": _STR("The phrase or situation, in their words"),
+           "i_mean": _STR("What you should do instead")},
+          ["i_mean"]),
     _tool("my_week",
           "How the last week actually went — what got finished, what is still "
           "open, what they talked about. Use for 'how was my week', 'what did "

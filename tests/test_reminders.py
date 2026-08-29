@@ -861,6 +861,73 @@ try:
     conn.commit()
 
 
+    print("\n=== 13. learning from being corrected ===")
+    from core.memory import corrections  # noqa: E402
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM corrections")
+    conn.execute("DELETE FROM messages")
+    conn.commit()
+
+    # A wrong correction is worse than a wrong recall: a bad recall is noise in
+    # the prompt, a bad correction becomes an instruction the model follows over
+    # its own judgement. So the refusals are the half that matters, and they are
+    # pinned first.
+    for said in ("no, I meant tomorrow", "not that one", "that's not what I said",
+                 "I meant the NILM paper", "wrong, the other one"):
+        check(f"  a correction: {said[:26]!r}",
+              corrections.opens_like_a_correction(said), True)
+    for said in ("no thanks", "remind me no later than five", "open notepad",
+                 "what is the weather", "note that down", "nothing else"):
+        check(f"  NOT a correction: {said[:26]!r}",
+              corrections.opens_like_a_correction(said), False)
+
+    # Teaching is unambiguous and is trusted more than inference.
+    told = corrections.teach(
+        "move it", "change the time on the existing reminder rather than making a new one")
+    check("teaching says what it understood", told, contains="move it")
+    corrections.teach("the paper", "mean the NILM one")
+
+    # Only the RELEVANT lessons reach the prompt. All of them would crowd out
+    # the thing actually being asked about.
+    moved = [r["meant"] for r in corrections.relevant("move it to 4pm")]
+    check("a lesson surfaces for the request it is about", len(moved), 1)
+    check("  and it is the right one", moved[0], contains="existing reminder")
+    check("an unrelated request gets none",
+          corrections.relevant("what is the weather like"), [])
+
+    block = corrections.block("move it to 4pm")
+    check("the prompt block names the phrase", block, contains="move it")
+    check("  and tells the model to follow it", block, contains="over your own instinct")
+    check("an unrelated request adds nothing to the prompt",
+          corrections.block("what is the weather like"), "")
+
+    # The same lesson twice is one lesson that has happened twice.
+    before = corrections.count()
+    corrections.teach("move it", "change the time on the existing reminder rather than making a new one")
+    check("the same lesson twice is not two rows", corrections.count(), before)
+    again = [r for r in corrections.all_corrections() if "existing reminder" in r["meant"]]
+    check("  it is counted instead", again[0]["hits"] >= 2, True)
+
+    # Told beats guessed at equal overlap: one is what he said, the other is
+    # what Jarvis inferred.
+    corrections.noticed("the paper", "", "the paper means whichever I opened last")
+    ranked = corrections.relevant("find the paper", limit=2)
+    check("what he told it outranks what it guessed",
+          ranked[0]["source"], "taught")
+
+    # And a lesson learned wrongly has to be removable, or it is a black box.
+    victim = corrections.all_corrections()[0]["id"]
+    check("a correction can be unlearned", corrections.forget(victim), True)
+    check("  and it is gone",
+          victim in [r["id"] for r in corrections.all_corrections()], False)
+
+    conn.execute("DELETE FROM corrections")
+    conn.commit()
+    check("nothing learned means nothing in the prompt",
+          corrections.block("move it to 4pm"), "")
+
+
 finally:
     server.should_exit = True
     time.sleep(0.3)

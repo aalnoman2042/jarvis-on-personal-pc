@@ -55,6 +55,7 @@ from core.memory import agenda as agenda_store
 from core.memory import backup as backup_store
 from core.memory import find as find_store
 from core.memory import contacts as contacts_store
+from core.memory import corrections as corrections_store
 from core.memory import tasks as task_store
 from core.memory import store
 from server import agents, auth, nudges, push
@@ -344,6 +345,11 @@ async def me(device: dict = Depends(caller)):
         "assistant": config.ASSISTANT_NAME,
         "user": config.USER_TITLE,
         "facts": memory.facts(),
+        # What it has learned about how to read HIM, as opposed to facts
+        # ABOUT him. Shown because something that silently changes the
+        # assistant's behaviour and cannot be inspected is not something
+        # anybody should have to live with.
+        "corrections": corrections_store.all_corrections(20),
         "remembered": store.count(),
         "recent_actions": store.recent_actions(8),
         "pc": agents.registry.status(),
@@ -362,6 +368,15 @@ async def me(device: dict = Depends(caller)):
         "upcoming": [{**item, "said": agenda_store.describe(item)}
                      for item in agenda_store.upcoming(30)],
     }
+
+
+@app.delete("/corrections/{correction_id}")
+async def drop_correction(correction_id: int, device: dict = Depends(caller)):
+    """Unlearn something. A lesson learned wrongly has to be removable."""
+    gone = await run_in_threadpool(corrections_store.forget, correction_id)
+    if not gone:
+        raise HTTPException(status_code=404, detail="No such correction.")
+    return {"ok": True}
 
 
 @app.post("/facts/forget")

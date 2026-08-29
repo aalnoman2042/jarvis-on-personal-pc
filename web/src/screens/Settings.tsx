@@ -11,8 +11,9 @@ import { Backup } from "../hud/Backup";
 import { Notifications } from "../hud/Notifications";
 import { VoicePicker } from "../hud/VoicePicker";
 import { Devices } from "../hud/Devices";
+import { Corrections } from "../hud/Corrections";
 import { Remembered } from "../hud/Remembered";
-import { forgetFact, me } from "../lib/api";
+import { forgetCorrection, forgetFact, me } from "../lib/api";
 import type { Me } from "../lib/types";
 
 function when(ts?: number | null): string {
@@ -111,6 +112,21 @@ export function Settings({ token, onClose, onSignOut }: {
           facts={info?.facts ?? []}
           busy={busy}
           onForget={(fragment) => forget(fragment)}
+        />
+
+        <Corrections
+          items={info?.corrections ?? []}
+          busy={busy}
+          onForget={async (id) => {
+            setBusy(true);
+            try {
+              await forgetCorrection(token, id);
+              await load();
+            } catch {
+              setError("Couldn't unlearn that just now.");
+            }
+            setBusy(false);
+          }}
         />
 
         <Notifications token={token} />
