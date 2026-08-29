@@ -62,4 +62,12 @@ EXPOSE 8080
 # Shell form, not exec form, so ${PORT} actually expands: Render assigns the
 # port at runtime and an exec-form CMD would try to bind to the literal string
 # "${PORT}". Falls back to 8080, which is what Fly expects.
-CMD python -m uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1
+# --ws-ping-* are spelled out because the defaults were not reaching the wire:
+# a client watching for sixty seconds saw ZERO server-originated PING frames,
+# where uvicorn's documented default should have sent three. With nothing
+# pinging from this end, the agent's own ping was the only liveness check in the
+# whole system, and a dead PC stayed "online" until somebody asked it to do
+# something. The timeout is generous on purpose — one free-tier worker in
+# Singapore, also talking to Turso over HTTPS, is not always quick to answer.
+CMD python -m uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8080} \
+    --workers 1 --ws-ping-interval 20 --ws-ping-timeout 60

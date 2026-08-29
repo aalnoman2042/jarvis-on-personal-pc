@@ -259,7 +259,22 @@ try:
     check("a silly frame request is clamped rather than obeyed",
           _actions.screen_frame(99999, 999).startswith("error:"), False)
 
-    print("\n=== 9. a second copy of the agent must not fight the first ===")
+    print("\n=== 9. only one agent per machine ===")
+    from agent import solo  # noqa: E402
+
+    # The far end now closes the loser, but the better place to stop this is
+    # before it connects at all. Two copies share one token and therefore one
+    # device id, so each displaces the other every few seconds and the PC reads
+    # as dropping constantly while BOTH connections are perfectly healthy. That
+    # is a genuinely hard thing to diagnose from a log, and it cost an evening.
+    solo.release()
+    check("the first agent may run", solo.claim(), True)
+    check("  a second is turned away", solo.claim(), False)
+    solo.release()
+    check("  and the lock is released when it goes", solo.claim(), True)
+    solo.release()
+
+    print("\n=== 9b. and if two do connect, the newer wins cleanly ===")
     from websockets.sync.client import connect as _ws_connect  # noqa: E402
 
     # This is the failure that looked exactly like a bad network. Two agent

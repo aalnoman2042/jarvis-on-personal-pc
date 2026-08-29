@@ -26,6 +26,7 @@ import websockets
 from websockets.asyncio.client import connect
 
 from agent import guard
+from agent import solo
 from agent.settings import CLOUD_WS, agent_name, load_token
 
 TELEMETRY_SECONDS = 5.0
@@ -193,6 +194,12 @@ async def run() -> None:
     _stop = asyncio.Event()
     _loop = asyncio.get_running_loop()
 
+    if not solo.claim():
+        _say("another copy of this agent is already running on this PC — "
+             "nothing to do. (Two of them share one token and take turns "
+             "connecting, which reads as the link dropping every few seconds.)")
+        return
+
     token = load_token()
     if not token:
         _say("not paired yet — run:  python -m agent.login")
@@ -200,6 +207,7 @@ async def run() -> None:
 
     url = f"{CLOUD_WS}/ws/agent?token={token}"
     backoff = BACKOFF_START
+    first_retry_used = False
     _say(f"agent '{agent_name()}' starting | cloud: {CLOUD_WS}")
 
     while not _stop.is_set():
@@ -209,6 +217,7 @@ async def run() -> None:
                 _say("disconnected cleanly")
                 return
             backoff = BACKOFF_START          # a real session resets the wait
+            first_retry_used = False         # and earns another instant retry
             # A close code in the 4400s is the cloud saying "not you", not the
             # network saying "not now". Belt and braces alongside the refused
             # handshake: if anything between here and the server turns that
@@ -240,6 +249,15 @@ async def run() -> None:
             _say(f"cloud unreachable ({type(exc).__name__}); retrying")
         except Exception as exc:  # noqa: BLE001  (stay up whatever happens)
             _say(f"unexpected: {exc}; retrying")
+
+        # A session that WORKED and then dropped is a blip, not an outage, so
+        # the first retry is immediate: a second of waiting is a second of the
+        # phone being told the PC is asleep when it is sitting right there. The
+        # backoff still climbs from the second failure on, which is what stops
+        # a genuinely dead cloud from being hammered.
+        if backoff <= BACKOFF_START and not first_retry_used:
+            first_retry_used = True
+            continue
 
         # Jittered backoff: without the jitter, a PC and a phone that both lost
         # the same wifi come back in lockstep and hit the server together.

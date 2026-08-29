@@ -208,6 +208,14 @@ python -m uvicorn server.app:app --reload --port 8000
 python tests/test_server.py      # 34 checks, real server, real sockets, temp DB
 ```
 
+**The server pings, and that had to be spelled out.** A client watching for
+sixty seconds saw *zero* server-originated PING frames where uvicorn's default
+should have sent three, so `--ws-ping-interval 20 --ws-ping-timeout 60` is
+explicit in the Dockerfile and `websockets` is pinned in `cloud.txt` rather than
+arriving transitively. Without it the agent's own ping was the only liveness
+check in the whole system, and a dead PC stayed "online" until somebody asked it
+to do something.
+
 **Brains block, so every turn runs in a worker thread** (`run_in_threadpool`)
 behind an `asyncio.Lock`. Calling a brain directly in an async endpoint would
 freeze the event loop — including the websocket carrying the PC agent. The lock
@@ -342,6 +350,16 @@ The agent treats close codes **4401, 4403 and 1008** as terminal for the same
 reason, as belt and braces: if anything in between turns the refusal into an
 ordinary close, it still stops rather than re-asking a rejected question every
 few seconds for ever.
+
+**One agent per machine, enforced in `agent/solo.py`.** A named mutex taken at
+startup; a second copy says so and exits. Two agents is not a rare accident —
+a double-clicked `.bat`, a Startup entry beside an open window, an orphan after
+a crash — and it is genuinely hard to diagnose because BOTH connections are
+healthy. They share a token, so they share a device id, and each displaces the
+other every few seconds; the PC reads as dropping constantly while nothing is
+wrong with the network, the server or either agent. A mutex rather than a PID
+file because the kernel releases it however the process died, and a stale PID
+file locks you out of your own machine.
 
 **A second copy of the agent displaces the first, and the loser stops.**
 `Registry.add` used to forget the old connection without closing it, so two

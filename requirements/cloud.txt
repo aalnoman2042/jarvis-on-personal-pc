@@ -29,6 +29,11 @@ pypdf>=5.0.0
 # --- the API ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0  # includes the websocket implementation
+# Pinned rather than left to arrive transitively. uvicorn's websocket behaviour
+# — including whether its ping settings do anything — depends on which
+# implementation pip happened to resolve that day, and "it worked last deploy"
+# is not a property you want your PC link to have.
+websockets>=13.0
 pydantic>=2.0.0
 python-multipart>=0.0.9    # FastAPI needs this to accept an uploaded audio clip
 
