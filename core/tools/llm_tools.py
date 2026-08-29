@@ -298,6 +298,46 @@ def note_commitment(text: str) -> str:
     return "Noted."
 
 
+def search_papers(query: str) -> str:
+    """Search filed documents — papers, notes, drafts — by meaning.
+
+    Use for "find the paper about X", "what did that paper say about Y",
+    "which of my notes mentions Z". It searches what the documents SAY, not
+    their filenames, so it works when the words asked for never appear.
+    """
+    from core import documents
+    from core.memory import vectors
+
+    hits = vectors.search(query, limit=4, kinds=("chunk",),
+                          floor=vectors.ASKED_FLOOR)
+    passages = []
+    for hit in hits:
+        got = documents.passage(hit["id"])
+        if got:
+            passages.append(got)
+    if not passages:
+        filed = documents.all_documents(50)
+        if not filed:
+            return ("Nothing filed yet. Add a paper or a note and I can search "
+                    "inside it.")
+        return f"Nothing in the {len(filed)} document(s) I have matches that."
+
+    # The document name every time, because a paragraph with no source is
+    # something you have to go and verify before you can use it.
+    return " | ".join(
+        f"From {p['name']}: {p['text'][:400]}" for p in passages)
+
+
+def my_documents() -> str:
+    """What has been filed. Use for "what papers do I have", "what have I given you"."""
+    from core import documents
+    filed = documents.all_documents(30)
+    if not filed:
+        return "Nothing filed yet."
+    return "; ".join(
+        f"{d['name']} ({d['passages']} passages)" for d in filed) + "."
+
+
 def my_week() -> str:
     """How the last week actually went — what got done, what did not, what
     was talked about.
@@ -425,6 +465,7 @@ TOOL_FUNCTIONS = [
     write_code, remember, forget, active_window, top_processes,
     remind, check_agenda, cancel_reminder, change_reminder, check_mail,
     add_task, my_tasks, finish_task, note_commitment, my_week,
+    search_papers, my_documents,
     open_on_phone, call_number, message_on_whatsapp, navigate_to,
     remember_contact, who_do_i_know, call_contact, message_contact,
     get_time, get_date, system_info, control_volume, media_control,
@@ -580,6 +621,15 @@ OPENAI_TOOLS = [
           "and do not make a fuss about having written it down.",
           {"text": _STR("What they said they would do, in a few words")}, ["text"]),
     _tool("my_tasks", "What is still to do. Use for 'what's on my list'."),
+    _tool("search_papers",
+          "Search filed documents \u2014 papers, notes, drafts \u2014 by meaning, not "
+          "by filename. Use for 'find the paper about X', 'what did that paper "
+          "say about Y', 'which of my notes mentions Z'. Always name the "
+          "document a passage came from when you use one.",
+          {"query": _STR("What to look for, in their own words")}, ["query"]),
+    _tool("my_documents",
+          "List the documents that have been filed. Use for 'what papers do I "
+          "have', 'what have I given you to read'."),
     _tool("my_week",
           "How the last week actually went — what got finished, what is still "
           "open, what they talked about. Use for 'how was my week', 'what did "

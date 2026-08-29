@@ -20,7 +20,10 @@ terms, so the six stores cannot disagree about what matched. That asymmetry is
 exactly the bug that made recall silently drop rows the index had correctly
 found.
 
-Costs no API calls. It is SQL and string comparison.
+Costs no API calls. It is SQL and string comparison. Document passages are
+in here on the same terms as everything else — a paper you filed should turn
+up beside the conversation where you talked about it, not in a separate
+place you have to remember to look.
 """
 from __future__ import annotations
 
@@ -35,7 +38,7 @@ PER_STORE = 40
 LIMIT = 25
 SNIP = 160
 
-KINDS = ("message", "fact", "diary", "task", "person", "action")
+KINDS = ("message", "fact", "diary", "task", "person", "action", "passage")
 
 
 def _fold(text: str) -> str:
@@ -77,6 +80,35 @@ def _score(terms: list[str], title: str, body: str, when: float) -> int:
         age_days = max(0.0, (clock.now() - when) / 86400)
         points += 4 if age_days < 7 else 2 if age_days < 60 else 0
     return points
+
+
+def _window(text: str, terms: list[str]) -> str:
+    """A readable slice of a long passage, centred on what matched.
+
+    Showing the first 160 characters of a paragraph is showing its opening
+    clause, which is rarely the reason it came back. A hit you have to open to
+    understand is barely a hit.
+    """
+    flat = " ".join((text or "").split())
+    if len(flat) <= SNIP:
+        return flat
+    folded = _fold(flat)
+    at = -1
+    for term in terms:
+        found = re.search(r"\b" + re.escape(term), folded)
+        if found:
+            at = found.start()
+            break
+    if at < 0:
+        return flat[:SNIP] + "\u2026"
+    start = max(0, at - SNIP // 3)
+    # Start at a word boundary, or the snippet opens mid-word and reads as
+    # corruption rather than as an excerpt.
+    if start:
+        space = flat.find(" ", start)
+        start = space + 1 if 0 <= space < start + 20 else start
+    piece = flat[start:start + SNIP].strip()
+    return ("\u2026" if start else "") + piece + ("\u2026" if start + SNIP < len(flat) else "")
 
 
 def _rows(sql: str, args: tuple) -> list[dict]:
@@ -143,8 +175,29 @@ def search(query: str, limit: int = LIMIT) -> list[dict]:
                       "title": (row["tool"] or "").replace("_", " "),
                       "body": (row["args"] or "")[:SNIP]})
 
+    for row in _rows(
+        "SELECT c.id, c.text, d.name, d.added FROM doc_chunks c "
+        "JOIN documents d ON d.id = c.doc_id "
+        "WHERE lower(c.text) LIKE ? OR lower(d.name) LIKE ? LIMIT ?",
+        (like, like, PER_STORE)):
+        # Title is the document, body is the passage. That way a hit says WHERE
+        # it came from before it says what it said, which is most of what you
+        # want to know when a search returns a paragraph out of a paper.
+        found.append({"kind": "passage", "id": row["id"], "when": row["added"],
+                      "title": row["name"],
+                      "body": _window(row["text"] or "", terms),
+                      "full": row["text"] or ""})
+
     for item in found:
-        item["score"] = _score(terms, item["title"], item["body"], item["when"])
+        # Scored on `full` where there is one. Truncating BEFORE scoring is the
+        # same asymmetry this module exists to avoid, just pointing the other
+        # way: SQL matched the whole passage, the scorer saw the first 160
+        # characters, and anything whose match sat further in was found and then
+        # silently thrown away. Documents made that systematic — a passage is
+        # 900 characters, so most of every one of them was invisible.
+        item["score"] = _score(terms, item["title"],
+                               item.get("full") or item["body"], item["when"])
+        item.pop("full", None)
 
     # A zero means the SQL matched and the scorer did not agree — a LIKE hit
     # inside a longer word, most often. Dropping those is what keeps the list

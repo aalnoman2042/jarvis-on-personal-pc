@@ -209,8 +209,7 @@ def _by_meaning(text: str, limit: int, kinds: tuple = ("message",)) -> list[dict
         from core.memory import vectors
     except Exception:  # noqa: BLE001
         return []
-    rows = [r for r in vectors.search(text, limit=limit * 2)
-            if r["kind"] in kinds][:limit]
+    rows = vectors.search(text, limit=limit, kinds=kinds)
     if not rows:
         return []
     conn = store.connect()

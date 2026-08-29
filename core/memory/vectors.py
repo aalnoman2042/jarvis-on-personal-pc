@@ -6,11 +6,19 @@ nothing, because the conversation said "NILM" — the right answer is sitting in
 the archive with not one word in common. That is not a tuning problem; it is
 what keyword search is.
 
-So every message and fact also gets an embedding, and a query is compared
-against those by cosine. FTS5 is not replaced: the two find different things and
+So every message, every fact and every passage of every filed document also
+gets an embedding, and a query is compared against those by cosine. FTS5 is not replaced: the two find different things and
 both are shortlists into the same ranking, exactly as `find.py` treats bm25.
 
 Four decisions worth keeping:
+
+**The batch size is discovered, not assumed.** The free embedding tier is
+metered on content: a single-word request succeeds in the same minute a
+seven-thousand-character one is refused. So a refused batch is halved and
+retried rather than abandoned — a refusal for being too large and a refusal for
+having nothing left are indistinguishable from here, and treating the first as
+the second stalls the whole archive until somebody notices. A tight budget
+should mean slower progress, not no progress.
 
 **Nothing is embedded on the write path.** `add_turn` must not grow an API call
 — a turn would then wait on Google to store a sentence, and an embedding outage
@@ -68,11 +76,45 @@ MODEL = "gemini-embedding-001"
 DIMS = 768                 # 3072 is the default and four times the storage for
                            # no measured gain at this archive size
 FLOOR = 0.65               # see the note above before touching this
+
+# A lower bar when somebody has explicitly asked to search, and the difference
+# is not a fudge. Automatic recall puts what it finds into the prompt UNBIDDEN,
+# so a marginal hit is noise nobody asked for and a claim nobody can check. An
+# explicit search is the opposite: the answer names the document it came from,
+# it was asked for, and a near-miss can be read and dismissed in a second. The
+# cost of being wrong is completely different, so the threshold is too.
+ASKED_FLOOR = 0.55
+
 TOP_K = 5
 
 # How many rows one backfill pass will embed. Small on purpose: this runs inside
 # /tick, which must stay a fast, harmless request.
 BATCH = 24
+
+# And a ceiling on how much TEXT goes in one request, which is the limit that
+# actually bites. A batch of 24 conversation turns is a few thousand characters;
+# a batch of 24 document passages is twenty thousand, and the free embedding
+# tier is metered on CONTENT rather than on rows — measured: a single-word
+# request succeeds while a 7,000-character one is refused in the same minute.
+# Counting rows alone means the document case quietly asks for eight times as
+# much as the message case and is refused for it.
+MAX_BATCH_CHARS = 6000
+
+# The smallest batch worth trying. Below this, a refusal means the budget is
+# genuinely gone rather than the request being too large.
+MIN_BATCH_CHARS = 700
+
+# What size last worked. Free-tier limits are not published in a form worth
+# hard-coding and they change; discovering the size by trying is both more
+# honest and self-correcting. Kept between passes so the discovery is paid for
+# once rather than every sweep.
+_batch_chars = MAX_BATCH_CHARS
+
+# What stopped it, in words, or "" while nothing has. Quota exhaustion and a
+# missing key look identical from the outside — both are "no vectors today" —
+# and they need completely different responses from whoever is reading.
+_blocked = ""
+_blocked_is_quota = False
 
 _lock = threading.Lock()
 _cache: dict[tuple[str, int], object] = {}   # (kind, ref_id) -> vector
@@ -117,6 +159,25 @@ def available() -> bool:
     return bool(_numpy() is not None and _api() is not None)
 
 
+def blocked() -> str:
+    """Why nothing is being indexed, in words, or "" if all is well.
+
+    A backlog that is not going down needs an explanation on the screen. Without
+    one, "247 passages waiting" sits there for a day and reads as broken —
+    when in fact it is a free tier that resets on its own and needs nothing
+    from anybody.
+    """
+    if _numpy() is None:
+        return "numpy isn't installed, so meaning-based search is off."
+    if _api() is None:
+        return "No Gemini key, so meaning-based search is off."
+    return _blocked
+
+
+def quota_exhausted() -> bool:
+    return _blocked_is_quota
+
+
 # ---------------------------------------------------------------------------
 # Talking to the model
 # ---------------------------------------------------------------------------
@@ -128,6 +189,7 @@ def embed(texts: list[str], query: bool = False) -> list[list[float] | None]:
     passage that answers it differently, and using one type for both measurably
     weakens retrieval.
     """
+    global _blocked, _blocked_is_quota
     client = _api()
     texts = [(t or "").strip()[:8000] for t in texts]
     if client is None or not any(texts):
@@ -144,9 +206,17 @@ def embed(texts: list[str], query: bool = False) -> list[list[float] | None]:
     except Exception as exc:  # noqa: BLE001
         # Quota, a withdrawn model, no network. Meaning-based search goes quiet
         # and keyword search carries the whole load, which is where it started.
-        log.info("embedding unavailable: %s", str(exc)[:160])
+        detail = str(exc)
+        _blocked_is_quota = ("429" in detail or "RESOURCE_EXHAUSTED" in detail
+                             or "quota" in detail.lower())
+        _blocked = ("Google's free embedding quota is used up for now — "
+                    "it will carry on by itself when that resets."
+                    if _blocked_is_quota else
+                    f"Embedding is unavailable: {detail[:120]}")
+        log.info("embedding unavailable: %s", detail[:160])
         return [None] * len(texts)
 
+    _blocked, _blocked_is_quota = "", False
     out: list[list[float] | None] = []
     for item in result.embeddings:
         values = list(item.values or [])
@@ -298,7 +368,10 @@ def pending() -> int:
             "  AND v.model = ?)) + "
             "(SELECT COUNT(*) FROM facts f WHERE NOT EXISTS ("
             "  SELECT 1 FROM vectors v WHERE v.kind='fact' AND v.ref_id=f.id"
-            "  AND v.model = ?)) AS n", (MODEL, MODEL)).fetchone()
+            "  AND v.model = ?)) + "
+            "(SELECT COUNT(*) FROM doc_chunks c WHERE NOT EXISTS ("
+            "  SELECT 1 FROM vectors v WHERE v.kind='chunk' AND v.ref_id=c.id"
+            "  AND v.model = ?)) AS n", (MODEL, MODEL, MODEL)).fetchone()
         return int(row["n"] or 0)
     except Exception:  # noqa: BLE001
         return 0
@@ -325,11 +398,21 @@ def backfill(limit: int = BATCH) -> int:
             "  SELECT 1 FROM vectors v WHERE v.kind='fact' AND v.ref_id=f.id"
             "  AND v.model = ?) ORDER BY f.id DESC LIMIT ?",
             (MODEL, limit)).fetchall()
+        # Passages next, for the same reason facts come first: a document was
+        # put there deliberately and is useless until it is searchable, whereas
+        # messages accumulate on their own and one arriving a few minutes late
+        # is invisible. A freshly filed paper that cannot be found for an hour
+        # reads as the filing having failed.
+        passages = conn.execute(
+            "SELECT id, text FROM doc_chunks c WHERE NOT EXISTS ("
+            "  SELECT 1 FROM vectors v WHERE v.kind='chunk' AND v.ref_id=c.id"
+            "  AND v.model = ?) ORDER BY c.id ASC LIMIT ?",
+            (MODEL, max(0, limit - len(facts)))).fetchall()
         messages = conn.execute(
             "SELECT id, user, assistant FROM messages m WHERE NOT EXISTS ("
             "  SELECT 1 FROM vectors v WHERE v.kind='message' AND v.ref_id=m.id"
             "  AND v.model = ?) ORDER BY m.id DESC LIMIT ?",
-            (MODEL, max(0, limit - len(facts)))).fetchall()
+            (MODEL, max(0, limit - len(facts) - len(passages)))).fetchall()
     except Exception:  # noqa: BLE001
         return 0
 
@@ -337,6 +420,10 @@ def backfill(limit: int = BATCH) -> int:
     for row in facts:
         # A fact was written down deliberately, so it is always worth indexing.
         jobs.append(("fact", int(row["id"]), row["fact"]))
+    for row in passages:
+        # So was a document. Chunking already dropped the furniture, and a
+        # passage that survived that is worth a vector by definition.
+        jobs.append(("chunk", int(row["id"]), row["text"]))
     for row in messages:
         # Both halves, because the FTS index covers both and the answer is
         # usually the part worth getting back.
@@ -348,33 +435,68 @@ def backfill(limit: int = BATCH) -> int:
     if not jobs:
         # Every row in this pass was skipped. That IS progress — say so, or the
         # caller stops sweeping and the rest of the archive is never reached.
-        return len(messages)
+        return len(messages)   # facts and passages are never skipped
 
-    done = 0
-    for kind, ref_id, vec in zip(
-            [j[0] for j in jobs], [j[1] for j in jobs],
-            embed([j[2] for j in jobs])):
-        if vec:
-            save(kind, ref_id, vec)
-            done += 1
-    return done
+    # Halve the batch and try again rather than giving up, because a refusal
+    # for being too large and a refusal for having nothing left look identical
+    # from here. Without this, one oversized batch stalls the whole archive
+    # until somebody notices — with it, a tight budget just means slower
+    # progress, which is the correct behaviour and needs no attention.
+    global _batch_chars
+    size = _batch_chars
+    while True:
+        room, batch = size, []
+        for job in jobs:
+            batch.append(job)
+            room -= len(job[2])
+            if room <= 0:
+                break
+
+        vecs = embed([j[2] for j in batch])
+        if any(vecs):
+            done = 0
+            for (kind, ref_id, _), vec in zip(batch, vecs):
+                if vec:
+                    save(kind, ref_id, vec)
+                    done += 1
+            # Creep back up on success, so a one-off refusal does not pin the
+            # rate down for the rest of the process's life.
+            _batch_chars = min(MAX_BATCH_CHARS, int(size * 1.5))
+            return done
+
+        if not _blocked_is_quota or size <= MIN_BATCH_CHARS or len(batch) <= 1:
+            # Not a size problem, already as small as is worth trying, or the
+            # batch is a single row — halving cannot make one passage smaller,
+            # so retrying is just spending refusals to learn nothing. The budget
+            # is gone for now; the sweep will come back later.
+            return 0
+        size = max(MIN_BATCH_CHARS, size // 2)
+        _batch_chars = size
+        log.info("embedding batch too large; trying %d characters", size)
 
 
 # ---------------------------------------------------------------------------
 # Searching
 # ---------------------------------------------------------------------------
 
-def search(query: str, limit: int = TOP_K, floor: float = FLOOR) -> list[dict]:
+def search(query: str, limit: int = TOP_K, floor: float = FLOOR,
+           kinds: tuple | None = None) -> list[dict]:
     """Rows whose meaning is close to the query. Empty when nothing is close.
 
     Empty is a perfectly good answer and the common one — a recalled
     irrelevance is noise in the prompt and a lie on the screen.
+
+    `kinds` narrows the search BEFORE ranking, and that is not the same as
+    filtering afterwards. Asking for the best five of everything and then
+    keeping the passages leaves nothing at all on an archive where messages
+    outnumber passages fifty to one — the good passage is real, ranked
+    eleventh, and never looked at. Anything hunting one kind must say so here.
     """
     np = _numpy()
     if np is None or not (query or "").strip() or not _ready():
         return []
     with _lock:
-        keys = list(_cache.keys())
+        keys = [k for k in _cache.keys() if kinds is None or k[0] in kinds]
         if not keys:
             return []
         matrix = np.stack([_cache[k] for k in keys])

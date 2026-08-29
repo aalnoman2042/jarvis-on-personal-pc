@@ -650,6 +650,68 @@ class RestoreIn(BaseModel):
     payload: dict
 
 
+@app.get("/documents")
+async def list_documents(device: dict = Depends(caller)):
+    """What has been filed, and how much of it is searchable yet.
+
+    `pending` matters on screen: embedding happens in the sweep, not on upload,
+    so a paper filed a moment ago is stored but not yet findable. Showing a
+    document as ready before it is would make the first search look broken.
+    """
+    from core import documents
+    from core.memory import vectors
+    filed = await run_in_threadpool(documents.all_documents)
+    return {"documents": filed,
+            "pending": await run_in_threadpool(vectors.pending),
+            "indexing": vectors.available(),
+            "blocked": vectors.blocked()}
+
+
+@app.post("/documents")
+async def add_document(clip: UploadFile = File(...),
+                       note: str = Form(default=""),
+                       device: dict = Depends(caller)):
+    """File a paper, a note, a draft. PDFs and text.
+
+    The reply carries `why` in plain words whichever way it went, because the
+    interesting failure here is a scanned PDF — pictures of a page rather than a
+    page — and "filed 0 passages" is not something anyone should have to
+    interpret.
+    """
+    from core import documents
+    data = await clip.read()
+    if len(data) > documents.MAX_BYTES:
+        raise HTTPException(status_code=413, detail="That file is too big.")
+    result = await run_in_threadpool(
+        documents.add, data, clip.filename or "document", note)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("why", "No."))
+    # Embed it now rather than waiting up to five minutes for the sweep. A paper
+    # you have just handed over and cannot find yet reads as the filing failing.
+    await nudges.catch_up(force=True)
+    return result
+
+
+@app.delete("/documents/{doc_id}")
+async def drop_document(doc_id: int, device: dict = Depends(caller)):
+    """Remove a document, its passages and their vectors together."""
+    from core import documents
+    gone = await run_in_threadpool(documents.forget, doc_id)
+    if not gone:
+        raise HTTPException(status_code=404, detail="No such document.")
+    return {"ok": True}
+
+
+@app.get("/documents/{doc_id}/passage/{chunk_id}")
+async def read_passage(doc_id: int, chunk_id: int, device: dict = Depends(caller)):
+    """One passage in full, for a search hit somebody wants to read."""
+    from core import documents
+    got = await run_in_threadpool(documents.passage, chunk_id)
+    if not got or int(got["doc_id"]) != int(doc_id):
+        raise HTTPException(status_code=404, detail="No such passage.")
+    return got
+
+
 @app.get("/export")
 async def export_everything(device: dict = Depends(caller)):
     """Everything Jarvis knows, as one file you keep.

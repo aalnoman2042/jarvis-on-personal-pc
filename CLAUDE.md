@@ -583,6 +583,90 @@ Same rule as the briefing and the board.
 this week"` is a question about the diary and must not be answered with a look
 back. A rule-based brain's failure mode is a wrong answer delivered confidently.
 
+## Papers and notes (phase 11)
+
+`core/documents.py` reads a PDF or a text file, cuts it into passages and hands
+them to `core/memory/vectors.py`. It exists because everything Jarvis knew came
+out of a conversation, so the actual work — the papers, the drafts, the notes —
+lived in folders it could not see, and the one thing a research assistant ought
+to be good at was the one thing it could not do.
+
+```
+python tests/test_reminders.py    # section 12 covers this
+```
+
+**Passages, not documents, and that is the whole trick.** One vector for a
+forty-page paper is a vector for nothing in particular: the average of the
+abstract, the method and the references, close to every query and useful for
+none. A paragraph has one subject, so its vector points somewhere.
+
+**Split on paragraphs, then sentences, then give up.** A fixed character count
+is easier and produces chunks that begin mid-clause, which embed as badly as
+they read. Consecutive passages overlap by ~140 characters so a fact sitting on
+a boundary is whole in at least one of them.
+
+**`clean` must keep the blank lines.** It drops running heads, page numbers and
+column fragments — furniture that matches nothing and dilutes the chunk it sits
+in — and the first version dropped the paragraph breaks along with them, because
+a blank line fails the same "is this a sentence" test. The result was one
+unbroken wall of text and therefore one chunk per document, which is exactly the
+thing the chunking exists to prevent. It looked like it worked.
+
+**A scan must be refused out loud.** A scanned PDF is photographs of pages with
+no text layer, so extraction returns nothing. Storing an empty document and
+reporting success is the worst outcome available: the paper looks filed, and the
+first search for it reads as the search being broken rather than the filing.
+
+**Nothing is embedded on upload** — same rule as everything else — but `/documents`
+calls `catch_up(force=True)` straight afterwards, because a paper you have just
+handed over and cannot find yet reads as the filing having failed.
+
+**Passages come after facts and before messages in each backfill batch.** A
+document was put there deliberately and is useless until searchable; messages
+accumulate on their own and one arriving a few minutes late is invisible.
+
+**Batches are sized by characters, and the size is discovered.** `BATCH = 24`
+conversation turns is a few thousand characters; 24 document passages is twenty
+thousand, and the free embedding tier is metered on *content* — measured, a
+single-word request succeeds in the same minute a seven-thousand-character one
+is refused. So a refused batch is halved and retried rather than abandoned: a
+refusal for being too large and a refusal for having nothing left look identical
+from here, and treating the first as the second stalls the whole archive until
+somebody notices. It stops halving at one row, because one passage cannot be
+made smaller and further refusals buy nothing.
+
+**Two floors, for two different costs of being wrong.** Automatic recall puts
+what it finds into the prompt unbidden, so a marginal hit is noise nobody asked
+for — that stays at `FLOOR`. An explicit `search_papers` is the opposite: it was
+asked for, the answer names the document, and a near miss can be read and
+dismissed in a second. `ASKED_FLOOR` is lower for that reason. **The passage
+number is provisional** — it was set by argument, not by measurement, because
+the embedding quota ran out before it could be measured on real passages. Measure
+it before trusting it, the way `FLOOR` was.
+
+**A search for one kind must narrow before ranking, not after.** Asking for the
+best five of everything and keeping the passages returns nothing on a real
+archive, where messages outnumber passages many times over: the good passage is
+real, ranked eleventh, and never looked at. `vectors.search(kinds=...)`.
+
+**The embedding quota is per-minute and it is real.** A burst of filing will
+exhaust it, and `vectors.blocked()` says so in plain words which `/documents`
+returns and the HUD prints. A backlog with no explanation reads as a fault; this
+one fixes itself. A refused pass waits ten minutes rather than five — but not
+`brain_fallback`'s thirty, because that cooldown is for a *daily* model quota and
+this limit was observed recovering within a minute or two.
+
+**`find.py` scores the whole passage and shows the part that matched.**
+Truncating to `SNIP` before scoring was the same asymmetry the module exists to
+prevent, pointing the other way: SQL matched the full passage, the scorer saw
+the first 160 characters, and any hit whose match sat further in was found and
+then silently discarded. With 900-character passages that was most of every one
+of them.
+
+**Forgetting takes the vectors too.** SQLite reuses `INTEGER PRIMARY KEY` values
+after a delete, so a vector outliving its passage would eventually be matched
+against a different document's text.
+
 ## Mail (phase 08)
 
 `core/mail.py` reads Rohan's inboxes over IMAP. Standard library only —

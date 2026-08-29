@@ -682,6 +682,45 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- papers and notes ---------- */
+.papers-list {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+.papers-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--s3);
+  align-items: baseline;
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line);
+}
+.paper-name {
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+.paper-meta {
+  grid-column: 1;
+  font-size: 0.68rem;
+  color: var(--idle);
+}
+.paper-note {
+  grid-column: 1;
+  font-size: 0.72rem;
+  color: var(--idle);
+  font-style: italic;
+}
+.paper-drop {
+  grid-row: 1;
+  grid-column: 2;
+}
+.papers-blocked {
+  color: var(--warn);
+}
+
 /* ---------- listening ----------
    Three readings, because "is it hearing me" is the only question anyone has
    about an always-on microphone. Off is the resting grey of every other icon;

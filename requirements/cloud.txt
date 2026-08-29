@@ -20,6 +20,12 @@ libsql-client>=0.3.1
 # desktop anything, so it does not break the rule this file exists for.
 numpy>=1.26.0
 
+# --- reading documents ---
+# Pure Python, 3.5MB, no compiled extensions and no system libraries, so it
+# installs on the same Linux box as everything else. Parsing PDFs in the browser
+# instead was the alternative; doing it here keeps the chunking testable.
+pypdf>=5.0.0
+
 # --- the API ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0  # includes the websocket implementation

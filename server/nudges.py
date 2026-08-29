@@ -90,6 +90,15 @@ def _frame(item: dict) -> dict:
 # only thing that can create work, and being a few minutes behind on embedding
 # one is invisible — `recent()` already puts it in front of the model.
 IDLE_GAP = 300.0
+
+# A refused-for-quota pass waits longer than an idle one, but NOT as long as
+# brain_fallback's half hour. The two are different limits: a brain's free tier
+# is daily, and an embedding one is measured per minute — observed recovering
+# within a few minutes of being exhausted by a burst. Half an hour would leave
+# a backlog sitting for twenty-nine minutes it did not need to. Ten is long
+# enough that a genuinely daily cap costs a handful of refused calls, which cost
+# nothing but a log line.
+QUOTA_GAP = 600.0
 _next_catch_up = 0.0
 
 
@@ -117,7 +126,10 @@ async def catch_up(force: bool = False) -> int:
         _next_catch_up = now + IDLE_GAP
         return 0
     done = await run_in_threadpool(vectors.backfill)
-    _next_catch_up = now + (0.0 if done else IDLE_GAP)
+    if done:
+        _next_catch_up = 0.0
+    else:
+        _next_catch_up = now + (QUOTA_GAP if vectors.quota_exhausted() else IDLE_GAP)
     return done
 
 

@@ -691,6 +691,176 @@ try:
     conn.commit()
     vectors._cache.clear()
 
+    print("\n=== 12. papers, notes and finding what is inside them ===")
+    from core import documents  # noqa: E402
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM documents")
+    conn.execute("DELETE FROM doc_chunks")
+    conn.execute("DELETE FROM vectors")
+    conn.commit()
+    vectors._cache.clear()
+
+    PAPER = (
+        "Low-Sampling-Rate Non-Intrusive Load Monitoring\n\n"
+        "Abstract\n\n"
+        "Non-intrusive load monitoring splits a household total into "
+        "per-appliance consumption without a sensor on every device. We "
+        "evaluate convolutional and recurrent designs at one-minute "
+        "resolution, the rate deployed meters actually report.\n\n"
+        "1. Introduction\n\n"
+        "17\n\n"
+        "Energy disaggregation has been studied since Hart. Recent deep "
+        "learning work improves on hand-crafted features. Almost all "
+        "published results assume one-second sampling, unavailable on the "
+        "metering hardware installed in the field.\n\n"
+        "3. Results\n\n"
+        "The hybrid reaches 91 percent on refrigeration loads and 78 percent "
+        "on washing machines. The convolutional baseline overfits once the "
+        "window exceeds four hours.\n"
+    )
+
+    check("a PDF is recognised by name", documents.kind_of("paper.PDF"), "pdf")
+    check("  and so is a note", documents.kind_of("thoughts.md"), "md")
+    check("  and a photo is not something to read",
+          documents.kind_of("cat.png"), "")
+
+    tidy = documents.clean(PAPER)
+    check("a page number is furniture, not text", "\n17\n" in tidy, False)
+    check("  but the paragraphs survive it", "\n\n" in tidy, True)
+
+    pieces = documents.chunks(tidy)
+    check("a paper becomes several passages", len(pieces) >= 3, True)
+    check("  none of them a whole document",
+          max(len(p) for p in pieces) <= documents.TARGET * 2, True)
+    check("  and none of them a fragment",
+          min(len(p) for p in pieces) >= 20, True)
+    # A fact sitting across a boundary has to be whole SOMEWHERE, or it is
+    # findable in neither of the two chunks that share it.
+    check("consecutive passages overlap",
+          any(pieces[i][:60].split()[0] in pieces[i - 1]
+              for i in range(1, len(pieces))), True)
+
+    filed = documents.add(PAPER.encode(), "nilm.md", note="from my supervisor")
+    check("filing a note works", filed["ok"], True)
+    check("  and says how much it got", filed["chunks"] >= 3, True)
+
+    same = documents.add(PAPER.encode(), "nilm-copy.md")
+    check("the same file twice is one document", same["chunks"], 0)
+    check("  and it says which one it already had", same["why"], contains="nilm.md")
+
+    # The failure that must never be silent: a scan is pictures of a page.
+    scan = documents.add(b"%PDF-1.4 no text layer here", "scan.pdf")
+    check("an unreadable PDF is refused, not filed empty", scan["ok"], False)
+    check("  and explains itself", scan["why"], contains="scan")
+    check("  leaving nothing behind", len(documents.all_documents()), 1)
+
+    # Now index it, with the same offline stand-in used above.
+    vectors.embed = fake_embed
+    vectors.available = lambda: vectors._numpy() is not None
+    check("passages are waiting to be indexed", vectors.pending() >= 3, True)
+    vectors.backfill(50)
+    check("  and the sweep takes them", vectors.pending(), 0)
+
+    # Filtered by kind rather than taking the top hit: the archive still holds
+    # messages and facts from earlier sections, and which of them outranks a
+    # passage for a given word is not what this section is testing.
+    hits = [h for h in vectors.search("nilm", limit=10) if h["kind"] == "chunk"]
+    check("a passage is reachable by meaning", len(hits) >= 1, True)
+
+    got = documents.passage(hits[0]["id"])
+    check("a hit can be read back", bool(got and got["text"]), True)
+    check("  and names the document it came from", got["name"], "nilm.md")
+
+    # Universal search must cover documents too — a paper you filed should turn
+    # up beside the conversation where you talked about it.
+    kinds = {h["kind"] for h in find_mod.search("disaggregation")}
+    check("universal search reaches inside documents", "passage" in kinds, True)
+
+    doc_id = documents.all_documents()[0]["id"]
+    chunk_ids = [r["id"] for r in conn.execute(
+        "SELECT id FROM doc_chunks WHERE doc_id = ?", (doc_id,)).fetchall()]
+    check("forgetting a document works", documents.forget(doc_id), True)
+    check("  and takes its passages with it",
+          conn.execute("SELECT COUNT(*) n FROM doc_chunks").fetchone()["n"], 0)
+    # Vectors outliving their text would return a hit that cannot be shown —
+    # and SQLite reuses ids, so the next document would inherit them.
+    check("  and their vectors, so no hit outlives its text",
+          any(("chunk", int(c)) in vectors._cache for c in chunk_ids), False)
+
+    # Asking for one kind must narrow the search BEFORE ranking. Filtering
+    # afterwards returns nothing on a real archive, where messages outnumber
+    # passages: the good passage is ranked eleventh and never looked at.
+    everything = vectors.search("nilm", limit=20)
+    only = vectors.search("nilm", limit=20, kinds=("chunk",))
+    check("a search can ask for one kind",
+          all(h["kind"] == "chunk" for h in only), True)
+    check("  and narrows before ranking, not after",
+          len(only) >= len([h for h in everything if h["kind"] == "chunk"]), True)
+
+    # An embedding budget metered on CONTENT refuses a large batch and accepts a
+    # small one in the same minute. Treating that as "nothing left" stalls the
+    # whole archive until somebody notices; halving and retrying turns a tight
+    # budget into slower progress, which needs no attention at all.
+    conn.execute("DELETE FROM vectors")
+    conn.commit()
+    vectors._cache.clear()
+    vectors._batch_chars = vectors.MAX_BATCH_CHARS
+
+    # Enough text for several passages: halving cannot make ONE passage
+    # smaller, so a single-chunk document could never exercise this.
+    LIMIT = 1500
+    tried = []
+
+    def stingy_embed(texts, query=False):
+        total = sum(len(t) for t in texts)
+        tried.append(total)
+        if total > LIMIT and not query:
+            vectors._blocked_is_quota = True
+            vectors._blocked = "quota"
+            return [None] * len(texts)
+        vectors._blocked_is_quota = False
+        vectors._blocked = ""
+        return fake_embed(texts, query)
+
+    vectors.embed = stingy_embed
+    gap = chr(10) * 2
+    documents.add(
+        gap.join(f"Passage {i} about NILM disaggregation research and the "
+                 f"low sampling rate problem in deployed metering hardware, "
+                 f"written out at length so that it becomes its own chunk."
+                 for i in range(8)).encode(), "big.md")
+    before = vectors.pending()
+    done = vectors.backfill(50)
+    check("a refused batch is halved rather than abandoned", len(tried) > 1, True)
+    check("  and the retry is smaller than the attempt", tried[-1] < tried[0], True)
+    check("  and progress is actually made", done > 0, True)
+    check("  leaving less to do than before", vectors.pending() < before, True)
+
+    # And when it is genuinely out, it stops rather than halving for ever.
+    vectors._cache.clear()
+    conn.execute("DELETE FROM vectors")
+    conn.commit()
+    tried.clear()
+
+    def refuse_everything(texts, query=False):
+        tried.append(sum(len(t) for t in texts))
+        vectors._blocked_is_quota = True
+        vectors._blocked = "quota"
+        return [None] * len(texts)
+
+    vectors.embed = refuse_everything
+    check("a budget that is really gone stops trying", vectors.backfill(50), 0)
+    check("  after a bounded number of attempts", len(tried) <= 6, True)
+    check("  and says why, in words", vectors.blocked(), contains="quota")
+    vectors._batch_chars = vectors.MAX_BATCH_CHARS
+
+    vectors.embed, vectors.available = real_embed, real_available
+    conn.execute("DELETE FROM documents")
+    conn.execute("DELETE FROM doc_chunks")
+    conn.commit()
+
+
 finally:
     server.should_exit = True
     time.sleep(0.3)

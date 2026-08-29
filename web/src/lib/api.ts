@@ -148,6 +148,48 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** The shelf: what has been filed, and how much of it is searchable yet. */
+export async function documents(token: string): Promise<{
+  documents: {
+    id: number; name: string; kind: string; added: number;
+    pages: number; bytes: number; note: string; passages: number;
+  }[];
+  pending: number;
+  indexing: boolean;
+  blocked: string;
+}> {
+  const res = await fetch(apiBase() + "/documents", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't load your documents");
+  return res.json();
+}
+
+/** File a paper or a note. Throws with the server's own words on refusal —
+    the interesting failure is a scan, and "400" explains nothing. */
+export async function fileDocument(token: string, file: File, note = "") {
+  const body = new FormData();
+  body.append("clip", file);
+  body.append("note", note);
+  const res = await fetch(apiBase() + "/documents", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "That file couldn't be read.");
+  return data as { ok: boolean; id: number; chunks: number; why: string };
+}
+
+export async function forgetDocument(token: string, id: number) {
+  const res = await fetch(`${apiBase()}/documents/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't forget that");
+  return res.json();
+}
+
 /** The week that has actually happened. `fresh` says it is the first look at a
     new one, so the board can offer it once and then stay out of the way. */
 export async function weekly(token: string): Promise<{

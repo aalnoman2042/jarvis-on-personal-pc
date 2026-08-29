@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 
 import { Brief } from "../hud/Brief";
 import { Weekly } from "../hud/Weekly";
+import { Papers } from "../hud/Papers";
 import { Dial } from "../hud/Dial";
 import { Mail } from "../hud/Mail";
 import { Tasks } from "../hud/Tasks";
@@ -283,6 +284,8 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
         />
 
         <Mail token={token} />
+
+        <Papers token={token} />
 
         <Vision token={token} />
 

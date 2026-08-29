@@ -126,12 +126,36 @@ CREATE TABLE IF NOT EXISTS tasks (
     asked_at REAL NOT NULL DEFAULT 0       -- when it was last chased
 );
 
--- An embedding per message and per fact, so a question can be answered from
+-- Papers, notes and drafts. The text is kept in PASSAGES rather than whole,
+-- because one vector for a forty-page paper is a vector for nothing in
+-- particular — the average of the abstract, the method and the references,
+-- close to every query and useful for none. See core/documents.py.
+CREATE TABLE IF NOT EXISTS documents (
+    id    INTEGER PRIMARY KEY,
+    name  TEXT NOT NULL,
+    kind  TEXT NOT NULL DEFAULT '',
+    sha   TEXT NOT NULL DEFAULT '',   -- so the same file twice is one document
+    added REAL NOT NULL,
+    pages INTEGER NOT NULL DEFAULT 0,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    note  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS documents_sha ON documents(sha);
+
+CREATE TABLE IF NOT EXISTS doc_chunks (
+    id     INTEGER PRIMARY KEY,
+    doc_id INTEGER NOT NULL,
+    seq    INTEGER NOT NULL,
+    text   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS doc_chunks_doc ON doc_chunks(doc_id);
+
+-- An embedding per message, per fact and per document passage, so a question can be answered from
 -- something that shares no words with it. `model` sits beside the vector
 -- because two models' vectors are not comparable and mixing them produces
 -- confident nonsense rather than an error. See core/memory/vectors.py.
 CREATE TABLE IF NOT EXISTS vectors (
-    kind   TEXT NOT NULL,          -- 'message' | 'fact'
+    kind   TEXT NOT NULL,          -- 'message' | 'fact' | 'chunk'
     ref_id INTEGER NOT NULL,
     model  TEXT NOT NULL,
     vec    TEXT NOT NULL,          -- base64 of int8, a quarter of float32
