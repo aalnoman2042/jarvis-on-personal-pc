@@ -108,6 +108,22 @@ MEMORY_MAX_FACTS = int(os.getenv("MEMORY_MAX_FACTS", "12"))
 EXTRA_BRAIN_SLOTS = 9
 
 
+def _fields(raw: str) -> list[str]:
+    """Split a dashboard-typed value into its parts, however it was separated.
+
+    Pipes, commas, semicolons, newlines OR whitespace. Not cleverness for its
+    own sake — a real value came back with one field and a 73-character key,
+    which is exactly what "pasted the key, then a space, then the model" looks
+    like from here. A key, a URL and a model id all contain no spaces, so
+    whitespace is unambiguous as a separator and refusing it only means
+    somebody edits the same box a third time.
+    """
+    import re as _re
+    return [p.strip().strip('"').strip("'")
+            for p in _re.split(r"[|,;\s]+", (raw or "").strip())
+            if p.strip()]
+
+
 # A provider recognisable from the shape of its own key. The same idea as
 # mail.KNOWN_HOSTS and for the same measured reason: typing a URL correctly
 # into a hosting dashboard is a surprising amount of the failure surface, and
@@ -147,7 +163,7 @@ def brains_diagnosis() -> dict:
     detail = []
     for name in names:
         raw = (os.environ.get(name) or "").strip().strip('"').strip("'")
-        parts = [p.strip() for p in raw.replace(",", "|").split("|") if p.strip()]
+        parts = _fields(raw)
         numbered = bool(re.fullmatch(r"VONDO_BRAIN_[1-9]", name))
         url = next((p for p in parts if p.startswith("http")), "")
         detail.append({
@@ -179,7 +195,7 @@ def extra_brains() -> list[tuple[str, str, str, str]]:
         raw = (os.getenv(f"VONDO_BRAIN_{slot}") or "").strip().strip('"\'')
         if not raw:
             continue
-        parts = [p.strip() for p in raw.replace(",", "|").split("|") if p.strip()]
+        parts = _fields(raw)
 
         # The full form is name|url|key|model. Anything shorter is worked out
         # from what IS there rather than refused: the commonest mistake by far

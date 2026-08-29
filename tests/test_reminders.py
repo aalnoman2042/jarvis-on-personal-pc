@@ -1156,6 +1156,22 @@ try:
     os.environ.pop("VONDO_BRAIN_2", None)
     short = config.extra_brains()
     check("a key and a model is enough", len(short), 1)
+
+    # However it was separated. A real value came back with ONE field and a
+    # 73-character key, which is what "pasted the key, then a space, then the
+    # model" looks like from outside — and refusing it only means editing the
+    # same box a third time. A key, a URL and a model id contain no spaces, so
+    # whitespace is unambiguous here.
+    model = "inclusionai/ling-3.0-flash-fin:free"
+    for label, sep in (("space", " "), ("comma", ","), ("semicolon", ";"),
+                       ("newline", chr(10)), ("pipe", "|")):
+        os.environ["VONDO_BRAIN_1"] = f"sk-or-v1-aaaabbbbcccc{sep}{model}"
+        got = config.extra_brains()
+        check(f"  separated by a {label}", got and got[0][3], model)
+    os.environ["VONDO_BRAIN_1"] = f'"sk-or-v1-aaaabbbbcccc|{model}"'
+    check("  and quotes are stripped",
+          config.extra_brains()[0][3], model)
+    os.environ["VONDO_BRAIN_1"] = "sk-or-v1-aaaabbbbcccc|meta/llama:free"
     check("  the provider is read off the key", short[0][0], "openrouter")
     check("  and so is its address", short[0][1], contains="openrouter.ai")
 
