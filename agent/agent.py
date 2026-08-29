@@ -144,8 +144,21 @@ async def _receive(ws, calls: set[asyncio.Task]) -> None:
         task.add_done_callback(calls.discard)
 
 
-async def _session(url: str) -> None:
-    """One connection, held until it drops or we're asked to stop."""
+# Close codes that mean "not you", as opposed to "not now". Reconnecting after
+# one of these is asking the same rejected question every few seconds for ever.
+UNAUTHORISED_CLOSES = (4401, 4403, 1008)
+
+
+def _session_ended_unauthorised(code) -> bool:
+    return code in UNAUTHORISED_CLOSES
+
+
+async def _session(url: str) -> int | None:
+    """One connection, held until it drops or we're asked to stop.
+
+    Returns the close code, because the caller has to tell a dead credential
+    from a dead network and those look identical from the outside.
+    """
     async with connect(url, ping_interval=20, ping_timeout=20) as ws:
         _say("connected to the cloud")
         calls: set[asyncio.Task] = set()
@@ -160,6 +173,7 @@ async def _session(url: str) -> None:
                 task.cancel()
             # Leaving the `async with` closes the socket, which is what makes
             # the cloud mark this PC offline at once rather than on a timeout.
+    return ws.close_code
 
 
 async def run() -> None:
@@ -178,11 +192,20 @@ async def run() -> None:
 
     while not _stop.is_set():
         try:
-            await _session(url)
+            closed_with = await _session(url)
             if _stop.is_set():
                 _say("disconnected cleanly")
                 return
             backoff = BACKOFF_START          # a real session resets the wait
+            # A close code in the 4400s is the cloud saying "not you", not the
+            # network saying "not now". Belt and braces alongside the refused
+            # handshake: if anything between here and the server turns that
+            # refusal into an ordinary close, this still stops the loop rather
+            # than reconnecting for ever with a dead credential.
+            if _session_ended_unauthorised(closed_with):
+                _say("this PC is not authorised any more — sign in again:"
+                     "  python -m agent.login   (or double-click link_pc.bat)")
+                return
             _say("connection closed; reconnecting")
         except websockets.InvalidStatus as exc:
             # 4401 / 401 means the token is wrong or revoked. Retrying forever

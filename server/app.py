@@ -173,7 +173,15 @@ async def caller(authorization: str | None = Header(default=None)) -> dict:
 async def socket_caller(websocket: WebSocket, kind: str = "") -> dict | None:
     """Same, for websockets, where headers are awkward and query strings are not.
 
-    Closes the socket and returns None on failure — websockets have no 401.
+    **Call this BEFORE accept(), and it matters more than it looks.** Closing a
+    websocket that has not been accepted refuses the handshake, so the client
+    sees an HTTP 403 and can tell "your token is dead" from "the network went
+    away". Accepting first and closing afterwards produces, at the far end, a
+    successful connection that immediately dropped — which is indistinguishable
+    from a flaky link, and is exactly what sent the PC agent into a silent
+    reconnect loop for an hour: it printed "connection closed; reconnecting"
+    every ten seconds and never once said the one thing that would have helped,
+    because the branch holding that sentence could not be reached.
 
     `kind` is what stops one device class impersonating another. Without it any
     valid token — a phone's, a browser tab's — could dial `/ws/agent` and
@@ -186,6 +194,10 @@ async def socket_caller(websocket: WebSocket, kind: str = "") -> dict | None:
     try:
         device = auth.identify(token)
     except auth.AuthError:
+        # Closed WITHOUT accepting, which makes this a refused handshake — the
+        # client gets an HTTP 403 and its own "not authorised" branch fires.
+        # Accepting first and closing after looks, from the far end, exactly
+        # like a healthy connection that dropped: see the note on the callers.
         await websocket.close(code=4401, reason="unauthorised")
         return None
     if kind and (device.get("kind") or "client") != kind:
@@ -863,10 +875,10 @@ async def ws_client(websocket: WebSocket):
     Frames out: {"type": "status"|"reply"|"token"|"error"|"telemetry", ...}
     Frames in:  {"type": "say", "text": "..."}
     """
-    await websocket.accept()
     device = await socket_caller(websocket)
     if device is None:
         return
+    await websocket.accept()
 
     await websocket.send_text(json.dumps({
         "type": "status", "state": "online",
@@ -940,10 +952,10 @@ async def ws_agent(websocket: WebSocket):
 
     Only a device that signed in as an agent may open this. See socket_caller.
     """
-    await websocket.accept()
     device = await socket_caller(websocket, kind="agent")
     if device is None:
         return
+    await websocket.accept()
 
     agent = agents.Agent(device["id"], device["name"], websocket)
     agents.registry.add(agent)

@@ -200,6 +200,37 @@ try:
 
     check("an unauthorised socket is closed", _ws_rejected(f"{WS}/ws/client?token=nonsense"), True)
 
+    # REFUSED at the handshake, not accepted and then dropped. The difference is
+    # invisible in a unit test and was an hour of confusion in real life: the
+    # server used to accept() first and close after, so a dead token reached the
+    # PC agent as "a healthy connection that dropped" — indistinguishable from a
+    # flaky network. The agent reconnected every ten seconds for ever and never
+    # printed the one sentence that would have helped, because the branch
+    # holding it can only be reached by a refused handshake.
+    import websockets as _ws_lib  # noqa: E402
+
+    def _how_refused(url):
+        try:
+            with ws_connect(url) as sock:
+                sock.recv(timeout=2)
+            return "accepted"
+        except _ws_lib.InvalidStatus as exc:
+            return f"handshake refused {exc.response.status_code}"
+        except Exception as exc:  # noqa: BLE001
+            return f"accepted then {type(exc).__name__}"
+
+    check("a dead token is refused AT the handshake",
+          _how_refused(f"{WS}/ws/client?token=nonsense"),
+          contains="handshake refused")
+    check("  and the agent socket too",
+          _how_refused(f"{WS}/ws/agent?token=nonsense"),
+          contains="handshake refused")
+    check("  and so is a phone trying to be the PC",
+          _how_refused(f"{WS}/ws/agent?token={phone}"),
+          contains="handshake refused")
+    check("  while a real token is not refused",
+          _ws_accepted(f"{WS}/ws/agent?token={agent_token}"), True)
+
     # A valid token is not a licence to be any device you like. Without a kind
     # check, the phone's own token opens the PC's socket, registers as Rohan's
     # desktop, and is handed open_app, power_control and everything else on the

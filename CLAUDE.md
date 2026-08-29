@@ -302,6 +302,21 @@ compromised it is exactly as trustworthy as the thing that failed. Closing the
 If `MessageBoxTimeoutW` were ever missing we refuse rather than risk a dialog
 that hangs forever on an unattended machine.
 
+**A websocket must be REFUSED at the handshake, never accepted and then
+closed.** `socket_caller` runs before `accept()` for exactly one reason: closing
+an un-accepted socket refuses the upgrade, so the client sees HTTP 403 and its
+own "not authorised" branch fires. Accepting first and closing after looks, from
+the far end, like a healthy connection that dropped — indistinguishable from a
+flaky network. That is what it did, and the PC agent sat in a reconnect loop
+printing "connection closed; reconnecting" every ten seconds with a dead token,
+never once reaching the line that says *sign in again*. The symptom read as an
+unstable connection and was an expired credential.
+
+The agent treats close codes **4401, 4403 and 1008** as terminal for the same
+reason, as belt and braces: if anything in between turns the refusal into an
+ordinary close, it still stops rather than re-asking a rejected question every
+few seconds for ever.
+
 **Stopping cleanly is a feature, not tidiness.** `request_stop()` closes the
 websocket so the cloud marks the PC offline *at once*. Killing the process
 leaves the socket half-open, and until TCP notices, "open chrome" from the phone
