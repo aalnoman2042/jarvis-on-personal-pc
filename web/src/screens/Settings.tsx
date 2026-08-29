@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import { Backup } from "../hud/Backup";
 import { Notifications } from "../hud/Notifications";
 import { VoicePicker } from "../hud/VoicePicker";
+import { Devices } from "../hud/Devices";
+import { Remembered } from "../hud/Remembered";
 import { forgetFact, me } from "../lib/api";
 import type { Me } from "../lib/types";
 
@@ -94,38 +96,22 @@ export function Settings({ token, onClose, onSignOut }: {
           </p>
         </section>
 
+        {/* A count and a list are different kinds of thing and no longer share
+            a panel: the count is one line for ever, the list grows to a dozen
+            entries and was pushing everything below it off a phone screen. */}
         <section className="panel bracket">
           <span className="label">Memory</span>
           <h3>{info?.remembered ?? "—"} exchanges</h3>
           <p className="muted small">
             Kept forever. Jarvis searches all of it, not just recent messages.
           </p>
-
-          <span className="label" style={{ marginTop: "var(--s3)", display: "block" }}>
-            Things it remembers about you
-          </span>
-          {info?.facts?.length ? (
-            <ul className="facts">
-              {info.facts.map((fact) => (
-                <li key={fact}>
-                  <span>{fact}</span>
-                  <button
-                    className="linkish label"
-                    disabled={busy}
-                    onClick={() => forget(fact.slice(0, 40))}
-                    aria-label={`Forget: ${fact}`}
-                  >
-                    Forget
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted small">
-              Nothing yet. Say &ldquo;remember that…&rdquo; and it will keep it for good.
-            </p>
-          )}
         </section>
+
+        <Remembered
+          facts={info?.facts ?? []}
+          busy={busy}
+          onForget={(fragment) => forget(fragment)}
+        />
 
         <Notifications token={token} />
 
@@ -185,20 +171,12 @@ export function Settings({ token, onClose, onSignOut }: {
           </section>
         ) : null}
 
-        <section className="panel bracket">
-          <span className="label">Devices</span>
-          <ul className="facts">
-            {info?.devices?.filter((d) => !d.revoked).map((d) => (
-              <li key={d.id}>
-                <span>
-                  {d.name}
-                  {d.id === info.device.id && <span className="muted small"> · this one</span>}
-                </span>
-                <span className="muted small">{when(d.last_seen)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Devices
+          token={token}
+          devices={info?.devices ?? []}
+          thisOne={info?.device?.id ?? ""}
+          onChange={load}
+        />
 
         <Backup token={token} />
 

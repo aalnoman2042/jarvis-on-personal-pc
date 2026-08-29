@@ -780,6 +780,20 @@ shrinks along with the viewport and the difference between them is always zero.
 every message until it pushes whatever is below it off the bottom of the screen.
 `1fr auto` in `.chat-sheet` is what pins the composer.
 
+**A count and a list do not share a panel.** Settings had the exchange count
+and the remembered-facts list in one box, so the box grew with the list and
+pushed notifications, the voice picker, the PC and the sign-out button off the
+bottom of a phone. `hud/Remembered.tsx` is its own section, folded to three with
+the total on the outside — the number is what you want at a glance, the
+sentences only when you have come to change one.
+
+**Every signed-in device can be revoked from the screen** (`hud/Devices.tsx`).
+The endpoint existed from phase 02 and nothing called it, so each re-added PWA
+left a live long-lived token that could only be killed in the database. It asks
+twice in place rather than opening a dialog, and it will not revoke the device
+you are holding — that is what Sign out is for. `revoked` is SQLite's integer,
+not a boolean; typing it as one in TypeScript compiles and is wrong.
+
 **Watch the mount order in `app.py`.** `StaticFiles` is mounted at `/` and must
 stay last; anywhere earlier it swallows `/chat` and `/health`. `test_hud.py`
 checks exactly that.

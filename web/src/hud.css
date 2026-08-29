@@ -682,6 +682,19 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- devices ----------
+   "Sure?" is coloured like the danger it is, and only for the moment it is
+   asking. A button that looks alarming all the time stops being read. */
+.device-right {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-shrink: 0;
+}
+.device-sure {
+  color: var(--warn);
+}
+
 /* ---------- papers and notes ---------- */
 .papers-list {
   list-style: none;

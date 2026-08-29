@@ -220,6 +220,15 @@ try:
                      json={"message": "hi"}).status_code, 401)
     check("the other device is unaffected",
           httpx.get(f"{BASE}/devices", headers=auth_phone).status_code, 200)
+    # The settings screen filters on this field, so it has to survive the round
+    # trip. It is SQLite's integer, not a boolean — writing the TypeScript as
+    # `revoked?: boolean` compiled cleanly and was wrong.
+    after = httpx.get(f"{BASE}/me", headers=auth_phone).json()["devices"]
+    gone = [d for d in after if d["id"] == victim]
+    check("a revoked device is still listed, marked revoked", len(gone), 1)
+    check("  and the mark is what the screen filters on", bool(gone[0]["revoked"]), True)
+    check("  so the live list no longer holds it",
+          victim in [d["id"] for d in after if not d["revoked"]], False)
 
 
     print("\n=== 9. cross-origin, which the Android app depends on ===")

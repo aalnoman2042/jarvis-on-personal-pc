@@ -148,6 +148,16 @@ export function briefSeen(token: string) {
   return post("/brief/seen", {}, token);
 }
 
+/** Make a device's token useless. It can sign in again with the PIN. */
+export async function revokeDevice(token: string, id: string) {
+  const res = await fetch(`${apiBase()}/devices/${id}/revoke`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Couldn't revoke that device");
+  return res.json();
+}
+
 /** The shelf: what has been filed, and how much of it is searchable yet. */
 export async function documents(token: string): Promise<{
   documents: {
