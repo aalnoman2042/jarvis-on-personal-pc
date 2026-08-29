@@ -49,6 +49,22 @@ def check(label, got, want=None, contains=None):
 
 
 
+def _ws_accepted(url):
+    """True if the socket opened and stayed open.
+
+    Not the inverse of _ws_rejected: that one waits for a frame, and the agent
+    socket says nothing until it is spoken to, so a perfectly healthy PC link
+    times out and reads as refused. Sending is the honest test of an open
+    socket here.
+    """
+    try:
+        with ws_connect(url) as sock:
+            sock.send(json.dumps({"type": "telemetry", "cpu": 1, "memory": 1}))
+        return True
+    except Exception:
+        return False
+
+
 def _ws_rejected(url):
     """True if the server refused the socket rather than serving it."""
     try:
@@ -183,6 +199,15 @@ try:
         print(f"         -> {reply['reply'][:70]!r}")
 
     check("an unauthorised socket is closed", _ws_rejected(f"{WS}/ws/client?token=nonsense"), True)
+
+    # A valid token is not a licence to be any device you like. Without a kind
+    # check, the phone's own token opens the PC's socket, registers as Rohan's
+    # desktop, and is handed open_app, power_control and everything else on the
+    # agent allow-list — while the real PC is marked offline.
+    check("a phone token cannot pose as the PC",
+          _ws_rejected(f"{WS}/ws/agent?token={phone}"), True)
+    check("  and the PC's own token still can",
+          _ws_accepted(f"{WS}/ws/agent?token={agent_token}"), True)
 
     stop.set()
 

@@ -13,6 +13,7 @@ Uses a throwaway database and the offline brain: no API quota, no touching
 Rohan's real memory.
 """
 import datetime as dt
+import importlib
 import os
 import sys
 import tempfile
@@ -641,6 +642,26 @@ try:
     check("the stored form survives the round trip",
           [round(float(x), 2) for x in vectors._unpack(vectors._pack(sample))],
           [round(v, 2) for v in sample])
+
+    # Facts are embedded too, and until this was fixed they were stored, paid
+    # for, and then dropped on the way out because retrieval only looked at
+    # messages. What makes it matter is that facts_block() is capped by rendered
+    # length: once enough is remembered the older half stops being sent at all.
+    facts_mod = importlib.import_module("core.memory.facts")
+    facts_mod.add("Rohan's supervisor is Dr Haque, who prefers email")
+    vectors.backfill(10)
+    back = recall_mod.remembered_facts("who do I report to", already="")
+    check("a remembered fact is reachable by meaning", len(back), 1)
+    check("  and it is the right one", back[0], contains="Haque")
+    check("  and it is not repeated if already in the prompt",
+          recall_mod.remembered_facts(
+              "who do I report to",
+              already="you know that Rohan's supervisor is Dr Haque, "
+                      "who prefers email"),
+          [])
+    check("  and a command recalls nothing",
+          recall_mod.remembered_facts("open chrome", already=""), [])
+    facts_mod.forget("Haque")
 
     # And with no embedding at all, recall must behave exactly as it used to.
     vectors.available = lambda: False

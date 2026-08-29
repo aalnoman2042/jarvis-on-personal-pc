@@ -104,9 +104,18 @@ def system_prompt(about: str = "") -> str:
     # Today's date matters more than it looks. Without it a model dates
     # everything from its training cut-off, so "next Thursday" lands in the
     # wrong year and nobody finds out until the reminder does not arrive.
+    known = facts_block()
+    # Facts are capped by rendered length here, because this whole block is
+    # re-sent with every question — so once enough has been remembered, the
+    # older half stops being shown at all. Those are exactly the ones to pull
+    # back when they turn out to be relevant, which is what this line does.
+    # Without it they were embedded, stored and paid for and never returned.
+    extra = _recall_mod.remembered_facts(about, already=known) if about else []
     return (config.system_prompt()
             + f"\n\nRight now it is {clock.today_line()}."
-            + facts_block()
+            + known
+            + (" Also remembered, and possibly relevant here: "
+               + "; ".join(extra) + "." if extra else "")
             + agenda_block()
             + contacts_block()
             + tasks_block()

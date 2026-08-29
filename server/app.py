@@ -169,17 +169,30 @@ async def caller(authorization: str | None = Header(default=None)) -> dict:
     return device
 
 
-async def socket_caller(websocket: WebSocket) -> dict | None:
+async def socket_caller(websocket: WebSocket, kind: str = "") -> dict | None:
     """Same, for websockets, where headers are awkward and query strings are not.
 
     Closes the socket and returns None on failure — websockets have no 401.
+
+    `kind` is what stops one device class impersonating another. Without it any
+    valid token — a phone's, a browser tab's — could dial `/ws/agent` and
+    register as Rohan's PC, at which point the cloud would hand it `open_app`,
+    `power_control` and everything else on the desktop's allow-list, and the
+    real PC would be marked offline. Signing in already records what a device
+    said it was; this is where that has to be enforced.
     """
     token = websocket.query_params.get("token", "")
     try:
-        return auth.identify(token)
+        device = auth.identify(token)
     except auth.AuthError:
         await websocket.close(code=4401, reason="unauthorised")
         return None
+    if kind and (device.get("kind") or "client") != kind:
+        await websocket.close(code=4403, reason="wrong device kind")
+        log.warning("device %s (%s) tried to open a %s socket",
+                    device.get("name"), device.get("kind"), kind)
+        return None
+    return device
 
 
 # ---------------------------------------------------------------------------
@@ -780,9 +793,11 @@ async def ws_agent(websocket: WebSocket):
     Frames out: {"type": "call", "id": ..., "tool": ..., "args": {...}}
     Frames in:  {"type": "result", "id": ..., "result": "...", "ok": true}
                 {"type": "telemetry", "cpu": .., "memory": .., "battery": ..}
+
+    Only a device that signed in as an agent may open this. See socket_caller.
     """
     await websocket.accept()
-    device = await socket_caller(websocket)
+    device = await socket_caller(websocket, kind="agent")
     if device is None:
         return
 

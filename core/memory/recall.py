@@ -196,7 +196,7 @@ def _interleave(by_word: list[dict], by_meaning: list[dict]) -> list[dict]:
     return out
 
 
-def _by_meaning(text: str, limit: int) -> list[dict]:
+def _by_meaning(text: str, limit: int, kinds: tuple = ("message",)) -> list[dict]:
     """Exchanges close in meaning, whatever words they used.
 
     Imported here rather than at module level: `vectors` reaches back into this
@@ -209,7 +209,8 @@ def _by_meaning(text: str, limit: int) -> list[dict]:
         from core.memory import vectors
     except Exception:  # noqa: BLE001
         return []
-    rows = vectors.search(text, limit=limit)
+    rows = [r for r in vectors.search(text, limit=limit * 2)
+            if r["kind"] in kinds][:limit]
     if not rows:
         return []
     conn = store.connect()
@@ -217,18 +218,49 @@ def _by_meaning(text: str, limit: int) -> list[dict]:
         return []
     out: list[dict] = []
     for row in rows:
-        if row["kind"] != "message":
-            continue
         try:
-            got = conn.execute(
-                "SELECT ts, user, assistant FROM messages WHERE id = ?",
-                (row["id"],)).fetchone()
+            if row["kind"] == "message":
+                got = conn.execute(
+                    "SELECT ts, user, assistant FROM messages WHERE id = ?",
+                    (row["id"],)).fetchone()
+            elif row["kind"] == "fact":
+                got = conn.execute(
+                    "SELECT ts, fact FROM facts WHERE id = ?",
+                    (row["id"],)).fetchone()
+            else:
+                continue
         except Exception:  # noqa: BLE001
             continue
         if got:
             hit = dict(got)
             hit["similarity"] = row["similarity"]
             out.append(hit)
+    return out
+
+
+def remembered_facts(text: str, already: str = "", limit: int = 2) -> list[str]:
+    """Facts close in meaning to the question that are NOT already in the prompt.
+
+    `facts.block()` is capped by rendered length because it is re-sent with every
+    single question, so once enough has been remembered the older half stops
+    being shown at all. Those are exactly the ones worth pulling back when they
+    become relevant — and until this existed they were embedded, stored and paid
+    for, then dropped on the way out because the retrieval only looked at
+    messages.
+
+    `already` is the block that has been built, so nothing is said twice.
+    """
+    if looks_like_a_command(text):
+        return []
+    seen = _fold(already)
+    out: list[str] = []
+    for hit in _by_meaning(text, limit + 3, kinds=("fact",)):
+        fact = (hit.get("fact") or "").strip()
+        if not fact or _fold(fact.rstrip(".")) in seen:
+            continue
+        out.append(fact.rstrip("."))
+        if len(out) >= limit:
+            break
     return out
 
 
