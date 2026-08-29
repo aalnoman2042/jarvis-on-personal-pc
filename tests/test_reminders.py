@@ -962,10 +962,16 @@ try:
     check("a task that keeps slipping says so",
           task_store.describe(task_store.open_tasks()[0]), contains="moved")
 
-    said = llm_tools.DISPATCH["move_task"]("methodology", "next monday")
-    check("the tool reads the new date back", said, contains="monday")
-    check("  so a misheard one is caught now, not when it fails to arrive",
-          said, contains="methodology")
+    # A fixed weekday makes this test depend on which day it is run: "next
+    # monday" on a Sunday is tomorrow, and clock.say rightly prefers "tomorrow"
+    # to the weekday name. Assert the behaviour instead of the wording.
+    before_move = task_store.open_tasks()[0]["due"]
+    said = llm_tools.DISPATCH["move_task"]("methodology", "in 10 days")
+    check("the tool reads the new date back", said, contains="due")
+    check("  naming the task, so a misheard one is caught now", said,
+          contains="methodology")
+    check("  and the deadline really moved",
+          task_store.open_tasks()[0]["due"] != before_move, True)
     check("an unpinnable phrase is refused rather than guessed",
           llm_tools.DISPATCH["move_task"]("methodology", "sometime"),
           contains="isn't one")
@@ -1007,6 +1013,66 @@ try:
 
     conn.execute("DELETE FROM tasks")
     conn.commit()
+
+
+    print("\n=== 15. every action is a labelled example ===")
+    from core import lazy as lazy_mod  # noqa: E402
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM action_log")
+    conn.commit()
+
+    # The action log only knew WHAT happened, never what was asked — so a row
+    # said "get_time was called at 14:02" and the input that caused it had to be
+    # guessed from a nearby timestamp. A guessed label is worse than a missing
+    # one, because it teaches something wrong.
+    memory._asking = "what time is it"
+    llm_tools.DISPATCH["get_time"]()
+    rows = memory.recent_actions(5)
+    check("an action records the request that caused it",
+          rows and rows[0]["said"], "what time is it")
+
+    # And exactly once. llm_tools wraps DISPATCH; core.lazy now wraps the module
+    # underneath it for the three brains that never come through DISPATCH — so
+    # without a guard every desktop tool would appear in the log twice.
+    check("  and only once, not once per layer", len(rows), 1)
+
+    memory._asking = "what is the date"
+    llm_tools.DISPATCH["get_date"]()
+    pairs = store_mod.labelled_actions()
+    check("the pairs come back out as training data", len(pairs), 2)
+    check("  newest first", pairs[0]["tool"], "get_date")
+    check("  each with its own request", pairs[1]["said"], "what time is it")
+
+    # Rows from before this existed have no label. Left out rather than
+    # guessed: a mislabelled example is worse than a missing one.
+    conn.execute(
+        "INSERT INTO action_log(ts, tool, args, result, ok, device, said) "
+        "VALUES (?,?,?,?,?,?,'')", (clock.now(), "old_thing", "", "", 1, ""))
+    conn.commit()
+    check("an unlabelled row is not invented a label for",
+          [p["tool"] for p in store_mod.labelled_actions()], contains="get_time")
+    check("  and is left out of the training set",
+          "old_thing" in [p["tool"] for p in store_mod.labelled_actions()], False)
+
+    # Screen work must never be logged: the viewer pulls frames continuously,
+    # and a row per frame would bury every real action and hammer Turso.
+    check("frames are never logged",
+          "screen_frame" in lazy_mod.NOT_WORTH_LOGGING, True)
+    check("  nor clicks", "screen_input" in lazy_mod.NOT_WORTH_LOGGING, True)
+    check("  but opening an app is",
+          "open_app" in lazy_mod.NOT_WORTH_LOGGING, False)
+
+    r = httpx.get(f"{BASE}/training", headers=hdr, timeout=30)
+    check("/training hands the data over", r.status_code, 200)
+    body = r.json()
+    check("  with the pairs", body["counts"]["labelled_actions"] >= 2, True)
+    check("  and an honest answer to 'is there enough yet'",
+          set(body["enough_for"]), {"intent_classifier", "fine_tune"})
+
+    conn.execute("DELETE FROM action_log")
+    conn.commit()
+    memory._asking = ""
 
 
 finally:

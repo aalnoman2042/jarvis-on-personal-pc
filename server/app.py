@@ -862,6 +862,45 @@ async def read_passage(doc_id: int, chunk_id: int, device: dict = Depends(caller
     return got
 
 
+@app.get("/training")
+async def training_data(device: dict = Depends(caller)):
+    """Everything worth training something small on, as plain JSON.
+
+    Three kinds, and they are different kinds of evidence:
+
+      * `actions`  — (what he said -> what should happen). The ordinary
+        supervised pairs, and the reason the action log now records the request
+        beside the action.
+      * `corrections` — labelled FAILURES. Rarer and worth more: an input, the
+        wrong output, and the right one. Most datasets have none of these.
+      * `counts` — how much there is, because the honest answer to "can I
+        fine-tune yet" is a number, and it is usually "not yet".
+
+    Deliberately not a model, not a training run and not a schedule. This hands
+    the data over; what happens to it is a notebook's business, and keeping that
+    out of a 512MB instance is the whole reason it is an export.
+    """
+    from core.memory import corrections as corrections_mod
+    pairs = await run_in_threadpool(store.labelled_actions)
+    lessons = await run_in_threadpool(corrections_mod.all_corrections, 500)
+    return {
+        "actions": pairs,
+        "corrections": lessons,
+        "counts": {
+            "labelled_actions": len(pairs),
+            "corrections": len(lessons),
+            "exchanges": await run_in_threadpool(store.count),
+        },
+        # Said plainly, because "is there enough yet" is the only question this
+        # endpoint is ever opened to answer, and a number without a threshold
+        # beside it invites the wrong conclusion in both directions.
+        "enough_for": {
+            "intent_classifier": len(pairs) >= 300,
+            "fine_tune": await run_in_threadpool(store.count) >= 2000,
+        },
+    }
+
+
 @app.get("/export")
 async def export_everything(device: dict = Depends(caller)):
     """Everything Jarvis knows, as one file you keep.

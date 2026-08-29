@@ -186,6 +186,18 @@ CORRECTION_WINDOW = 120.0
 # one flag would be worse than this.
 _correcting: str = ""
 
+# What is being answered right now, so a tool call can be stamped with the
+# request that caused it. Same reasoning: threading it down through five brains
+# and forty tool wrappers to reach `log_action` would touch every one of them,
+# and one shared thing here touches none. The server answers one turn at a time
+# behind a lock, which is what makes a single value correct rather than racy.
+_asking: str = ""
+
+
+def now_asking() -> str:
+    """The sentence currently being answered, for stamping on an action."""
+    return _asking
+
 
 def _note_any_correction(text: str) -> None:
     """Record that Rohan is putting something right, if he plainly is.
@@ -256,6 +268,8 @@ class RememberingBrain:
         # correction should shape. It is also the last moment the previous
         # exchange is still the most recent one in storage.
         _note_any_correction(text)
+        global _asking
+        _asking = text
 
         # Order matters: the brain reads history at the start of its own handle(),
         # and we only write once it has answered. Recording before the call would

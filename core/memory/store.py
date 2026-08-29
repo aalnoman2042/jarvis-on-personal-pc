@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS action_log (
     args   TEXT NOT NULL DEFAULT '',
     result TEXT NOT NULL DEFAULT '',
     ok     INTEGER NOT NULL DEFAULT 1,
-    device TEXT NOT NULL DEFAULT ''
+    device TEXT NOT NULL DEFAULT '',
+    said   TEXT NOT NULL DEFAULT ''   -- the request this action came from
 );
 CREATE INDEX IF NOT EXISTS action_log_ts ON action_log(ts);
 
@@ -238,6 +239,7 @@ END;
 # raises its own error type rather than sqlite3's.
 _LATER_COLUMNS = (
     ("tasks", "moved INTEGER NOT NULL DEFAULT 0"),
+    ("action_log", "said TEXT NOT NULL DEFAULT ''"),
     ("reminders", "remind_at REAL NOT NULL DEFAULT 0"),
     ("reminders", "all_day INTEGER NOT NULL DEFAULT 0"),
     ("reminders", "kind TEXT NOT NULL DEFAULT 'reminder'"),
@@ -433,20 +435,53 @@ def clear() -> None:
 # ---------------------------------------------------------------------------
 
 def log_action(tool: str, args: str = "", result: str = "",
-               ok: bool = True, device: str = "") -> None:
-    """Record one tool call. Never raises."""
+               ok: bool = True, device: str = "", said: str = "") -> None:
+    """Record one tool call. Never raises.
+
+    `said` is the sentence that led to it, and it is what turns this table from
+    an audit trail into training data: without it a row says "open_app was
+    called at 14:02" and the input that caused it has to be guessed from a
+    nearby timestamp. With it, every row is a labelled example of what Rohan
+    asked and what the right action turned out to be.
+    """
     conn = connect()
     if conn is None or not tool:
         return
     try:
         conn.execute(
-            "INSERT INTO action_log(ts, tool, args, result, ok, device) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO action_log(ts, tool, args, result, ok, device, said) "
+            "VALUES (?,?,?,?,?,?,?)",
             (round(time.time(), 1), tool, (args or "")[:MAX_TEXT],
-             (result or "")[:MAX_TEXT], 1 if ok else 0, device or ""),
+             (result or "")[:MAX_TEXT], 1 if ok else 0, device or "",
+             (said or "")[:MAX_TEXT]),
         )
         conn.commit()
     except Exception:  # noqa: BLE001
         pass
+
+
+def labelled_actions(limit: int = 5000) -> list[dict]:
+    """(what he said -> what should happen), for training something small.
+
+    The action log became this the moment it started recording the request
+    beside the action. Rows with no `said` are from before that and are left
+    out rather than guessed at from a nearby timestamp: a mislabelled example
+    is worse than a missing one, because the first teaches something wrong.
+
+    Failures are kept and marked. A tool that was chosen and then failed is
+    still the right label for the intent — and the ones that failed are the
+    most interesting examples in the set.
+    """
+    conn = connect()
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT ts, said, tool, args, ok FROM action_log "
+            "WHERE said != '' ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    return [dict(r) for r in rows]
 
 
 def recent_actions(limit: int = 20) -> list[dict]:
@@ -456,7 +491,7 @@ def recent_actions(limit: int = 20) -> list[dict]:
         return []
     try:
         rows = conn.execute(
-            "SELECT ts, tool, args, result, ok, device FROM action_log "
+            "SELECT ts, tool, args, result, ok, device, said FROM action_log "
             "ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
     except Exception:  # noqa: BLE001

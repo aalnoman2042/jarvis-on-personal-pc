@@ -571,12 +571,18 @@ def _logged(fn):
                            + [f"{k}={v}" for k, v in kwargs.items()])
         try:
             # Whether this runs here or on Rohan's PC is decided a layer down,
-            # in core.lazy — so this wrapper is only ever about logging.
-            result = fn(*args, **kwargs)
+            # in core.lazy — so this wrapper is only ever about logging. The
+            # guard tells that layer to stay quiet: it now logs too, for the
+            # brains that never come through here, and without this every tool
+            # that touches the desktop would appear in the log twice.
+            from core import lazy as _lazy
+            with _lazy.already_logged():
+                result = fn(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001  (log, then let the brain deal with it)
-            memory.log_action(name, detail, f"{type(exc).__name__}: {exc}", ok=False)
+            memory.log_action(name, detail, f"{type(exc).__name__}: {exc}",
+                              ok=False, said=memory.now_asking())
             raise
-        memory.log_action(name, detail, str(result))
+        memory.log_action(name, detail, str(result), said=memory.now_asking())
         return result
 
     return call

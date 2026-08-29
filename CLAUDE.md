@@ -189,14 +189,28 @@ everything. It prepends the prompt to each message instead, because the SDK will
 not let a live chat's system instruction change and rebuilding the chat would
 throw away its history.
 
-**Known gap:** the action log is written by wrapping `DISPATCH` in
-`core/tools/llm_tools.py`. That covers Groq and Ollama and **not** the other
-three, which is wider than this note used to claim: Gemini calls
-`TOOL_FUNCTIONS` directly (its schema generator introspects each callable, so
-wrapping those risks emitting `(*args, **kwargs)` schemas), Claude declares its
-own `@beta_tool` functions and bypasses `DISPATCH` entirely, and `FreeBrain`
-calls `actions.*` in most branches. So three brains of five leave no trace of
-what they did. Close it in each brain's own call path, not by wrapping harder.
+**The action log covers every brain, and records what was ASKED.** It used to
+wrap `DISPATCH` only, which covers Groq and Ollama — Gemini calls the plain
+callables, Claude declares its own tools, and `FreeBrain` calls `actions.*`
+directly, so three brains of five left no trace. `core/lazy.py` now wraps the
+module underneath all of them, which is the same reason PC routing lives there:
+one hook nothing can go round.
+
+Two things that had to be got right. **A re-entrancy guard**, because
+`llm_tools._logged` still wraps `DISPATCH` — without it every desktop tool
+appears twice, once per layer. And **`NOT_WORTH_LOGGING`**: the remote viewer
+pulls frames continuously, so logging `screen_frame` would write several rows a
+second to a database on the far side of an HTTPS connection and bury every real
+action under thousands of identical lines.
+
+**Each row carries the sentence that caused it**, and that is what turns an
+audit trail into training data: `(what he said → what should happen)` as a
+labelled pair, rather than two things to correlate by timestamp. Rows from
+before this are left out of `labelled_actions()` rather than guessed at — a
+mislabelled example is worse than a missing one, because the first teaches
+something wrong. `/training` hands the pairs, the corrections (labelled
+*failures*, the rarest and most valuable kind) and an honest count over to
+whatever notebook wants them; no model is trained inside a 512MB instance.
 
 ## The cloud core (phase 02)
 
