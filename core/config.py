@@ -90,6 +90,43 @@ MEMORY_TURNS = int(os.getenv("MEMORY_TURNS", "6"))
 # These ride along with EVERY question, so the cap is on rendered size, not just
 # count — an unbounded list would quietly eat the daily free cloud allowance.
 MEMORY_MAX_FACTS = int(os.getenv("MEMORY_MAX_FACTS", "12"))
+
+# --- extra brains, for when the two free tiers are spent -------------------
+#
+# The point is availability. When Groq's allowance is gone and Gemini's is gone,
+# what answers today is a rule-based brain that cannot think — so the fix is
+# more brains BEFORE that one, and almost every provider worth having speaks
+# the same protocol Groq does.
+#
+#   VONDO_BRAIN_1=cerebras|https://api.cerebras.ai/v1|KEY|llama3.1-8b
+#   VONDO_BRAIN_2=openrouter|https://openrouter.ai/api/v1|KEY|some/model:free
+#
+# Parsed forgivingly for the same reason VONDO_MAIL_N is: these get typed into
+# a hosting dashboard by hand, and a comma instead of a pipe or a stray quote
+# should not read as "no brain configured".
+EXTRA_BRAIN_SLOTS = 9
+
+
+def extra_brains() -> list[tuple[str, str, str, str]]:
+    """(name, base_url, key, model) for each VONDO_BRAIN_n that parses."""
+    out = []
+    for slot in range(1, EXTRA_BRAIN_SLOTS + 1):
+        raw = (os.getenv(f"VONDO_BRAIN_{slot}") or "").strip().strip('"\'')
+        if not raw:
+            continue
+        parts = [p.strip() for p in raw.replace(",", "|").split("|") if p.strip()]
+        if len(parts) < 4:
+            print(f"[VONDO_BRAIN_{slot} is malformed; expected "
+                  f"name|url|key|model, got {len(parts)} field(s)]")
+            continue
+        name, url, key, model = parts[0], parts[1], parts[2], "|".join(parts[3:])
+        if not url.startswith("http"):
+            print(f"[VONDO_BRAIN_{slot}: {url!r} is not a URL]")
+            continue
+        out.append((name.lower(), url.rstrip("/"), key, model))
+    return out
+
+
 MEMORY_FACTS_CHARS = int(os.getenv("MEMORY_FACTS_CHARS", "400"))
 
 # Paid — Anthropic Claude. Key: https://console.anthropic.com

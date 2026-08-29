@@ -170,6 +170,36 @@ class FreeBrain:
         if "previous track" in t or "previous song" in t:
             return actions.media_control("previous")
 
+        # --- The to-do list ---
+        #
+        # Missing entirely until now, which meant "what's on my list", "add X"
+        # and "I finished the draft" all fell through to a WEB SEARCH. The
+        # whole task subsystem — the thing Rohan actually asked for — was
+        # unreachable by voice at exactly the moment every other brain had
+        # failed, which is the one moment this brain exists for.
+        # Adding comes BEFORE listing, because "add buying milk to my list"
+        # contains "my list" and would otherwise be answered by reading the
+        # list back — which looks like the request being ignored.
+        #
+        # "add X to my list" / "put X on my list" / "add task X". Deliberately
+        # requires the word "list" or "task": a bare "add" is more often part
+        # of a sum, and remind-me-with-a-time is handled above as a reminder.
+        m = re.search(r"(?:add|put)\s+(.+?)\s+(?:to|on)\s+(?:my\s+)?(?:list|todo|to do)", t)
+        if not m:
+            m = re.search(r"add (?:a )?task\s+(.+)", t)
+        if m:
+            return llm_tools.add_task(m.group(1).strip())
+
+        m = re.search(r"(?:i(?:'ve| have)? )?(?:finished|completed|done with)\s+(.+)", t)
+        if m:
+            return llm_tools.finish_task(m.group(1).strip())
+
+        if any(p in t for p in ("what should i do", "what do i do now",
+                                "on my list", "my list", "my tasks",
+                                "to do list", "todo list", "what's left",
+                                "whats left")):
+            return llm_tools.my_tasks()
+
         # --- Wikipedia ---
         m = re.search(r"(?:wikipedia|wiki)(?: for| about)?\s+(.+)", t)
         if m:

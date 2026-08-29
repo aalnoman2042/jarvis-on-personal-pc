@@ -45,5 +45,10 @@ pywebpush>=2.0.0
 
 # --- brains (free tiers first) ---
 groq>=0.11.0               # primary
+# One SDK, any number of providers. Cerebras, OpenRouter, Together, Mistral,
+# Nebius and most others speak the OpenAI protocol, so a second and third free
+# tier is a line of configuration rather than a new brain — which is the whole
+# answer to "what answers when the free tiers are spent".
+openai>=1.40.0
 google-genai>=1.0.0        # backup
 # anthropic>=0.116.0       # paid; uncomment only when VONDO_BRAIN=claude

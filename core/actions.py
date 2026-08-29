@@ -20,9 +20,36 @@ import urllib.request
 import webbrowser
 
 import psutil
-import pyautogui
 
 from core import reminders
+
+# pyautogui is the ONE import in this file that cannot exist in the cloud, and
+# a bare `import pyautogui` here took the offline brain down with it.
+#
+# core/lazy.py defers importing this module precisely so a headless box never
+# has to — but only for the functions listed in PC_FUNCTIONS. `brain_free`
+# calls get_time, get_date, web_answer, set_reminder and wikipedia_lookup,
+# which are pure Python, are NOT in that list, and therefore import this module
+# for real. On Render, where pyautogui is not installed, that raised — so the
+# brain that exists to answer when every other one has failed was the only
+# brain that could not answer at all. Every question, not just desktop ones.
+#
+# The stub keeps the call sites unchanged and turns a crash into a sentence,
+# which is this codebase's rule everywhere else: nothing raises into a
+# conversation.
+try:
+    import pyautogui
+except Exception:  # noqa: BLE001
+    class _NoDesktop:
+        """Stands in for pyautogui where there is no screen to point at."""
+
+        def __getattr__(self, name):
+            def refuse(*_args, **_kwargs):
+                raise RuntimeError(
+                    "this machine has no desktop, so I can't do that here")
+            return refuse
+
+    pyautogui = _NoDesktop()  # type: ignore[assignment]
 
 # Friendly name -> Windows launch command. Falls back to the raw name if unknown.
 APP_COMMANDS = {

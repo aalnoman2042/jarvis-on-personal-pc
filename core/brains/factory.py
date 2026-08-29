@@ -65,9 +65,19 @@ def build(choice: str | None = None):
         from core.brains.brain_ollama import OllamaBrain
         return OllamaBrain()
 
+    def _extra(name: str, url: str, key: str, model: str):
+        def start():
+            from core.brains.brain_openai import OpenAIBrain
+            return OpenAIBrain(name, url, key, model)
+        return start
+
     # Groq first: fastest and free. Gemini second: free, and the only one that
-    # sees images. Claude only when explicitly chosen — it is the paid one.
-    PREFERRED = (("groq", _groq), ("gemini", _gemini))
+    # sees images. Then anything configured through VONDO_BRAIN_n — those exist
+    # so that "both free tiers are spent" stops meaning "answered by something
+    # that cannot think". Claude only when explicitly chosen: it is the paid one.
+    PREFERRED = (("groq", _groq), ("gemini", _gemini)) + tuple(
+        (name, _extra(name, url, key, model))
+        for name, url, key, model in config.extra_brains())
 
     def _chain(first: str | None) -> object:
         """Every brain that will start, tried in turn, ending offline.

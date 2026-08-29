@@ -638,6 +638,31 @@ the OS. That was worth checking before adding a dependency.
 `factory.build()` assembles **every** brain that will start, tried in turn,
 ending at the offline one. `groq -> gemini -> free` by default.
 
+**More brains before the offline one, and that is the answer to "what happens
+when my free tier runs out".** `VONDO_BRAIN_1=name|url|key|model` adds any
+OpenAI-compatible provider to the chain — Cerebras, OpenRouter, Together,
+Mistral and most others speak that protocol, so a third and fourth free tier is
+a line of configuration rather than a new file. `core/brains/brain_openai.py`
+is `GroqBrain`'s shape with the endpoint moved into config; **GroqBrain itself
+is deliberately untouched**, because it carries a tested rollback-and-retry for
+the malformed no-arg tool calls llama-3.3 emits, and generalising a working,
+exercised brain to save one file is a bad trade.
+
+**`core/actions.py` must import without a desktop, and did not.** A bare
+`import pyautogui` at module scope took the *offline* brain down with it:
+`brain_free` calls `get_time`, `get_date`, `web_answer` and `wikipedia_lookup`,
+none of which are in `PC_FUNCTIONS`, so `core.lazy` imported the module for
+real — and on Render it raised. The brain that exists to answer when every
+other one has failed was the only brain that could not answer at all, on every
+question. It is now a stub that refuses politely, which is this codebase's rule
+everywhere else: nothing raises into a conversation.
+
+**And the offline brain can reach the to-do list.** It had no task branch, so
+"what's on my list", "add X" and "I finished the draft" all fell through to a
+*web search* — the whole task subsystem unreachable by voice at exactly the
+moment it was the only thing answering. Adding is matched before listing,
+because "add X to my list" contains "my list".
+
 **A named brain goes first; it does not go alone.** `VONDO_BRAIN=groq` used to
 build `groq+free` and silently drop Gemini — so a Groq outage, or a model
 retired from under it, fell straight past a perfectly good second brain to the

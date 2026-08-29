@@ -35,7 +35,7 @@ import httpx  # noqa: E402
 import uvicorn  # noqa: E402
 from websockets.sync.client import connect as ws_connect  # noqa: E402
 
-from core import clock, reminders  # noqa: E402
+from core import clock, config, reminders  # noqa: E402
 from core.memory import agenda  # noqa: E402
 from core.tools import llm_tools  # noqa: E402
 from server import nudges  # noqa: E402
@@ -1073,6 +1073,83 @@ try:
     conn.execute("DELETE FROM action_log")
     conn.commit()
     memory._asking = ""
+
+
+    print("\n=== 16. what answers when the free tiers are spent ===")
+    import subprocess  # noqa: E402
+    from core.brains import factory as factory_mod  # noqa: E402
+
+    # THE bug this section exists for: core/actions.py imported pyautogui at
+    # module scope, and brain_free calls get_time, get_date, web_answer and
+    # wikipedia_lookup — none of which are in PC_FUNCTIONS, so core.lazy loads
+    # the module for real. On Render, where pyautogui is not installed, the
+    # brain that exists to answer when every other one has failed was the only
+    # brain that could not answer AT ALL. Every question, not just desktop ones.
+    #
+    # Checked in a subprocess with the import blocked, because this suite has
+    # already imported pyautogui successfully and cannot un-import it.
+    probe = (
+        "import sys, os, tempfile\n"
+        "class B:\n"
+        "    def find_spec(self, name, path=None, target=None):\n"
+        "        if name == 'pyautogui': raise ImportError('none here')\n"
+        "        return None\n"
+        "sys.meta_path.insert(0, B())\n"
+        "sys.path.insert(0, %r)\n"
+        "os.environ['VONDO_DB'] = os.path.join(tempfile.mkdtemp(), 't.db')\n"
+        "from core.brains.brain_free import FreeBrain\n"
+        "print(FreeBrain().handle('what time is it'))\n"
+    ) % ROOT
+    run = subprocess.run([sys.executable, "-c", probe],
+                         capture_output=True, text=True, timeout=90)
+    check("the offline brain answers on a machine with no desktop",
+          run.returncode, 0)
+    check("  and actually says the time", run.stdout.strip(), contains=":")
+
+    # And it must reach the to-do list. Without a task branch, "what's on my
+    # list" fell through to a WEB SEARCH — the whole task subsystem unreachable
+    # by voice at exactly the moment every other brain had failed.
+    from core.brains.brain_free import FreeBrain  # noqa: E402
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM tasks")
+    conn.commit()
+    offline = FreeBrain()
+    check("adding to the list works offline",
+          offline.handle("add buying milk to my list"), contains="on the list")
+    check("  and reading it back", offline.handle("what is on my list"),
+          contains="buying milk")
+    check("  and ticking it off", offline.handle("i finished buying milk"),
+          contains="done")
+    # Adding must be tried BEFORE listing: "add X to my list" contains "my
+    # list", and answering it by reading the list back looks like being ignored.
+    conn.execute("DELETE FROM tasks")
+    conn.commit()
+    offline.handle("add the methodology to my list")
+    check("  adding is not mistaken for listing",
+          [t["text"] for t in task_store.open_tasks()], contains="methodology")
+    check("  and a sum is not mistaken for a task",
+          offline.handle("add 5 and 3"), contains="web")
+
+    # More brains BEFORE the offline one is the actual answer to "what happens
+    # when my free tier runs out". Any OpenAI-compatible provider is one line.
+    saved = {k: os.environ.get(k) for k in ("VONDO_BRAIN_1", "VONDO_BRAIN_2")}
+    os.environ["VONDO_BRAIN_1"] = "cerebras|https://api.cerebras.ai/v1|k|llama3.1-8b"
+    os.environ["VONDO_BRAIN_2"] = "openrouter, https://openrouter.ai/api/v1 , k2 , a/b:free"
+    parsed = config.extra_brains()
+    check("an extra provider is one environment variable", len(parsed), 2)
+    check("  read forgivingly, commas or pipes", parsed[1][0], "openrouter")
+    os.environ["VONDO_BRAIN_1"] = "nope|not-a-url|k|m"
+    del os.environ["VONDO_BRAIN_2"]
+    check("  and a malformed one is skipped, not crashed on",
+          config.extra_brains(), [])
+    for key, was in saved.items():
+        if was is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = was
+
+    conn.execute("DELETE FROM tasks")
+    conn.commit()
 
 
 finally:
