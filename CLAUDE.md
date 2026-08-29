@@ -389,6 +389,46 @@ is not, which is why audio is recorded and sent to Whisper rather than
 recognised on-device. A mic that worked in Chrome and not in the app would be
 worse than one that behaves the same everywhere.
 
+**Waking to your voice is `web/src/lib/listen.ts`, and it reverses a rule on
+purpose.** `voice.ts` avoids `SpeechRecognition` because the Capacitor WebView
+usually lacks it, and a mic that worked in the browser and not in the app would
+be worse than one that behaved the same everywhere. That reasoning was right and
+stopped applying: the app is an installed PWA in Chrome now. Tap-to-talk is
+unchanged and is the fallback wherever the API is missing.
+
+It also *has* to be the browser's recogniser. Always-on listening through
+Whisper means uploading every utterance in the room — the free tier would be
+gone by lunchtime, and most of what it paid for was somebody else's
+conversation.
+
+- **The matcher is `wakeword.ts`, which imports nothing.** That is what lets
+  `tests/test_wakeword.mjs` compile it alone with tsc and check it in node — no
+  browser, no test framework, no new dependency. 35 checks.
+- **The failure mode is waking when it should not.** A missed wake word is
+  mildly annoying; a false one takes a sentence said to somebody else and hands
+  it to something that can open applications. English contains "service" and
+  "harvest", both plausible and both offered by a recogniser that is unsure —
+  four edits away, so a tolerance of **two** keeps them out while still catching
+  jervis, javis, jarvus, harvis, darvis. The twelve words it must refuse are
+  pinned in the test; widening the tolerance means going through that file.
+- **The command is the rest of the same breath.** "Jarvis, what's on today" is
+  one utterance. Waiting for the next one drops half of what anybody says.
+- **Nothing is kept unless you woke it.** An utterance without the wake word is
+  matched, discarded, and never leaves the browser. Only the shape of a *near
+  miss* is kept — one word, in memory — so the tolerance can be widened from
+  what a recogniser really produces for this voice rather than from a list
+  somebody imagined.
+- **`onend` must restart it.** Android ends the session after every utterance
+  whatever `continuous` says. Without the restart the wake word works exactly
+  once per page load, which is worse than not having it.
+- **It is deaf while Jarvis speaks.** Left running it transcribes the reply, and
+  a reply containing the word "Jarvis" wakes it again — a loop that is hard to
+  get out of. The consequence is that voice barge-in does not work; tapping
+  still cancels.
+- **Off by default, and stopped when the tab is hidden.** A microphone that
+  switches itself on because an app was opened is not a feature, and an
+  always-on mic is the most expensive thing this app can do.
+
 **Two native permissions gate this, and only a new APK carries them:**
 `RECORD_AUDIO` for the mic and `CAMERA` for `capture="environment"`. Screens
 update from the cloud; permissions live in the manifest. Adding either is one of

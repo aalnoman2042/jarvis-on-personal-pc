@@ -15,6 +15,7 @@ import { useInstall } from "./lib/install";
 import { useVondo } from "./lib/socket";
 import * as speech from "./lib/speak";
 import { useVoice } from "./lib/voice";
+import { useWakeWord } from "./lib/listen";
 import { clearToken, readToken, writeToken } from "./lib/store";
 import { Dashboard } from "./screens/Dashboard";
 import { Pin } from "./screens/Pin";
@@ -48,6 +49,16 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   }, []);
   const voice = useVoice(token, heard);
 
+  // True while Jarvis is talking. The wake word listener has to be deaf during
+  // that: left running it transcribes the reply, and a reply containing the
+  // word "Jarvis" wakes it again — a loop that is very hard to get out of.
+  const [speaking, setSpeaking] = useState(false);
+  const ears = useWakeWord({
+    enabled: false,          // opt in; an always-on mic is never a default
+    speaking,
+    onCommand: heard,
+  });
+
   // Read the newest reply aloud, once. Counting replies rather than watching the
   // array means a re-render for any other reason cannot make it repeat itself.
   const spokenTo = useRef(0);
@@ -59,14 +70,18 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
     }
     spokenTo.current = replies.length;
     if (talkback || spokeToIt.current) {
-      speech.speak(replies[replies.length - 1].text);
+      setSpeaking(true);
+      speech.speak(replies[replies.length - 1].text).finally(() => setSpeaking(false));
     }
     spokeToIt.current = false;
   }, [jarvis.log, talkback]);
 
   // Talking over yourself is the one thing a voice interface must never do.
   useEffect(() => {
-    if (voice.listening) speech.silence();
+    if (voice.listening) {
+      speech.silence();
+      setSpeaking(false);
+    }
   }, [voice.listening]);
 
   function toggleTalkback() {
@@ -129,6 +144,26 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
             title={talkback ? "Speaking replies" : "Muted"}
           >
             <span aria-hidden>{talkback ? "\u{1F50A}" : "\u{1F507}"}</span>
+          </button>
+        )}
+        {/* Always-on listening, and it is OFF until asked for. A microphone
+            that switches itself on because an app was opened is not a feature.
+            The state has three readings on purpose — off, listening, and awake
+            — because "is it hearing me" is the only question you ever have
+            about a thing like this, and it must be answerable at a glance. */}
+        {ears.supported && (
+          <button
+            className={`gear ear${ears.awake ? " ear-awake" : ears.listening ? " ear-on" : ""}`}
+            onClick={() => ears.setOn(!ears.on)}
+            aria-pressed={ears.on}
+            aria-label={ears.on
+              ? "Listening for the wake word. Turn off"
+              : "Not listening. Turn on wake word"}
+            title={ears.awake ? "Listening — go ahead"
+              : ears.listening ? "Say \u201cJarvis\u201d"
+              : ears.error || "Wake word off"}
+          >
+            <span aria-hidden>{ears.on ? "\u{1F3A4}" : "\u{1F3A7}"}</span>
           </button>
         )}
         {/* Which brain answered, what is stored, which devices are signed in —

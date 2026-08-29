@@ -682,6 +682,28 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   cursor: pointer;
 }
 
+/* ---------- listening ----------
+   Three readings, because "is it hearing me" is the only question anyone has
+   about an always-on microphone. Off is the resting grey of every other icon;
+   listening glows quietly; awake pulses, and only for the ten seconds it is
+   actually waiting for you. A steady bright state would stop being read after
+   a day. */
+.ear.ear-on {
+  color: var(--accent);
+}
+.ear.ear-awake {
+  color: var(--accent);
+  animation: ear-awake 1.1s ease-in-out infinite;
+}
+@keyframes ear-awake {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A pulsing icon is exactly the kind of thing this setting exists for. */
+  .ear.ear-awake { animation: none; opacity: 1; }
+}
+
 /* ---------- the week, looked back on ----------
    Sits under the briefing and behaves the same way, but arrives once a week.
    A quieter edge than the briefing's on purpose: today is what you act on,
