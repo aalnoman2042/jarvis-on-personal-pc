@@ -278,17 +278,22 @@ python tests/test_agent.py    # 17 checks, real agent, real server, temp everyth
 something the agent forgot about". It is an allow-list on purpose: a block-list
 would have to anticipate every dangerous thing, this has to anticipate nothing.
 
-**Remote control is the one capability the allow-list cannot protect, so it
-has its own gate.** `screen_frame` / `screen_size` / `screen_input` in
+**Remote control does NOT ask, and that is a decision rather than an
+oversight.** `screen_frame` / `screen_size` / `screen_input` in
 `core/actions.py` give the phone the PC's screen and its mouse and keyboard.
-Rohan asked for that knowing the trade: a cursor is every action at once, so an
-allow-list of named functions means nothing when one of them is "click here",
-and a per-action dialog would ask fifty times a minute. So `guard.py` asks
-**once per run of the agent, for the whole capability** — and remembers a *no*
-as firmly as a yes, because a gate that re-asks is one that gets clicked
-through. Restarting the agent is what re-opens the question. Watching is not
-driving: `screen_frame` is read-only and no more revealing than
-`take_screenshot`, which has never asked, so only input is gated.
+A cursor is every action at once, so an allow-list of named functions means
+nothing when one of them is "click here" — which was the argument for a dialog.
+Rohan's answer, with that spelled out: installing the agent on his own machine
+and pairing it to his own phone with his own PIN *is* the permission, and a box
+that appears every time the agent restarts is one that gets clicked without
+reading. `VONDO_ASK_BEFORE_REMOTE=1` puts it back; the machinery is kept behind
+a switch rather than deleted so that stays one variable.
+
+**What was NOT relaxed:** shutdown, restart and force-closing a named app still
+need a hand on the machine. Those are irreversible and a cursor is not — the
+axis has always been reversibility, not read-versus-write, and letting the phone
+drive the mouse does not change what a shutdown costs if it was a misheard
+sentence.
 
 **Frames are pulled, never pushed.** The viewer asks for the next one when it
 has drawn the last. That is what makes closing the sheet sufficient to stop

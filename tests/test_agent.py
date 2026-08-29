@@ -28,6 +28,9 @@ os.environ["VONDO_PIN"] = "2042"
 os.environ["VONDO_BRAIN"] = "free"
 os.environ["VONDO_URL"] = f"http://127.0.0.1:{PORT}"
 os.environ["VONDO_AGENT_NAME"] = "test-pc"
+# Its own single-instance lock. Without this the agent running on this machine
+# for real holds the machine-wide one, and the test's agent never starts.
+os.environ["VONDO_AGENT_LOCK"] = "Local\\VONDO_AGENT_TEST_LOCK"
 
 import asyncio  # noqa: E402
 import json  # noqa: E402
@@ -163,50 +166,46 @@ try:
     check("and answers instead of hanging", r.json()["reply"], contains="offline")
     print(f"         -> {r.json()['reply'][:80]!r}")
 
-    print("\n=== 7. remote control: refused until the desk says yes ===")
+    print("\n=== 7. remote control: allowed, but shutdown still is not ===")
     from agent import guard  # noqa: E402
 
-    # A mouse and a keyboard are every action at once, so the allow-list cannot
-    # protect this one — the dialog on the PC is the whole gate. These checks
-    # are what stop it being quietly removed.
+    # Rohan's decision, taken with the trade spelled out: installing the agent
+    # on his own PC and pairing it to his own phone with his own PIN IS the
+    # permission, and a box that appears every time the agent restarts is one
+    # that gets clicked without reading. The machinery is kept behind a switch
+    # rather than deleted, so putting it back is one variable.
     guard._remote_allowed = None
     asked = []
     real_ask = guard._ask_on_screen
-    guard._ask_on_screen = lambda question: (asked.append(question), False)[1]
+    guard._ask_on_screen = lambda question: (asked.append(question), True)[1]
     try:
-        try:
-            guard.check("screen_input", ["click"], {})
-            refused = False
-        except guard.Refused:
-            refused = True
-        check("a click is refused when the desk says no", refused, True)
-        check("  and the question named remote control",
-              asked and "CONTROL THIS PC" in asked[0], True)
-
-        # A refusal has to stick. A gate that asks again every few seconds is a
-        # gate that gets clicked through eventually.
-        before = len(asked)
-        try:
-            guard.check("screen_input", ["click"], {})
-        except guard.Refused:
-            pass
-        check("  and it is not asked twice", len(asked), before)
-
-        # Watching is not driving, and take_screenshot has never asked.
-        guard.check("screen_frame", [900, 45], {})
-        check("seeing the screen needs no permission", len(asked), before)
-
-        # Now allow it, and it stays allowed for the run.
-        guard._remote_allowed = None
-        asked.clear()
-        guard._ask_on_screen = lambda question: (asked.append(question), True)[1]
+        check("controlling the PC does not ask", guard.ASK_BEFORE_REMOTE, False)
         guard.check("screen_input", ["click"], {})
         guard.check("screen_input", ["type"], {})
-        guard.check("screen_input", ["key"], {})
-        check("once allowed, it asks once for the whole session", len(asked), 1)
+        guard.check("screen_frame", [900, 45], {})
+        check("  so no dialog appears for a click, a keystroke or a frame",
+              len(asked), 0)
+
+        # But the switch has to still work, or "reversible" is a claim rather
+        # than a fact.
+        guard.ASK_BEFORE_REMOTE = True
+        guard._remote_allowed = None
+        guard.check("screen_input", ["click"], {})
+        check("  and turning it back on asks again", len(asked), 1)
+        guard.check("screen_input", ["click"], {})
+        check("  once for the whole session, as before", len(asked), 1)
     finally:
         guard._ask_on_screen = real_ask
+        guard.ASK_BEFORE_REMOTE = False
         guard._remote_allowed = None
+
+    # What was NOT relaxed: the irreversible things still need a hand on this
+    # machine. Remote control being ungated does not make shutdown ungated.
+    check("shutting down still asks at the desk",
+          guard._needs_local_confirmation("power_control", ["shutdown"], {}),
+          contains="shut down")
+    check("  and so does force-closing an app",
+          bool(guard._needs_local_confirmation("close_app", ["photoshop"], {})), True)
 
     check("the allow-list carries the screen functions",
           {"screen_frame", "screen_input", "screen_size"} <= guard.ALLOWED, True)

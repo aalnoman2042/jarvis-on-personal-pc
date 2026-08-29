@@ -17,20 +17,26 @@ restarting, or force-killing an app also has to get past a dialog box on the
 desk. It costs one click, and it means nothing irreversible happens to this PC
 without something on this PC agreeing.
 
-**Remote control is the exception the other two rules cannot cover, so it gets
-its own.** A mouse and a keyboard are every action at once: an allow-list of
-named functions means nothing when one of those functions is "click here", and
-a per-action dialog would ask fifty times a minute. So permission is asked once
-per run of this agent, for the whole capability, in the same box — and refusing
-is remembered too, so a "no" cannot be worn down by asking again. Restarting
-the agent is what re-opens the question.
+**Remote control does NOT ask, and that is Rohan's decision rather than an
+oversight.** A mouse and a keyboard are every action at once, so this is the one
+capability the allow-list cannot meaningfully constrain — and the argument for a
+dialog was that the reach is unusually wide. His answer: installing the agent on
+his own machine, and pairing it to his own phone with his own PIN, IS the
+permission. A box that appears on the desk every time the agent restarts is a
+box that gets clicked without reading, which buys nothing and costs an
+interruption. The concern was raised before this was built; this is the owner
+overruling it, knowingly.
 
-Watching is not driving. `screen_frame` is read-only and no more revealing than
-`take_screenshot`, which has never asked, so only input is gated.
+`VONDO_ASK_BEFORE_REMOTE=1` puts the dialog back, and the machinery is left
+intact rather than deleted so that switch is one variable and not a rewrite.
+
+Watching was never gated at all. `screen_frame` is read-only and no more
+revealing than `take_screenshot`, which has never asked.
 """
 from __future__ import annotations
 
 import ctypes
+import os
 import threading
 
 from core.lazy import PC_FUNCTIONS
@@ -52,7 +58,13 @@ _IDYES = 6
 
 _dialog_lock = threading.Lock()
 
-# Remote control, decided once per run of this agent. None means not yet asked.
+# Whether to put a box on the desk before the first remote click. OFF by
+# default: on his own PC, paired to his own phone with his own PIN, Rohan has
+# already said yes to this three times. Set VONDO_ASK_BEFORE_REMOTE=1 to be
+# asked once per run of the agent.
+ASK_BEFORE_REMOTE = os.getenv("VONDO_ASK_BEFORE_REMOTE", "").strip() in ("1", "true", "yes")
+
+# The decision for this run. None means not yet asked.
 # A refusal sticks: a gate that re-asks every thirty seconds is one that gets
 # clicked through eventually, which is the opposite of a gate.
 _remote_allowed: bool | None = None
@@ -66,6 +78,8 @@ def remote_control_allowed() -> bool | None:
 
 def _ask_about_remote_control() -> bool:
     global _remote_allowed
+    if not ASK_BEFORE_REMOTE:
+        return True
     with _remote_lock:
         if _remote_allowed is not None:
             return _remote_allowed

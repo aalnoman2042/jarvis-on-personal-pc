@@ -20,11 +20,16 @@ died, and there is nothing left behind to clean up.
 """
 from __future__ import annotations
 
+import os
 import sys
 
 # Global, so it also catches a copy started from another folder or another
 # drive letter. Two agents in two checkouts is still two agents.
-_NAME = "Global\\VONDO_PC_AGENT_SINGLE_INSTANCE"
+#
+# Overridable for exactly the reason VONDO_AGENT_TOKEN_FILE is: the test suite
+# starts a REAL agent, and a machine-wide lock held by the real one stops the
+# tests dead — which is what happened the first time this shipped.
+_NAME = os.getenv("VONDO_AGENT_LOCK") or "Global\\VONDO_PC_AGENT_SINGLE_INSTANCE"
 
 _ERROR_ALREADY_EXISTS = 183
 _handle = None
