@@ -1142,6 +1142,21 @@ try:
     del os.environ["VONDO_BRAIN_2"]
     check("  and a malformed one is skipped, not crashed on",
           config.extra_brains(), [])
+
+    # And it says WHY, in shapes and counts. Exactly the problem mail.diagnose
+    # exists for: the chain reads "groq+gemini+free" whether the variable was
+    # never set, was named slightly differently, or was set and unparseable —
+    # and from outside the server those are indistinguishable, so each guess
+    # costs a dashboard edit and a redeploy.
+    os.environ["VONDO_BRAIN_1"] = "sk-or-v1-justthekeyandnothingelseatall"
+    d = config.brains_diagnosis()
+    only = [x for x in d["detail"] if x["name"] == "VONDO_BRAIN_1"][0]
+    check("the diagnosis counts the fields", only["fields"], 1)
+    check("  and says how many were wanted", only["expected_fields"], 4)
+    check("  and notices there is no URL", only["has_url"], False)
+    check("  and reports the key as a LENGTH, never a value",
+          only["key_length"] > 20 and "sk-or" not in json.dumps(d), True)
+    os.environ.pop("VONDO_BRAIN_1", None)
     for key, was in saved.items():
         if was is None:
             os.environ.pop(key, None)

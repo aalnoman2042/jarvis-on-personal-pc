@@ -1,5 +1,6 @@
 """VONDO configuration — loaded from a .env file (see .env.example)."""
 import os
+import re
 from dotenv import load_dotenv
 
 # Always read the .env at the top of the repo, no matter which folder the
@@ -105,6 +106,44 @@ MEMORY_MAX_FACTS = int(os.getenv("MEMORY_MAX_FACTS", "12"))
 # a hosting dashboard by hand, and a comma instead of a pipe or a stray quote
 # should not read as "no brain configured".
 EXTRA_BRAIN_SLOTS = 9
+
+
+def brains_diagnosis() -> dict:
+    """Why a configured brain did not make it into the chain.
+
+    Exactly the same problem `mail.diagnose` exists for, and it bit in exactly
+    the same way: the chain says "groq+gemini+free" whether VONDO_BRAIN_1 was
+    never set, was named something slightly different, or was set and could not
+    be parsed — and from outside the server those are indistinguishable. Each
+    guess costs a dashboard edit and a redeploy.
+
+    Counts and shapes only. Never a value, never a fragment of one, and the key
+    field is reported as a length so "did I paste the whole thing" is
+    answerable without the thing itself ever leaving the machine.
+    """
+    names = sorted(k for k in os.environ if k.startswith("VONDO_BRAIN_"))
+    detail = []
+    for name in names:
+        raw = (os.environ.get(name) or "").strip().strip('"').strip("'")
+        parts = [p.strip() for p in raw.replace(",", "|").split("|") if p.strip()]
+        numbered = bool(re.fullmatch(r"VONDO_BRAIN_[1-9]", name))
+        url = next((p for p in parts if p.startswith("http")), "")
+        detail.append({
+            "name": name,
+            "read_by_vondo": numbered,   # VONDO_BRAIN_10 or VONDO_BRAINS are not
+            "empty": not raw,
+            "fields": len(parts),
+            "expected_fields": 4,
+            "has_url": bool(url),
+            "url": url,                  # not a secret, and the usual mistake
+            "key_length": max((len(p) for p in parts
+                               if p and not p.startswith("http")), default=0),
+        })
+    return {
+        "names_found": names,
+        "brains_parsed": [b[0] for b in extra_brains()],
+        "detail": detail,
+    }
 
 
 def extra_brains() -> list[tuple[str, str, str, str]]:

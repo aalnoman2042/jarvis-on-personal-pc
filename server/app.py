@@ -345,6 +345,11 @@ async def me(device: dict = Depends(caller)):
         "assistant": config.ASSISTANT_NAME,
         "user": config.USER_TITLE,
         "facts": memory.facts(),
+        # Why a configured brain is missing from the chain. Shapes and counts
+        # only — no key ever leaves the machine. Present always rather than
+        # only on failure, because "is my third fallback actually there" is
+        # not a question you should have to redeploy to answer.
+        "brains": config.brains_diagnosis(),
         # What it has learned about how to read HIM, as opposed to facts
         # ABOUT him. Shown because something that silently changes the
         # assistant's behaviour and cannot be inspected is not something
