@@ -54,6 +54,24 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
   // that: left running it transcribes the reply, and a reply containing the
   // word "Jarvis" wakes it again — a loop that is very hard to get out of.
   const [speaking, setSpeaking] = useState(false);
+
+  // One number every self-fetching panel keys on. Each panel loads its own data
+  // — the briefing, the week, the papers, the board — which is right, but it
+  // means "the screen is stale" has as many fixes as there are panels, and a
+  // browser reload is the only thing that does all of them. Bumping this does
+  // the same without throwing away the socket, the conversation log or the
+  // queue of things waiting to be sent.
+  const [refresh, setRefresh] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshAll = useCallback(() => {
+    setRefreshing(true);
+    setRefresh((n) => n + 1);
+    // Long enough to read as an action having happened. Panels resolve at
+    // their own pace and a spinner that vanishes before the eye catches it
+    // reads as the button doing nothing.
+    window.setTimeout(() => setRefreshing(false), 900);
+  }, []);
   const ears = useWakeWord({
     enabled: false,          // opt in; an always-on mic is never a default
     speaking,
@@ -132,6 +150,14 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
         )}
         {/* Muting is one tap and it is remembered. Jarvis reading answers aloud
             is the point on a phone and an ambush in a quiet room. */}
+        <button
+          className={`gear${refreshing ? " gear-busy" : ""}`}
+          onClick={refreshAll}
+          aria-label="Refresh everything"
+          title="Reload the board, the briefing, the week and the shelf"
+        >
+          <span aria-hidden>&#8635;</span>
+        </button>
         <button className="gear" onClick={() => setOpen("search")}
                 aria-label="Search everything">
           <span aria-hidden>&#8981;</span>
@@ -185,6 +211,7 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
 
       <main className="stage">
         <Dashboard
+          refresh={refresh}
           token={token}
           jarvis={jarvis}
           voice={voice}
@@ -211,7 +238,8 @@ function Hud({ token, onForget }: { token: string; onForget: () => void }) {
         <Search token={token} onClose={() => setOpen("none")} />
       )}
       {open === "settings" && (
-        <Settings token={token} onClose={() => setOpen("none")} onSignOut={onForget} />
+        <Settings token={token} refresh={refresh}
+                  onClose={() => setOpen("none")} onSignOut={onForget} />
       )}
       {open === "screen" && (
         <Screen token={token} onClose={() => setOpen("none")} />

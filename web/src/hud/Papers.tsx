@@ -33,7 +33,7 @@ function size(bytes: number): string {
   return `${bytes}B`;
 }
 
-export function Papers({ token }: { token: string }) {
+export function Papers({ token, refresh }: { token: string; refresh?: number }) {
   const [docs, setDocs] = useState<Doc[] | null>(null);
   const [pending, setPending] = useState(0);
   const [blocked, setBlocked] = useState("");
@@ -41,7 +41,7 @@ export function Papers({ token }: { token: string }) {
   const [problem, setProblem] = useState("");
   const picker = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async () => {
+  const reload = useCallback(async () => {
     try {
       const data = await documents(token);
       setDocs(data.documents);
@@ -52,9 +52,11 @@ export function Papers({ token }: { token: string }) {
     }
   }, [token]);
 
+  // `refresh` is the app-wide tick from the refresh button; `reload` is
+  // this panel's own fetch. Both belong in the deps.
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    reload();
+  }, [reload, refresh]);
 
   async function take(file: File | undefined) {
     if (!file) return;
@@ -62,7 +64,7 @@ export function Papers({ token }: { token: string }) {
     setBusy(file.name);
     try {
       const result = await fileDocument(token, file);
-      await refresh();
+      await reload();
       setProblem(result.why || "");
     } catch (err) {
       // The interesting failure is a scan — pictures of a page rather than a
@@ -115,7 +117,7 @@ export function Papers({ token }: { token: string }) {
                 className="linkish label paper-drop"
                 onClick={async () => {
                   await forgetDocument(token, d.id);
-                  refresh();
+                  reload();
                 }}
                 aria-label={`Forget ${d.name}`}
               >

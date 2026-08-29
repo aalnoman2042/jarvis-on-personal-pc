@@ -855,6 +855,64 @@ button.chip-hot:hover { color: var(--ground); background: var(--accent); }
   color: var(--warn);
 }
 
+/* ---------- a board that reads as instruments ----------
+   Every rule here is tied to something being genuinely live. Telemetry only
+   started streaming over the socket today; before that the dials held one
+   value from whenever /me was last fetched, and animating a number that never
+   moved would have been decoration pretending to be data. Now it moves. */
+
+/* The ring eases to its new value instead of jumping. A jump reads as a
+   redraw; a sweep reads as a measurement changing, which is what it is. */
+.dial-fill {
+  transition: stroke-dasharray 700ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              stroke 400ms linear;
+}
+
+/* The figure gets the faintest lift so it sits above its own ring rather than
+   inside it. Restrained on purpose: cyan is this theme's live colour and an
+   accent used everywhere stops being one. */
+.dial-number {
+  text-shadow: 0 0 18px rgba(90, 200, 250, 0.18);
+}
+
+/* The refresh control, spinning only while it is actually doing something. */
+.gear-busy span {
+  display: inline-block;
+  animation: gear-spin 900ms cubic-bezier(0.35, 0, 0.25, 1);
+}
+@keyframes gear-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Panels lift very slightly under a pointer. Pointer only — on a touchscreen
+   :hover sticks after a tap and the panel you last touched stays raised, which
+   reads as a bug rather than a flourish. */
+@media (hover: hover) and (pointer: fine) {
+  .panel {
+    transition: border-color 260ms ease, transform 260ms ease;
+  }
+  .panel:hover {
+    border-color: var(--line);
+    transform: translateY(-1px);
+  }
+}
+
+/* The free-space line under the dials: an actual number to act on, where the
+   percentage is only a feeling. */
+.pc-free {
+  margin: var(--s2) 0 0;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/* Every animation on this board is a nicety, and a nicety that fights an
+   accessibility preference is a fault. */
+@media (prefers-reduced-motion: reduce) {
+  .dial-fill,
+  .panel { transition: none; }
+  .gear-busy span { animation: none; }
+}
+
 /* ---------- listening ----------
    Three readings, because "is it hearing me" is the only question anyone has
    about an always-on microphone. Off is the resting grey of every other icon;

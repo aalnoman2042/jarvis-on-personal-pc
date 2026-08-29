@@ -40,8 +40,9 @@ function brainLine(name: string): { title: string; note: string } {
   return { title: lead || "unknown", note: BRAIN_NOTES[lead] || "" };
 }
 
-export function Settings({ token, onClose, onSignOut }: {
+export function Settings({ token, refresh, onClose, onSignOut }: {
   token: string;
+  refresh?: number;
   onClose: () => void;
   onSignOut: () => void;
 }) {
@@ -61,7 +62,7 @@ export function Settings({ token, onClose, onSignOut }: {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, refresh]);
 
   async function forget(fragment: string) {
     setBusy(true);

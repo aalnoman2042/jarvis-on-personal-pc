@@ -978,6 +978,23 @@ settings is a second drawer behind the gear. The socket is held by `App.tsx`
 above all three, so opening or closing a drawer never drops the connection or
 loses the log.
 
+**Telemetry is pushed, not polled.** The HUD has handled a `telemetry` frame
+since it was written and `ws_agent`'s docstring has listed one since it was
+written — and nothing ever sent one. So `jarvis.telemetry` was permanently
+empty and the dials fell back to whatever `/me` last saw, which only changes
+when the settings screen is opened. The agent's frames are now relayed to open
+client sockets, and only when one is open.
+
+**Storage is reported too** — percentage *and* free gigabytes, because "29%
+used" is readable at a glance and tells you nothing about whether you can
+install something.
+
+**One refresh button, not one per panel.** Every panel fetches its own data,
+which is right, but it made "the screen is stale" have as many fixes as there
+are panels and a browser reload the only thing that did all of them. A single
+tick that every self-fetching panel keys on does the same without throwing away
+the socket, the log, or the queue of things waiting to be sent.
+
 **Nothing on the board is estimated.** A reading that has not arrived draws as a
 dash, never as zero — zero is a reading and nothing is not, and an invented
 figure rendered as a precise gauge makes the true numbers beside it

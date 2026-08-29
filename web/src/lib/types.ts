@@ -14,6 +14,8 @@ export interface Telemetry {
   battery?: number;
   charging?: boolean;
   ts?: number;
+  disk?: number;
+  disk_free_gb?: number;
 }
 
 /** One thing in the diary: a reminder, a deadline, an exam. */

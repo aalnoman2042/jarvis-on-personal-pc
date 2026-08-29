@@ -1095,6 +1095,16 @@ async def ws_agent(websocket: WebSocket):
                               bool(frame.get("ok", True)))
             elif kind == "telemetry":
                 agent.telemetry = {k: v for k, v in frame.items() if k != "type"}
+                # And on to whoever is watching. The HUD has handled a
+                # "telemetry" frame since it was written and this docstring has
+                # listed one since it was written, but nothing ever sent one —
+                # so `jarvis.telemetry` was permanently empty and the gauges
+                # fell back to whatever /me last saw, which only changes when
+                # the settings screen is opened. Costs nothing when no phone is
+                # open: sending to an empty set of sockets is a no-op.
+                if nudges.listeners.count():
+                    await nudges.listeners.send(
+                        {"type": "telemetry", **agent.telemetry})
             # anything else is ignored rather than fatal: an agent from a newer
             # version may send frames this server has never heard of.
     except WebSocketDisconnect:

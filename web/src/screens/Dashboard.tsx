@@ -79,7 +79,9 @@ function Clock() {
   );
 }
 
-export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
+export function Dashboard({ refresh, token, jarvis, voice, onOpenChat, onSettings }: {
+  /** Bumped by the refresh button, so every panel reloads together. */
+  refresh: number;
   token: string;
   jarvis: Vondo;
   voice: Voice;
@@ -125,7 +127,7 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
     // a conversation that just changed them — "remind me on the 18th" appears in
     // UP NEXT without a manual refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, answers]);
+  }, [token, answers, refresh]);
 
   // Live telemetry beats whatever /me last saw; /me is the fallback for the
   // moment before the first frame arrives.
@@ -134,6 +136,8 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
   const cpu = live.cpu ?? pc?.telemetry?.cpu;
   const memory = live.memory ?? pc?.telemetry?.memory;
   const battery = live.battery ?? pc?.telemetry?.battery;
+  const disk = live.disk ?? pc?.telemetry?.disk;
+  const diskFree = live.disk_free_gb ?? pc?.telemetry?.disk_free_gb;
   const upcoming = info?.upcoming ?? [];
   const hour = new Date().getHours();
   const name = info?.user || "";
@@ -157,8 +161,8 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
         </button>
       )}
 
-      <Brief token={token} tick={answers} />
-      <Weekly token={token} />
+      <Brief token={token} tick={answers + refresh} />
+      <Weekly token={token} refresh={refresh} />
 
       <section className="hero">
         <div className="hero-reactor">
@@ -223,10 +227,19 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
               <div className="dials">
                 <Dial label="CPU" value={cpu} />
                 <Dial label="Memory" value={memory} />
+                <Dial label="Disk" value={disk} />
                 {typeof battery === "number" && (
                   <Dial label="Battery" value={battery} invert />
                 )}
               </div>
+              {/* The gigabytes, not just the percentage. "29% used" is
+                  readable at a glance and tells you nothing about whether you
+                  can install something; 106GB free does. */}
+              {typeof diskFree === "number" && (
+                <p className="muted small mono pc-free">
+                  {diskFree}GB free
+                </p>
+              )}
             </>
           ) : (
             <>
@@ -285,7 +298,7 @@ export function Dashboard({ token, jarvis, voice, onOpenChat, onSettings }: {
 
         <Mail token={token} />
 
-        <Papers token={token} />
+        <Papers token={token} refresh={refresh} />
 
         <Vision token={token} />
 

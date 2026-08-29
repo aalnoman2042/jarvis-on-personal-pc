@@ -26,7 +26,7 @@ type Figures = {
   conversations: number;
 };
 
-export function Weekly({ token }: { token: string }) {
+export function Weekly({ token, refresh }: { token: string; refresh?: number }) {
   const [text, setText] = useState("");
   const [figures, setFigures] = useState<Figures | null>(null);
   const [open, setOpen] = useState(false);
@@ -52,7 +52,7 @@ export function Weekly({ token }: { token: string }) {
        after every turn because today's diary can change mid-conversation; a
        look-back at the last seven days cannot meaningfully move while you are
        talking, and refetching it each turn is seven queries for nothing. */
-  }, [token]);
+  }, [token, refresh]);
 
   function dismiss() {
     setOpen(false);

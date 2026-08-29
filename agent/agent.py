@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import random
 import sys
 import time
@@ -92,6 +93,16 @@ def _snapshot() -> dict:
     try:
         out["cpu"] = psutil.cpu_percent(interval=None)   # since the last call
         out["memory"] = psutil.virtual_memory().percent
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        # The system drive, because "how much room is left" is a question about
+        # where things get saved rather than about every mounted volume. Both
+        # numbers: a percentage is readable at a glance and gigabytes are what
+        # you act on — 8% free means nothing until you know it is 40GB.
+        disk = psutil.disk_usage(os.path.abspath(os.sep))
+        out["disk"] = round(disk.percent, 1)
+        out["disk_free_gb"] = round(disk.free / (1024 ** 3), 1)
     except Exception:  # noqa: BLE001
         pass
     try:
