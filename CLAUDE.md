@@ -96,6 +96,53 @@ Recalled text goes in the **system prompt**, never as extra messages — injecti
 old exchanges as real turns is the fastest way to build the non-alternating
 history providers reject.
 
+**Meaning-based recall is `core/memory/vectors.py`, and the floor is the load
+bearing part.** FTS5 is keyword matching however carefully the query is built:
+*"what did I say about power disaggregation"* shares not one content word with
+the conversation about NILM that answers it, so the word floor above refuses it
+— correctly, on the evidence it has. So every worthwhile exchange and every fact
+also carries a Gemini embedding, and a question is compared against those by
+cosine. FTS5 is not replaced; the two find different things.
+
+- **The floor was measured, not guessed.** Gemini's embeddings sit high — two
+  texts about nothing in common still score ~0.52, so "similarity above a half"
+  recalls rubbish on every query. Against Rohan's real archive, true matches
+  land at 0.68-0.74. Hence **0.65**. Re-measure before changing the model; do
+  not nudge it because one query missed.
+- **Short vague messages are attractors.** "what is", "example", "open it" mean
+  almost nothing and are therefore close to almost everything — "anything about
+  my schedule" pulled back "what is" at 0.62. The floor stops them, and
+  `worth_embedding` keeps most out of the index in the first place. Those are
+  different jobs: the filter saves the API call and the storage, the floor saves
+  the precision. Only the floor is load bearing.
+- **Nothing is embedded on the write path.** `add_turn` must not wait on Google
+  to store a sentence, and an embedding outage must not become a memory outage.
+  `backfill()` fills rows in afterwards from the sweeper and from `/tick` — the
+  latter because a free instance that sleeps has no sweeper running. Facts go
+  first in each batch or messages, which arrive continuously and outnumber them,
+  would starve them for ever.
+- **A skipped row gets an empty vector, not no row.** Otherwise every pass picks
+  up the same fragments, spends the batch deciding to ignore them again, and
+  never reaches anything useful.
+- **The model name is stored beside the vector.** Two models' vectors are not
+  comparable and mixing them produces confident nonsense rather than an error, so
+  a change of model invalidates the old rows instead of poisoning the results.
+- **int8, not float32** — a quarter of the size, which is what the cold start
+  pays for over HTTPS to Turso. Measured against float32 on the real archive it
+  returns the same rows above the floor on every query tried; worst similarity
+  error 0.006.
+- `numpy` is the one dependency this added. Hand-rolling the float maths over a
+  few thousand vectors costs about a second per question, which a turn does not
+  have.
+
+**Two searches, no shared scale, so `recall` interleaves them.** Appending the
+meaning hits behind the keyword hits was the first attempt and it buried the good
+one: asked about "power disaggregation" the prompt led with an exchange that
+merely contained "power", and pushed the conversation actually about the subject
+past the character budget. bm25 and cosine measure different things in different
+units, so neither list can be declared better — but each is ordered well within
+itself, and a hit only one of them found is exactly the hit worth keeping.
+
 **Searching everything is `core/memory/find.py`, and bm25 is a shortlist, not a
 score.** FTS5 ranks messages against each other well and against nothing else:
 its numbers are negative, corpus-dependent and unbounded, so putting one beside

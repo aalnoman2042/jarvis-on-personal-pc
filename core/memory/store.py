@@ -126,6 +126,19 @@ CREATE TABLE IF NOT EXISTS tasks (
     asked_at REAL NOT NULL DEFAULT 0       -- when it was last chased
 );
 
+-- An embedding per message and per fact, so a question can be answered from
+-- something that shares no words with it. `model` sits beside the vector
+-- because two models' vectors are not comparable and mixing them produces
+-- confident nonsense rather than an error. See core/memory/vectors.py.
+CREATE TABLE IF NOT EXISTS vectors (
+    kind   TEXT NOT NULL,          -- 'message' | 'fact'
+    ref_id INTEGER NOT NULL,
+    model  TEXT NOT NULL,
+    vec    TEXT NOT NULL,          -- base64 of int8, a quarter of float32
+    ts     REAL NOT NULL,
+    PRIMARY KEY (kind, ref_id)
+);
+
 -- People, and how to reach them.
 --
 -- A number was a sentence in `facts` before, which meant "call dad" depended on

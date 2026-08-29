@@ -461,7 +461,8 @@ try:
     print("\n=== 9. the wake-up call a sleeping free tier needs ===")
     r = httpx.post(f"{BASE}/tick")
     check("/tick answers without a token", r.status_code, 200)
-    check("  and says what it did", set(r.json()), {"ok", "delivered", "listening"})
+    check("  and says what it did", set(r.json()),
+          {"ok", "delivered", "embedded", "listening"})
 
     print("\n=== 10. the week, counted rather than guessed ===")
     from core import weekly  # noqa: E402
@@ -541,6 +542,120 @@ try:
     conn.execute("DELETE FROM messages")
     conn.commit()
     check("an empty week says nothing at all", weekly.compose(), "")
+
+    print("\n=== 11. finding things whose words do not match ===")
+    from core.memory import vectors, recall as recall_mod  # noqa: E402
+
+    # Offline throughout: a fixed toy embedding stands in for Google, so this
+    # costs no quota and cannot go red because a free tier ran out overnight.
+    # The numbers are chosen so the similarities are known in advance.
+    AXES = {
+        "nilm":     [1.0, 0.0, 0.0, 0.0],
+        "supervisor": [0.0, 1.0, 0.0, 0.0],
+        "keyboard": [0.0, 0.0, 1.0, 0.0],
+        "nothing":  [0.0, 0.0, 0.0, 1.0],
+    }
+
+    def fake_embed(texts, query=False):
+        out = []
+        for text in texts:
+            low = (text or "").lower()
+            vec = [0.0, 0.0, 0.0, 0.0]
+            for i, word in enumerate(("nilm", "supervisor", "keyboard")):
+                if word in low:
+                    vec[i] = 1.0
+            # A paraphrase leans mostly the right way, which is what a real
+            # embedding does and what the floor has to cope with.
+            if "disaggregation" in low:
+                vec[0] += 0.9
+            if "report to" in low:
+                vec[1] += 0.9
+            if not any(vec):
+                vec = list(AXES["nothing"])
+            norm = sum(v * v for v in vec) ** 0.5
+            out.append([v / norm for v in vec])
+        return out
+
+    real_embed, real_available = vectors.embed, vectors.available
+    vectors.embed = fake_embed
+    vectors.available = lambda: vectors._numpy() is not None
+
+    conn = store_mod.connect()
+    conn.execute("DELETE FROM messages")
+    conn.execute("DELETE FROM vectors")
+    conn.commit()
+    vectors._cache.clear()
+    vectors._loaded = False
+
+    memory.add_turn("I am working on NILM for the thesis and it keeps overfitting",
+                    "Try dropout on the dense layers.", brain="test")
+    memory.add_turn("my supervisor prefers email to phone calls",
+                    "Noted, email rather than phone.", brain="test")
+    memory.add_turn("bought a mechanical keyboard with brown switches",
+                    "Good choice.", brain="test")
+
+    check("nothing is embedded on the write path", len(vectors._cache), 0)
+    check("  and the archive knows what it still owes", vectors.pending() >= 3, True)
+    check("the sweep fills it in", vectors.backfill(10) >= 3, True)
+    check("  and then has nothing left to do", vectors.pending(), 0)
+
+    # The whole point: a question sharing no content word with the answer.
+    hits = vectors.search("what did I say about power disaggregation")
+    check("a paraphrase finds the exchange it means", len(hits) >= 1, True)
+    if hits:
+        row = conn.execute("SELECT user FROM messages WHERE id = ?",
+                           (hits[0]["id"],)).fetchone()
+        check("  and it is the right one", row["user"], contains="NILM")
+
+    check("something unrelated finds nothing at all",
+          vectors.search("recipe for lasagne"), [])
+
+    # recall must put the meaning hit where it will actually be read.
+    found = recall_mod.find("who do I report to")
+    check("recall reaches it through meaning", len(found) >= 1, True)
+    if found:
+        check("  and does not bury it", found[0]["user"], contains="supervisor")
+
+    # Two searches, no shared scale, so neither may crowd the other out.
+    woven = recall_mod._interleave(
+        [{"ts": 1, "user": "word one"}, {"ts": 2, "user": "word two"}],
+        [{"ts": 3, "user": "meaning one"}])
+    check("the two searches take turns",
+          [h["user"] for h in woven], ["word one", "meaning one", "word two"])
+    check("  and the same row is never listed twice",
+          len(recall_mod._interleave([{"ts": 9, "user": "same"}],
+                                     [{"ts": 9, "user": "same"}])), 1)
+
+    # Fragments are not worth an API call, and commands are not memories.
+    check("a real question is worth indexing",
+          vectors.worth_embedding("when is my exam",
+                                  "Your exam is on the 18th of September."), True)
+    check("  a bare fragment is not", vectors.worth_embedding("what is", "Sorry?"), False)
+    check("  and a command never is",
+          vectors.worth_embedding("open youtube", "Opening YouTube for you now."), False)
+    check("a skipped row is not reconsidered every pass",
+          vectors.pending(), 0)
+
+    # int8 must not change which rows come back.
+    sample = fake_embed(["nilm"])[0]
+    check("the stored form survives the round trip",
+          [round(float(x), 2) for x in vectors._unpack(vectors._pack(sample))],
+          [round(v, 2) for v in sample])
+
+    # And with no embedding at all, recall must behave exactly as it used to.
+    vectors.available = lambda: False
+    vectors.embed = lambda texts, query=False: [None] * len(texts)
+    check("no embedding service means no meaning hits",
+          vectors.search("what did I say about power disaggregation"), [])
+    check("  and keyword recall still works",
+          len(recall_mod.find("what did I say about NILM")) >= 1, True)
+    check("  and the sweep asks for nothing", vectors.backfill(5), 0)
+
+    vectors.embed, vectors.available = real_embed, real_available
+    conn.execute("DELETE FROM messages")
+    conn.execute("DELETE FROM vectors")
+    conn.commit()
+    vectors._cache.clear()
 
 finally:
     server.should_exit = True

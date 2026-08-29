@@ -687,7 +687,12 @@ async def tick():
     every few minutes is what keeps a 7am reminder possible at all.
     """
     sent = await nudges.deliver_due()
-    return {"ok": True, "delivered": sent, "listening": nudges.listeners.count()}
+    # The same pass the sweeper makes. A free instance that spends most of its
+    # life asleep would otherwise never finish embedding the archive, because
+    # the only thing that ever runs on it is this request.
+    embedded = await nudges.catch_up()
+    return {"ok": True, "delivered": sent, "embedded": embedded,
+            "listening": nudges.listeners.count()}
 
 
 # ---------------------------------------------------------------------------

@@ -138,17 +138,98 @@ def find(text: str, skip_recent: int = 0, limit: int = MAX_HITS) -> list[dict]:
     query = query_for(text)
     if not query:
         return []
-    hits = store.search(query, limit=limit + skip_recent + 4)
-    if not hits:
-        return []
+
+    wanted = terms(text)
+    # Keyword hits, filtered by the word floor as they always have been.
+    by_word = [h for h in store.search(query, limit=limit + skip_recent + 4)
+               if _relevant(h, wanted)]
+
+    # And the ones no keyword could have found. This is the whole point: "what
+    # did I say about power disaggregation" shares not one word with the
+    # conversation that answers it, so the word floor above would refuse it —
+    # correctly, on the evidence it has. A meaning hit clears a different bar,
+    # measured in core/memory/vectors.py, and is trusted on that instead.
+    by_meaning = _by_meaning(text, limit)
+
+    kept = _interleave(by_word, by_meaning)
 
     if skip_recent:
         recent = store.recent(skip_recent)
         seen = {(r.get("ts"), (r.get("user") or "")[:60]) for r in recent}
-        hits = [h for h in hits
+        kept = [h for h in kept
                 if (h.get("ts"), (h.get("user") or "")[:60]) not in seen]
 
-    return [h for h in hits if _relevant(h, terms(text))][:limit]
+    return kept[:limit]
+
+
+def _same(a: dict, b: dict) -> bool:
+    return (a.get("ts") == b.get("ts")
+            and (a.get("user") or "")[:60] == (b.get("user") or "")[:60])
+
+
+def _interleave(by_word: list[dict], by_meaning: list[dict]) -> list[dict]:
+    """One list from two searches, taking turns.
+
+    NOT one after the other, which is what this did first and was wrong. The
+    keyword list is longer and arrives first, so appending meaning hits behind
+    it buried the good one: asked about "power disaggregation", the prompt led
+    with an exchange that merely contained the word "power" and pushed the
+    conversation actually about the subject down past the character budget.
+
+    Taking turns is the honest arrangement, because there is no shared scale to
+    sort by. bm25 and cosine measure different things in different units — the
+    mistake `find.py` exists to warn about — so neither list can be declared
+    better than the other. What can be said is that each is ordered well within
+    itself, and that a hit only one of them found is exactly the hit worth
+    keeping. Alternating preserves both orderings and lets neither starve the
+    other.
+    """
+    out: list[dict] = []
+    for pair in zip(by_word, by_meaning):
+        for hit in pair:
+            if not any(_same(hit, seen) for seen in out):
+                out.append(hit)
+    for rest in (by_word[len(by_meaning):], by_meaning[len(by_word):]):
+        for hit in rest:
+            if not any(_same(hit, seen) for seen in out):
+                out.append(hit)
+    return out
+
+
+def _by_meaning(text: str, limit: int) -> list[dict]:
+    """Exchanges close in meaning, whatever words they used.
+
+    Imported here rather than at module level: `vectors` reaches back into this
+    module for the stopword list and the folding, and importing it at the top
+    would be a cycle. It is also the honest shape — meaning-based recall is an
+    optional extra over keyword recall, and this file must keep working when it
+    is not there at all.
+    """
+    try:
+        from core.memory import vectors
+    except Exception:  # noqa: BLE001
+        return []
+    rows = vectors.search(text, limit=limit)
+    if not rows:
+        return []
+    conn = store.connect()
+    if conn is None:
+        return []
+    out: list[dict] = []
+    for row in rows:
+        if row["kind"] != "message":
+            continue
+        try:
+            got = conn.execute(
+                "SELECT ts, user, assistant FROM messages WHERE id = ?",
+                (row["id"],)).fetchone()
+        except Exception:  # noqa: BLE001
+            continue
+        if got:
+            hit = dict(got)
+            hit["similarity"] = row["similarity"]
+            out.append(hit)
+    return out
 
 
 def _relevant(hit: dict, wanted: list[str]) -> bool:

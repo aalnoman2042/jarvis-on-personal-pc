@@ -13,6 +13,13 @@ psutil>=5.9.0              # the server's own health, not the PC's
 # against it. On Rohan's PC this is unused: db.py falls back to plain sqlite3.
 libsql-client>=0.3.1
 
+# --- meaning-based recall ---
+# The one honest way to compare a query against thousands of stored vectors in
+# the few milliseconds a turn can spare. Hand-rolling the float maths to save a
+# dependency would cost roughly a second per question. Platform-neutral, no
+# desktop anything, so it does not break the rule this file exists for.
+numpy>=1.26.0
+
 # --- the API ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0  # includes the websocket implementation

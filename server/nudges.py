@@ -84,6 +84,23 @@ def _frame(item: dict) -> dict:
     }
 
 
+async def catch_up() -> int:
+    """Give meaning-based recall a little more of the archive to work with.
+
+    Deliberately here and not on the write path. Embedding inside `add_turn`
+    would make storing a sentence wait on Google, and would turn an embedding
+    outage into a memory outage; doing it in the sweep costs a turn nothing and
+    an interruption only means the index is a few rows behind for a while.
+
+    One small batch per pass, in a worker thread because it is a blocking HTTP
+    call and this loop shares an event loop with the sockets.
+    """
+    from core.memory import vectors
+    if not vectors.available():
+        return 0
+    return await run_in_threadpool(vectors.backfill)
+
+
 async def deliver_due() -> int:
     """Send anything that has come due. Returns how many were put on the wire.
 
@@ -149,6 +166,10 @@ async def loop(stop: asyncio.Event) -> None:
             await deliver_due()
         except Exception:  # noqa: BLE001  (a bad row must not end the loop)
             log.exception("reminder sweep failed")
+        try:
+            await catch_up()
+        except Exception:  # noqa: BLE001
+            log.exception("embedding sweep failed")
         # Waiting on the event rather than sleeping means shutdown is immediate
         # instead of taking up to a full interval.
         with contextlib.suppress(asyncio.TimeoutError):
