@@ -1148,8 +1148,22 @@ try:
     # never set, was named slightly differently, or was set and unparseable —
     # and from outside the server those are indistinguishable, so each guess
     # costs a dashboard edit and a redeploy.
+    # A provider whose key names it does not need to be told its own address.
+    # Same reasoning as mail.KNOWN_HOSTS: typing a URL correctly into a hosting
+    # dashboard is a surprising amount of the failure surface, and for a key
+    # starting "sk-or-" there is exactly one right answer.
+    os.environ["VONDO_BRAIN_1"] = "sk-or-v1-abcdefghijklmnop|meta/llama:free"
+    os.environ.pop("VONDO_BRAIN_2", None)
+    short = config.extra_brains()
+    check("a key and a model is enough", len(short), 1)
+    check("  the provider is read off the key", short[0][0], "openrouter")
+    check("  and so is its address", short[0][1], contains="openrouter.ai")
+
     os.environ["VONDO_BRAIN_1"] = "sk-or-v1-justthekeyandnothingelseatall"
     d = config.brains_diagnosis()
+    check("a key with no model is not silently dropped",
+          [x for x in d["detail"]
+           if x["name"] == "VONDO_BRAIN_1"][0]["provider_guess"], "openrouter")
     only = [x for x in d["detail"] if x["name"] == "VONDO_BRAIN_1"][0]
     check("the diagnosis counts the fields", only["fields"], 1)
     check("  and says how many were wanted", only["expected_fields"], 4)

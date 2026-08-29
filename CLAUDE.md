@@ -639,8 +639,20 @@ the OS. That was worth checking before adding a dependency.
 ending at the offline one. `groq -> gemini -> free` by default.
 
 **More brains before the offline one, and that is the answer to "what happens
-when my free tier runs out".** `VONDO_BRAIN_1=name|url|key|model` adds any
-OpenAI-compatible provider to the chain — Cerebras, OpenRouter, Together,
+when my free tier runs out".** `VONDO_BRAIN_1=<key>|<model>` adds any
+OpenAI-compatible provider to the chain — the name and the URL are read off the
+key's own shape (`sk-or-` is OpenRouter, `csk-` is Cerebras), which is
+`mail.KNOWN_HOSTS` reasoning applied to a second dashboard: typing a URL
+correctly is a surprising amount of the failure surface, and for a key with a
+known prefix there is exactly one right answer. The full `name|url|key|model`
+form still works for anything unrecognised.
+
+`config.brains_diagnosis()`, surfaced in `/me`, says why a configured brain did
+not make the chain — field counts, whether a URL is present, the key as a
+LENGTH. It exists because the chain read `groq+gemini+free` whether the variable
+was unset, misnamed or unparseable, and each guess cost a dashboard edit and a
+redeploy. Exactly what `mail.diagnose` is for, and it found the answer in one
+request: one field where four were wanted. — Cerebras, OpenRouter, Together,
 Mistral and most others speak that protocol, so a third and fourth free tier is
 a line of configuration rather than a new file. `core/brains/brain_openai.py`
 is `GroqBrain`'s shape with the endpoint moved into config; **GroqBrain itself

@@ -108,6 +108,28 @@ MEMORY_MAX_FACTS = int(os.getenv("MEMORY_MAX_FACTS", "12"))
 EXTRA_BRAIN_SLOTS = 9
 
 
+# A provider recognisable from the shape of its own key. The same idea as
+# mail.KNOWN_HOSTS and for the same measured reason: typing a URL correctly
+# into a hosting dashboard is a surprising amount of the failure surface, and
+# for a key beginning "sk-or-v1-" there is exactly one right answer. It means
+# the variable can be `KEY|model` instead of `name|url|KEY|model`, which halves
+# the number of things there are to get wrong.
+KEY_SHAPES = (
+    ("sk-or-", "openrouter", "https://openrouter.ai/api/v1"),
+    ("csk-", "cerebras", "https://api.cerebras.ai/v1"),
+    ("gsk_", "groq", "https://api.groq.com/openai/v1"),
+    ("nvapi-", "nvidia", "https://integrate.api.nvidia.com/v1"),
+)
+
+
+def _guess_provider(key: str) -> tuple[str, str]:
+    """(name, base_url) for a key whose shape gives it away, else ("", "")."""
+    for prefix, name, url in KEY_SHAPES:
+        if key.startswith(prefix):
+            return (name, url)
+    return ("", "")
+
+
 def brains_diagnosis() -> dict:
     """Why a configured brain did not make it into the chain.
 
@@ -138,6 +160,10 @@ def brains_diagnosis() -> dict:
             "url": url,                  # not a secret, and the usual mistake
             "key_length": max((len(p) for p in parts
                                if p and not p.startswith("http")), default=0),
+            # Named from the key's own shape, so the message can say "I know
+            # who this is, I just need the model" instead of "malformed".
+            "provider_guess": next(
+                (_guess_provider(p)[0] for p in parts if _guess_provider(p)[0]), ""),
         })
     return {
         "names_found": names,
@@ -154,6 +180,23 @@ def extra_brains() -> list[tuple[str, str, str, str]]:
         if not raw:
             continue
         parts = [p.strip() for p in raw.replace(",", "|").split("|") if p.strip()]
+
+        # The full form is name|url|key|model. Anything shorter is worked out
+        # from what IS there rather than refused: the commonest mistake by far
+        # is pasting the key and nothing else, and a provider whose key shape
+        # names it does not need to be told its own address.
+        key = next((p for p in parts if _guess_provider(p)[0]), "")
+        if key and len(parts) < 4:
+            name, url = _guess_provider(key)
+            model = next((p for p in parts if p is not key and "/" in p
+                          or p.endswith(":free")), "")
+            if not model:
+                print(f"[VONDO_BRAIN_{slot}: I recognise the {name} key but "
+                      f"still need a model — set it to  {key[:6]}...|<model>]")
+                continue
+            out.append((name, url, key, model))
+            continue
+
         if len(parts) < 4:
             print(f"[VONDO_BRAIN_{slot} is malformed; expected "
                   f"name|url|key|model, got {len(parts)} field(s)]")
