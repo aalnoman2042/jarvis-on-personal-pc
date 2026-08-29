@@ -169,7 +169,11 @@ class OllamaBrain:
             # moment ago is already in play — no restart needed. History is
             # sized to whatever context is actually left after the persona and
             # the tool list, so it can never push the persona out.
-            prompt = memory.system_prompt()
+            # WITH the utterance: system_prompt() alone still carries facts,
+            # the diary and the date, but the recall block is built from what
+            # was just said, so calling it bare quietly cost this brain every
+            # memory older than the rolling window.
+            prompt = memory.system_prompt(text)
             self._messages = memory.as_openai(
                 prompt, text, max_chars=_history_budget(prompt)
             )

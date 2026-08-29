@@ -178,7 +178,12 @@ class FreeBrain:
         # --- Close app ---
         m = re.search(r"(?:close|quit|kill|exit)\s+(.+)", t)
         if m:
-            return actions.close_app(m.group(1).replace(" app", "").strip())
+            # Through llm_tools, not actions. Closing by name force-kills every
+            # window that app owns, unsaved work and all, and llm_tools.close_app
+            # is where that gets a question first. Going straight to actions
+            # skipped it — so the brain that answers when everything else has
+            # failed was the one brain that never asked.
+            return llm_tools.close_app(m.group(1).replace(" app", "").strip())
 
         # --- Open app / website ---
         m = re.search(r"open\s+(.+)", t)

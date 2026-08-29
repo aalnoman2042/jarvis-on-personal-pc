@@ -169,7 +169,17 @@ written for things that have not happened, so it renders a sentence spoken this
 morning as "later today at 3pm", which reads as Jarvis losing track of which way
 time runs.
 
-**Every brain must build its prompt through `memory.system_prompt(text)`.**
+**Every brain must build its prompt through `memory.system_prompt(text)`, and
+two of them were not.** Claude passed the module-level `SYSTEM_PROMPT` — the
+persona alone, no facts, no diary, no tasks, no contacts, no recall — so the
+*paid* brain knew Jarvis's manner and nothing whatever about Rohan. Ollama
+called `system_prompt()` with no argument, which keeps the facts and the date
+but silently drops the recall block, since that is built from what was just
+said. Both are the same bug recorded below for Gemini, and both survived because
+neither brain is exercised in normal use. `test_server.py` section 10 now reads
+the source of all three, because a brain that needs an unavailable SDK or a
+paid key cannot be tested any other way — and the untestable one is exactly
+where a regression hides.
 Groq rebuilds it per turn. Gemini did not: `system_instruction` is fixed when
 the chat is created, and it was built from `config.system_prompt()` — the
 persona *without* facts, diary, date or recall. So Gemini knew Jarvis's manner
@@ -180,10 +190,13 @@ not let a live chat's system instruction change and rebuilding the chat would
 throw away its history.
 
 **Known gap:** the action log is written by wrapping `DISPATCH` in
-`core/tools/llm_tools.py`, which covers Groq, Ollama and Claude. Gemini calls
-`TOOL_FUNCTIONS` directly and its schema generator introspects each callable, so
-wrapping those risks emitting `(*args, **kwargs)` schemas. Gemini's tool calls
-are therefore unlogged; close it inside the Gemini brain's own call path.
+`core/tools/llm_tools.py`. That covers Groq and Ollama and **not** the other
+three, which is wider than this note used to claim: Gemini calls
+`TOOL_FUNCTIONS` directly (its schema generator introspects each callable, so
+wrapping those risks emitting `(*args, **kwargs)` schemas), Claude declares its
+own `@beta_tool` functions and bypasses `DISPATCH` entirely, and `FreeBrain`
+calls `actions.*` in most branches. So three brains of five leave no trace of
+what they did. Close it in each brain's own call path, not by wrapping harder.
 
 ## The cloud core (phase 02)
 

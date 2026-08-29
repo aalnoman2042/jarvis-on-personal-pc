@@ -243,7 +243,62 @@ try:
     check("  and carries the origin header back",
           real.headers.get("access-control-allow-origin"), "https://localhost")
 
-    print("\n=== 10. the lockout, last, because it shuts this address out ===")
+    print("\n=== 10. the parts that were silently doing the wrong thing ===")
+
+    # /look and /listen had no coverage at all, which is how a typed question
+    # could be dropped for months without anyone noticing: the request still
+    # succeeded and still returned a perfectly good description of something
+    # nobody had asked about.
+    import inspect  # noqa: E402
+    from fastapi import params as fastapi_params  # noqa: E402
+    from server.app import look as look_route  # noqa: E402
+
+    spec = inspect.signature(look_route).parameters["question"]
+    check("a typed question to /look is read from the body, not the query",
+          isinstance(spec.default, fastapi_params.Form), True)
+
+    # Sending it the way the HUD does must reach eyes.look unchanged.
+    import core.eyes as eyes_mod  # noqa: E402
+    asked = {}
+    real_look = eyes_mod.look
+    eyes_mod.look = lambda data, question="", name="": (
+        asked.update({"q": question}) or "a picture of something")
+    try:
+        httpx.post(f"{BASE}/look", headers=auth_phone,
+                   files={"clip": ("x.jpg", b"not-a-real-jpeg", "image/jpeg")},
+                   data={"question": "what does this error say"}, timeout=30)
+    finally:
+        eyes_mod.look = real_look
+    check("  and arrives at the vision model as asked",
+          asked.get("q"), "what does this error say")
+
+    # Every brain must build its prompt through memory, or it knows the persona
+    # and nothing about Rohan. Read as TEXT rather than imported: the paid brain
+    # needs the anthropic SDK, which is deliberately not installed, and the one
+    # brain nobody can exercise is exactly the one a regression hides in.
+    def source(path):
+        return open(os.path.join(ROOT, path), encoding="utf-8").read()
+
+    claude = source("core/brains/brain_claude.py")
+    check("the paid brain builds its prompt from memory",
+          "memory.system_prompt(text)" in claude, True)
+    check("  and not from the bare persona", "system=SYSTEM_PROMPT" in claude, False)
+
+    check("the local brain passes the utterance, so recall happens",
+          "memory.system_prompt(text)" in source("core/brains/brain_ollama.py"), True)
+    check("  and never asks for the prompt without it",
+          "memory.system_prompt()" in source("core/brains/brain_ollama.py"), False)
+
+    # The offline brain is the one still answering when everything else has
+    # failed. It was also the one force-killing apps without asking.
+    offline = source("core/brains/brain_free.py")
+    check("the offline brain force-closes through the confirm gate",
+          "llm_tools.close_app(" in offline, True)
+    check("  and never straight past it", "actions.close_app(" in offline, False)
+
+
+
+    print("\n=== 11. the lockout, last, because it shuts this address out ===")
     detail = ""
     for _ in range(6):
         detail = httpx.post(f"{BASE}/login", json={"pin": "0000", "name": "attacker"}).json()["detail"]

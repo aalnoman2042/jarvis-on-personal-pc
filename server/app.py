@@ -32,8 +32,8 @@ import logging
 import os
 import time
 
-from fastapi import (Depends, FastAPI, File, Header, HTTPException, Request,
-                     UploadFile, WebSocket, WebSocketDisconnect)
+from fastapi import (Depends, FastAPI, File, Form, Header, HTTPException,
+                     Request, UploadFile, WebSocket, WebSocketDisconnect)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -559,7 +559,13 @@ async def read_mail(days: int = 2, device: dict = Depends(caller)):
 
 @app.post("/look")
 async def look(clip: UploadFile = File(...),
-               question: str = "",
+               # Form(...), not a bare default. A plain `str = ""` beside an
+               # UploadFile is read as a QUERY parameter, and the HUD sends this
+               # in the multipart body — so every typed question was silently
+               # dropped and DEFAULT_PROMPT answered instead. Silently: the
+               # request succeeded and returned a perfectly good description of
+               # something you had not asked about.
+               question: str = Form(default=""),
                device: dict = Depends(caller)):
     """An image in, a description out — the honest version of the face panel.
 

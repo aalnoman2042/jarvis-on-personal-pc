@@ -12,6 +12,7 @@ from anthropic import beta_tool
 
 from core.lazy import actions
 from core import config
+from core import memory
 
 
 # ---- PC-control actions exposed to Claude as tools ----------------------------
@@ -133,6 +134,7 @@ class ClaudeBrain:
             )
         self._client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
         self._messages: list[dict] = []
+        self._prompt = SYSTEM_PROMPT      # replaced per turn; see handle()
 
     def greeting(self) -> str:
         return config.greeting()
@@ -145,13 +147,24 @@ class ClaudeBrain:
 
         self._messages.append({"role": "user", "content": text})
 
+        # Rebuilt every turn, like Groq's. It has to be per turn rather than per
+        # session: the recall block is built from what was just said, and a fact
+        # remembered a moment ago has to be in play without a restart.
+        self._prompt = memory.system_prompt(text)
+
         # Run the tool-use loop, restarting on pause_turn (long web searches).
         last = None
         for _ in range(6):  # cap restarts
             runner = self._client.beta.messages.tool_runner(
                 model=config.CLAUDE_MODEL,
                 max_tokens=1024,
-                system=SYSTEM_PROMPT,
+                # memory.system_prompt(text), never the bare constant. The
+                # module-level SYSTEM_PROMPT is the persona alone — no facts,
+                # no diary, no tasks, no contacts, no recall — so the PAID brain
+                # knew Jarvis's manner and nothing whatever about Rohan. Exactly
+                # the bug already recorded as fixed for Gemini, sitting in the
+                # one brain nobody exercises because it costs money.
+                system=self._prompt,
                 tools=CLIENT_TOOLS + SERVER_TOOLS,
                 output_config={"effort": "low"},  # snappy replies for voice
                 messages=self._messages,
